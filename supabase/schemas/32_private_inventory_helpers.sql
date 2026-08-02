@@ -11,6 +11,24 @@ CREATE OR REPLACE FUNCTION private.reservation_remaining(p_reservation_id uuid)
  STABLE
  SET search_path TO ''
 AS $function$
-  select pg_catalog.round(quantity_m - consumed_m - released_m, 3)
+  select pg_catalog.round(quantity_m - consumed_m - released_m - damaged_reserved_m, 3)
   from core.fabric_reservations where id = p_reservation_id;
+$function$;
+
+CREATE OR REPLACE FUNCTION private.roll_balance(p_roll_id uuid)
+ RETURNS TABLE(on_hand_m numeric, reserved_m numeric, available_m numeric)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO ''
+AS $function$
+  with agg as (
+    select
+      pg_catalog.round(coalesce(sum(m.quantity_m * e.on_hand_sign),  0), 3) as oh,
+      greatest(0,
+        pg_catalog.round(coalesce(sum(m.quantity_m * e.reserved_sign), 0), 3)) as rs
+    from core.stock_movements m
+    join core.movement_effects e on e.type = m.type
+    where m.roll_id = p_roll_id
+  )
+  select oh, rs, greatest(0, pg_catalog.round(oh - rs, 3)) from agg;
 $function$;

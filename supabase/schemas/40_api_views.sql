@@ -143,11 +143,12 @@ SELECT res.id AS reservation_id,
     res.quantity_m,
     res.consumed_m,
     res.released_m,
-    round(res.quantity_m - res.consumed_m - res.released_m, 3) AS outstanding_m,
+    round(res.quantity_m - res.consumed_m - res.released_m - res.damaged_reserved_m, 3) AS outstanding_m,
     res.status,
     res.created_by,
     res.created_at,
-    res.released_at
+    res.released_at,
+    res.damaged_reserved_m
    FROM core.fabric_reservations res
      JOIN core.fabric_rolls r ON r.id = res.roll_id
      JOIN core.fabric_variants v ON v.id = r.variant_id;
@@ -495,25 +496,11 @@ create or replace view api.roll_balances
   with (security_invoker = on) as
 SELECT m.roll_id,
     m.organization_id,
-    round(sum(
-        CASE
-            WHEN m.type = ANY (ARRAY['receipt'::core.movement_type, 'return'::core.movement_type, 'adjustment_in'::core.movement_type, 'transfer_in'::core.movement_type]) THEN m.quantity_m
-            WHEN m.type = ANY (ARRAY['consumption'::core.movement_type, 'damage'::core.movement_type, 'adjustment_out'::core.movement_type, 'transfer_out'::core.movement_type]) THEN - m.quantity_m
-            ELSE 0::numeric
-        END), 3) AS on_hand_m,
-    round(GREATEST(0::numeric, sum(
-        CASE
-            WHEN m.type = 'reservation'::core.movement_type THEN m.quantity_m
-            WHEN m.type = 'reservation_release'::core.movement_type THEN - m.quantity_m
-            WHEN m.type = 'consumption'::core.movement_type THEN - m.quantity_m
-            ELSE 0::numeric
-        END)), 3) AS reserved_m,
-    round(sum(
-        CASE
-            WHEN m.type = 'consumption'::core.movement_type THEN m.quantity_m
-            ELSE 0::numeric
-        END), 3) AS consumed_m
+    round(COALESCE(sum(m.quantity_m * e.on_hand_sign::numeric), 0::numeric), 3) AS on_hand_m,
+    GREATEST(0::numeric, round(COALESCE(sum(m.quantity_m * e.reserved_sign::numeric), 0::numeric), 3)) AS reserved_m,
+    round(COALESCE(sum(m.quantity_m) FILTER (WHERE m.type = ANY (ARRAY['consumption'::core.movement_type, 'overconsumption'::core.movement_type])), 0::numeric), 3) AS consumed_m
    FROM core.stock_movements m
+     JOIN core.movement_effects e ON e.type = m.type
   GROUP BY m.roll_id, m.organization_id;
 
 create or replace view api.rooms
@@ -535,8 +522,8 @@ SELECT m.id AS movement_id,
     m.type,
     m.quantity_m,
         CASE
-            WHEN m.type = ANY (ARRAY['receipt'::core.movement_type, 'return'::core.movement_type, 'adjustment_in'::core.movement_type, 'transfer_in'::core.movement_type]) THEN 'in'::text
-            WHEN m.type = ANY (ARRAY['consumption'::core.movement_type, 'damage'::core.movement_type, 'adjustment_out'::core.movement_type, 'transfer_out'::core.movement_type]) THEN 'out'::text
+            WHEN e.on_hand_sign > 0 THEN 'in'::text
+            WHEN e.on_hand_sign < 0 THEN 'out'::text
             ELSE 'hold'::text
         END AS direction,
     m.project_id,
@@ -544,8 +531,10 @@ SELECT m.id AS movement_id,
     m.reason,
     m.created_by,
     p.full_name AS created_by_name,
-    m.created_at
+    m.created_at,
+    m.operation_group_id
    FROM core.stock_movements m
+     JOIN core.movement_effects e ON e.type = m.type
      JOIN core.fabric_rolls r ON r.id = m.roll_id
      LEFT JOIN core.profiles p ON p.id = m.created_by;
 

@@ -6,8 +6,15 @@
 import type { FabricReservation, MovementType, StockMovement, UUID } from '@/types/domain';
 import { round3 } from './pricing';
 
+// مرآة core.movement_effects في الخادم — المصدر المرجعي هناك، وأي تعديل يبدأ منه.
 const ON_HAND_IN: MovementType[] = ['receipt', 'return', 'adjustment_in', 'transfer_in'];
-const ON_HAND_OUT: MovementType[] = ['consumption', 'damage', 'adjustment_out', 'transfer_out'];
+const ON_HAND_OUT: MovementType[] = [
+  'consumption',
+  'overconsumption',
+  'damage',
+  'adjustment_out',
+  'transfer_out',
+];
 
 export interface RollBalance {
   onHandM: number;
@@ -49,6 +56,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   reservation: 'حجز',
   reservation_release: 'فك حجز',
   consumption: 'استهلاك',
+  overconsumption: 'استهلاك زائد',
   return: 'إرجاع',
   damage: 'تلف',
   adjustment_in: 'تسوية دخول',
@@ -82,7 +90,13 @@ export function canReserve(quantityM: number, balance: RollBalance): ReserveChec
 
 export function canConsume(quantityM: number, reservation: FabricReservation): ReserveCheck {
   if (!(quantityM > 0)) return { ok: false, error: 'الكمية يجب أن تكون أكبر من صفر.' };
-  const outstanding = round3(reservation.quantityM - reservation.consumedM);
+  // مرآة private.reservation_remaining: الأصلي − المستهلك − المحرَّر − التالف
+  const outstanding = round3(
+    reservation.quantityM -
+      reservation.consumedM -
+      (reservation.releasedM ?? 0) -
+      (reservation.damagedReservedM ?? 0),
+  );
   if (quantityM > outstanding + 0.0001) {
     return {
       ok: false,

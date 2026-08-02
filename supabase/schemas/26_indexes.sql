@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الفهارس (32)
+-- الفهارس (33)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -31,6 +31,7 @@ CREATE INDEX reservations_project_idx ON core.fabric_reservations USING btree (o
 CREATE INDEX reservations_roll_open_idx ON core.fabric_reservations USING btree (organization_id, roll_id) WHERE (status = ANY (ARRAY['active'::core.reservation_status, 'partially_consumed'::core.reservation_status]));
 CREATE INDEX rolls_variant_idx ON core.fabric_rolls USING btree (organization_id, variant_id) WHERE (retired_at IS NULL);
 CREATE INDEX rooms_project_idx ON core.rooms USING btree (organization_id, project_id, sort_order);
+CREATE INDEX stock_movements_operation_group_idx ON core.stock_movements USING btree (operation_group_id) WHERE (operation_group_id IS NOT NULL);
 CREATE INDEX tailor_assignments_tailor_idx ON core.tailor_assignments USING btree (organization_id, tailor_id, stage);
 CREATE INDEX usage_reservation_idx ON core.fabric_usage USING btree (organization_id, reservation_id);
 CREATE INDEX variants_product_idx ON core.fabric_variants USING btree (organization_id, product_id) WHERE (archived_at IS NULL);

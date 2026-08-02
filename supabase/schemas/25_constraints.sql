@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- القيود والمفاتيح (144)
+-- القيود والمفاتيح (146)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -61,6 +61,8 @@ ALTER TABLE ONLY core.field_visits
     ADD CONSTRAINT field_visits_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.field_visits
     ADD CONSTRAINT field_visits_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.movement_effects
+    ADD CONSTRAINT movement_effects_pkey PRIMARY KEY (type);
 ALTER TABLE ONLY core.notifications
     ADD CONSTRAINT notifications_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.notifications
@@ -269,6 +271,8 @@ ALTER TABLE ONLY core.stock_movements
     ADD CONSTRAINT stock_movements_organization_id_reservation_id_fkey FOREIGN KEY (organization_id, reservation_id) REFERENCES core.fabric_reservations(organization_id, id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.stock_movements
     ADD CONSTRAINT stock_movements_organization_id_roll_id_fkey FOREIGN KEY (organization_id, roll_id) REFERENCES core.fabric_rolls(organization_id, id) ON DELETE RESTRICT;
+ALTER TABLE ONLY core.stock_movements
+    ADD CONSTRAINT stock_movements_type_effects_fk FOREIGN KEY (type) REFERENCES core.movement_effects(type);
 ALTER TABLE ONLY core.tailor_assignments
     ADD CONSTRAINT tailor_assignments_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.tailor_assignments

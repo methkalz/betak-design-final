@@ -50,6 +50,7 @@ CREATE TYPE core.movement_type AS ENUM (
     'reservation',
     'reservation_release',
     'consumption',
+    'overconsumption',
     'return',
     'damage',
     'adjustment_in',

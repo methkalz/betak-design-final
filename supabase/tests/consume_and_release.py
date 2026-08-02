@@ -50,12 +50,13 @@ def check(name, ok, detail=''):
 
 
 def balances():
+    # يشتق من core.movement_effects — المصدر المركزي — فلا تتقادم نسخة يدوية هنا
     out = sql(f"""select
-      round(coalesce(sum(case when type in ('receipt','return','adjustment_in','transfer_in') then quantity_m
-        when type in ('consumption','damage','adjustment_out','transfer_out') then -quantity_m else 0 end),0),3),
-      greatest(0, round(coalesce(sum(case when type='reservation' then quantity_m
-        when type in ('reservation_release','consumption') then -quantity_m else 0 end),0),3))
-      from core.stock_movements where roll_id='{ROLL}';""")
+      round(coalesce(sum(m.quantity_m * e.on_hand_sign),0),3),
+      greatest(0, round(coalesce(sum(m.quantity_m * e.reserved_sign),0),3))
+      from core.stock_movements m
+      join core.movement_effects e on e.type = m.type
+      where m.roll_id='{ROLL}';""")
     nums = [t for t in out.replace('|', ' ').split() if t.replace('.', '').replace('-', '').isdigit()]
     oh, rs = float(nums[0]), float(nums[1])
     return oh, rs, max(0.0, round(oh - rs, 3))
@@ -164,9 +165,25 @@ check('★ الزيادة خفضت on_hand و available معًا', oh == 45.0 an
 check('★ reserved صار 0 — ولم تأكل الزيادة من حجز آخر', rs == 0.0, f'reserved={rs}')
 
 mv = sql(f"""select type, quantity_m from core.stock_movements
-  where roll_id='{ROLL}' and type in ('consumption','adjustment_out') order by created_at;""")
-check('  حركتان منفصلتان: consumption 30 و adjustment_out 5',
-      'adjustment_out' in mv and ' 5.000' in mv, mv)
+  where roll_id='{ROLL}' and type in ('consumption','overconsumption') and quantity_m in (30,5)
+  order by created_at;""")
+check('  حركتان منفصلتان: consumption 30 و overconsumption 5',
+      'overconsumption' in mv and ' 5.000' in mv and 'adjustment_out' not in mv, mv)
+
+grp = sql(f"""select count(distinct operation_group_id) as groups,
+                     count(*) as rows,
+                     count(*) filter (where operation_group_id is null) as nulls
+  from core.stock_movements
+  where roll_id='{ROLL}' and type in ('consumption','overconsumption') and quantity_m in (30,5);""")
+gn = [t for t in grp.replace('|', ' ').split() if t.isdigit()]
+check('  الحركتان تحملان operation_group_id نفسه',
+      gn[:3] == ['1', '2', '0'], grp)
+
+oc = sql(f"""select (reservation_id is not null)::text || '|' ||
+                    (length(btrim(reason)) > 0)::text || '|' ||
+                    (project_id is not null)::text
+  from core.stock_movements where roll_id='{ROLL}' and type='overconsumption';""")
+check('  overconsumption تحمل الحجز والمشروع والسبب', 'true|true|true' in oc, oc)
 
 r2 = as_user(TLR, f"select api.consume_fabric('{RES2}',35,'{K(6)}','خطأ قص');")
 check('8) إعادة نفس المفتاح تعيد النتيجة', '"was_replayed": true' in r2.replace(' :', ':'), r2)
@@ -175,6 +192,59 @@ check('  لم يُنشأ سجل استهلاك ثانٍ', ' 3' in c, c)
 
 r = as_user(TLR, f"select api.consume_fabric('{RES2}',1,'{K(6)}','آخر');")
 check('9) نفس المفتاح بحمولة مختلفة يُرفض', 'بمدخلات مختلفة' in r, r)
+
+r = as_user(TLR, f"select api.consume_fabric('{RES2}',35,'{K(6)}','سبب آخر تمامًا');")
+check('9b) نفس المفتاح والكمية بسبب مختلف يُرفض (السبب في البصمة)',
+      'بمدخلات مختلفة' in r, r)
+
+sql(f"update core.projects set notes = notes || '.' where id='{PROJ}';")
+r = as_user(TLR, f"select api.consume_fabric('{RES2}',35,'{K(6)}','خطأ قص',1);")
+check('9c) إعادة طلب ناجح تعمل رغم تغيّر إصدار المشروع',
+      '"was_replayed": true' in r.replace(' :', ':'), r)
+
+print('\n=== دلالة planned_m لكل حدث ===')
+pm = sql(f"""select string_agg(planned_m::text, ',' order by created_at)
+  from core.fabric_usage where reservation_id='{RES1}';""")
+check('★ planned_m لكل حدث: 8 ثم 12 (لا 20 ثم 12)', '8.000,12.000' in pm, pm)
+
+ps = sql(f"select sum(planned_m) from core.fabric_usage where reservation_id='{RES1}';")
+check('★ Σplanned = المحجوز الأصلي (20)', '20.000' in ps, ps)
+
+po = sql(f"""select planned_m::text || '|' || actual_m::text || '|' || waste_m::text
+  from core.fabric_usage where reservation_id='{RES2}';""")
+check('★ صف الزيادة: planned 30 · actual 35 · waste 5 (actual = planned + waste)',
+      '30.000|35.000|5.000' in po, po)
+
+print('\n=== سلامة movement_effects مفروضة لا متفق عليها ===')
+cov = sql("""select count(*) from unnest(enum_range(null::core.movement_type)) t
+  where not exists (select 1 from core.movement_effects e where e.type = t);""")
+check('كل قيمة enum لها صف في movement_effects', ' 0' in cov, cov)
+
+fk = sql("""select count(*) from pg_constraint
+  where conname = 'stock_movements_type_effects_fk' and contype = 'f';""")
+check('قيد FK من stock_movements.type إلى movement_effects قائم', ' 1' in fk, fk)
+
+print('\n=== damaged_reserved_m — الـinvariant الموسّع ===')
+DMG = 'cccc0000-0000-4000-8000-0000000000f9'
+sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
+values ('{DMG}','{ORG}','{PROJ}','{ROLL}',10,'{ADMIN}');
+insert into core.stock_movements (organization_id,roll_id,type,quantity_m,project_id,reservation_id,created_by,idempotency_key)
+values ('{ORG}','{ROLL}','reservation',10,'{PROJ}','{DMG}','{ADMIN}',gen_random_uuid());
+update core.fabric_reservations set damaged_reserved_m = 4 where id='{DMG}';""")
+
+rem = sql(f"select private.reservation_remaining('{DMG}');")
+check('التالف يدخل في حساب المتبقي (10 − 4 = 6)', ' 6.000' in rem, rem)
+
+r = as_user(ADMIN, f"select api.release_reservation('{DMG}',7,'فائض','{K(40)}');")
+check('التحرير محدود بالمتبقي بعد التلف (7 > 6 يُرفض)', 'أكبر من المتبقي' in r, r)
+
+viol = sql(f"update core.fabric_reservations set consumed_m = 7 where id='{DMG}';")
+check('قيد invariant يرفض consumed+released+damaged > quantity',
+      'reservation_balance_invariant' in viol, viol)
+
+r = as_user(ADMIN, f"select api.release_reservation('{DMG}',6,'إغلاق بعد تلف','{K(41)}');")
+check('تحرير كامل المتبقي بعد تلف → الحالة consumed لا released',
+      '"reservation_status": "consumed"' in r.replace(' :', ':'), r)
 
 print('\n=== 11) فشل التدقيق يسبب تراجعًا كاملًا ===')
 sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
@@ -211,6 +281,18 @@ check('6) idempotency replay', '"was_replayed": true' in r2.replace(' :', ':'), 
 
 r = as_user(ADMIN, f"select api.release_reservation('{RES3}',2,'تغيير تصميم','{K(20)}');")
 check('7) payload mismatch يُرفض', 'بمدخلات مختلفة' in r, r)
+
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'سبب مختلف','{K(20)}');")
+check('7b) نفس المفتاح والكمية بسبب مختلف يُرفض', 'بمدخلات مختلفة' in r, r)
+
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'تغيير تصميم','{K(20)}','ملاحظة جديدة');")
+check('7c) نفس المفتاح بملاحظات مختلفة يُرفض (الملاحظات في البصمة)',
+      'بمدخلات مختلفة' in r, r)
+
+sql(f"update core.projects set notes = notes || '.' where id='{PROJ}';")
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'تغيير تصميم','{K(20)}',null,1);")
+check('7d) إعادة تحرير ناجح تعمل رغم تغيّر إصدار المشروع',
+      '"was_replayed": true' in r.replace(' :', ':'), r)
 
 r = as_user(ADMIN, f"select api.release_reservation('{RES3}',6,'إلغاء','{K(22)}');")
 check('2) تحرير كامل للمتبقي', '"reservation_status": "released"' in r.replace(' :', ':'), r)

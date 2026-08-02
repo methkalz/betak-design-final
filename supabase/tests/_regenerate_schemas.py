@@ -35,7 +35,7 @@ print('generating schema files:')
 IDENTITY = ['private.current_uid', 'private.in_rpc']
 PERMS = ['private.is_org_member', 'private.role_in', 'private.has_role',
          'private.is_admin', 'private.is_financially_blind', 'private.can_see_project']
-INVHELP = ['private.reservation_remaining']
+INVHELP = ['private.reservation_remaining', 'private.roll_balance']
 GUARDS = ['private.block_mutation', 'private.block_delete',
           'private.guard_project_update', 'private.guard_locked_version',
           'private.guard_locked_items']
