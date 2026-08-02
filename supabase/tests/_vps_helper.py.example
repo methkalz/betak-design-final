@@ -1,0 +1,90 @@
+"""Reusable admin-SSH helper for the Qinova VPS (paramiko — the only reliable path on Windows).
+
+Usage:
+    from vps import run, creds
+    print(run('hostname && id'))
+
+Never prints secrets. Credentials are read from ~/.ssh/qinova_vps.env at call time.
+"""
+import os
+import sys
+import paramiko
+
+ENV_PATH = os.path.expanduser('~/.ssh/qinova_vps.env')
+MCP_KEY = os.path.expanduser('~/.ssh/supabase_mcp_vps')
+
+
+def load_creds():
+    with open(ENV_PATH) as fh:
+        return dict(
+            line.strip().split('=', 1)
+            for line in fh
+            if line.strip() and not line.startswith('#')
+        )
+
+
+creds = load_creds()
+
+
+def connect():
+    cli = paramiko.SSHClient()
+    cli.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    cli.connect(
+        creds['VPS_HOST'],
+        port=int(creds['VPS_PORT']),
+        username=creds['VPS_USER'],
+        password=creds['VPS_ROOT_PASSWORD'],
+        timeout=30,
+        banner_timeout=30,
+        auth_timeout=30,
+    )
+    return cli
+
+
+def run(cmd, timeout=180, check=False):
+    """Run one command on the VPS. Returns combined stdout+stderr text."""
+    cli = connect()
+    try:
+        _in, out, err = cli.exec_command(cmd, timeout=timeout)
+        stdout = out.read().decode('utf-8', 'replace')
+        stderr = err.read().decode('utf-8', 'replace')
+        rc = out.channel.recv_exit_status()
+    finally:
+        cli.close()
+    if check and rc != 0:
+        raise RuntimeError(f'exit {rc}\n{stdout}\n{stderr}')
+    text = stdout
+    if stderr.strip():
+        text += ('\n[stderr] ' + stderr if stdout else '[stderr] ' + stderr)
+    return text.rstrip()
+
+
+def put(local_path, remote_path):
+    """Upload a file over SFTP."""
+    cli = connect()
+    try:
+        sftp = cli.open_sftp()
+        sftp.put(local_path, remote_path)
+        size = sftp.stat(remote_path).st_size
+        sftp.close()
+    finally:
+        cli.close()
+    return size
+
+
+def put_text(text, remote_path):
+    """Write text straight to a remote file over SFTP (UTF-8, LF endings)."""
+    cli = connect()
+    try:
+        sftp = cli.open_sftp()
+        with sftp.open(remote_path, 'wb') as fh:
+            fh.write(text.replace('\r\n', '\n').encode('utf-8'))
+        size = sftp.stat(remote_path).st_size
+        sftp.close()
+    finally:
+        cli.close()
+    return size
+
+
+if __name__ == '__main__':
+    print(run(sys.argv[1] if len(sys.argv) > 1 else 'hostname && id'))

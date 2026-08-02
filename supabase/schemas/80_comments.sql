@@ -1,0 +1,52 @@
+-- ════════════════════════════════════════════════════════════════════
+-- التعليقات (45)
+-- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
+-- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
+-- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
+-- ════════════════════════════════════════════════════════════════════
+
+COMMENT ON SCHEMA core IS 'الجداول الأصلية. لا تعرض للعملاء إطلاقا — الوصول عبر api فقط.';
+COMMENT ON TABLE core.attachments IS 'الصف ينشأ بعد نجاح الرفع فقط. قبل ذلك الصورة في طابور الرفع على الجهاز.';
+COMMENT ON COLUMN core.attachments.storage_path IS 'المسار يبدأ بـ organization_id/ وتتحقق منه سياسات storage.objects.';
+COMMENT ON TABLE core.audit_logs IS 'غير قابل للتعديل. أي عملية مال أو مخزون أو خصم أو حالة رسمية تكتب صفا هنا.';
+COMMENT ON COLUMN core.audit_logs.actor_id IS 'يسمح بأن يكون null: العملية قد تنفذ من نظام أو مهمة مجدولة لا من مستخدم.';
+COMMENT ON TABLE core.profiles IS 'بيانات المستخدم العامة. المفتاح هو auth.users.id — لا كلمات سر ولا PIN هنا.';
+COMMENT ON COLUMN core.business_settings.vat_percent IS 'نسبة ض.ق.م. مصدر الحقيقة الوحيد — لا تكرر على core.organizations.';
+COMMENT ON TABLE core.client_operations IS 'دفتر الـidempotency. يقرأ في مستهل كل RPC حساس قبل تنفيذ أي أثر جانبي.';
+COMMENT ON COLUMN core.client_operations.result IS 'يعاد حرفيا عند تكرار نفس idempotency_key بدل إعادة تنفيذ العملية.';
+COMMENT ON COLUMN core.client_operations.payload IS 'بصمة مدخلات الطلب. إعادة استخدام المفتاح ببصمة مختلفة تُرفض بـBD400.';
+COMMENT ON COLUMN core.customers.archived_at IS 'الأرشفة تحل محل الحذف. لا DELETE على هذا الجدول في أي RPC.';
+COMMENT ON TABLE core.payments IS 'جدول مالي. لا UPDATE ولا DELETE — الرصيد = Σ amount_agorot بما فيه العكسيات.';
+COMMENT ON CONSTRAINT reversal_shape ON core.payments IS 'يمنع دفعة عادية بمبلغ سالب، ويمنع قيدا عكسيا يتيما بلا أصل.';
+COMMENT ON COLUMN core.projects.field_worker_id IS 'الربط المركب يضمن أن العامل المعين عضو في المؤسسة نفسها.';
+COMMENT ON COLUMN core.projects.lock_version IS 'قفل تفاؤلي. يرفض RPC الكتابة إذا تغيرت النسخة — يمنع الكتابة فوق تعديل غيرك.';
+COMMENT ON TABLE core.discount_requests IS 'الحد الأعلى المسموح يقرأ من business_settings — لا يثبت في قيد جدول.';
+COMMENT ON COLUMN core.fabric_products.kind IS 'يحدد فئة التسعير: crepe مقابل other. lining يعامل كبطانة لا كقماش رئيسي.';
+COMMENT ON TABLE core.fabric_reservations IS 'الحجز يمسك القماش دون إخراجه: available = on_hand − reserved.';
+COMMENT ON COLUMN core.fabric_reservations.quantity_m IS 'المحجوز الأصلي — ثابت لا يُنقص. الإنقاص يتم عبر consumed_m و released_m.';
+COMMENT ON COLUMN core.fabric_reservations.released_m IS 'المحرَّر تراكميًا. الـinvariant: quantity_m = consumed_m + released_m + remaining.';
+COMMENT ON CONSTRAINT reservation_balance_invariant ON core.fabric_reservations IS 'يفرض reserved_initial = consumed + released + remaining على مستوى المحرّك.';
+COMMENT ON TABLE core.fabric_rolls IS 'الرول قطعة مادية بلا عمود رصيد. مالك الـRPC يملك UPDATE على retired_at وحده — يكفي لـ SELECT … FOR UPDATE ولا يسمح بتعديل الكود أو الموقع أو الدفعة.';
+COMMENT ON COLUMN core.fabric_rolls.dye_lot IS 'دفعة الصبغ. اختلافها بين رولين مشروع واحد يوجب تحذيرا للمستخدم.';
+COMMENT ON COLUMN core.fabric_rolls.initial_meters IS 'الطول عند الاستلام، للتوثيق فقط. الرصيد الحالي يحسب من سجل الحركة.';
+COMMENT ON COLUMN core.fabric_variants.cost_per_meter_agorot IS 'حساس: تكلفة الجملة. يمنع ظهوره في أي view للأدوار field أو tailor.';
+COMMENT ON TABLE core.fabric_usage IS 'الفارق بين المخطط والفعلي. تجاوز الخطة يستوجب سببا ويولد إشعارا للأدمن.';
+COMMENT ON TABLE core.field_visits IS 'العامل الميداني يرى زياراته فقط — سياسة RLS تعتمد على assignee_id.';
+COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل للتعديل. لا UPDATE ولا DELETE — التصحيح بحركة معاكسة.';
+COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. لا تخزن كميات سالبة — النوع هو ما يحدد دخولا أم خروجا.';
+COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
+COMMENT ON TABLE core.organization_members IS 'مصدر الحقيقة للصلاحيات. private.is_org_member و private.has_role يقرآن من هنا.';
+COMMENT ON TABLE core.notifications IS 'إشعار لمستخدم بعينه. سياسة RLS: يرى المستخدم صفوفه هو فقط.';
+COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيانات العمل معلقة على هذا الجدول.';
+COMMENT ON TABLE core.pricing_rules IS 'سعر الزبون وأجرة الخياط لكل متر ركض. قابل للتعديل من الأدمن وحده.';
+COMMENT ON COLUMN core.pricing_rules.customer_price_per_meter_agorot IS 'بالأغورة. مثال: ₪290 = 29000.';
+COMMENT ON COLUMN core.pricing_rules.tailor_cost_per_meter_agorot IS 'حساس: أجرة الخياط جزء من التكلفة الداخلية. لا تعرض لدور field.';
+COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 330 = standard، و330 فأكثر = tall. فوق 500 يحتاج تسعيرة خاصة.';
+COMMENT ON COLUMN core.windows.fullness IS 'مضاعف الكرمشة. أمتار القماش = المتر الركض × fullness (domain/pricing.ts).';
+COMMENT ON TABLE core.quotation_items IS 'بنود مجمدة. لا تعدل بعد قفل النسخة — تنسخ إلى النسخة التالية بقيم جديدة.';
+COMMENT ON COLUMN core.quotation_items.internal_cost_agorot IS 'حساس: تكلفة البند الداخلية.';
+COMMENT ON COLUMN core.quotation_versions.internal_cost_agorot IS 'حساس: التكلفة الداخلية. تحذف من أي view لدور field أو tailor.';
+COMMENT ON COLUMN core.quotation_versions.margin_percent IS 'حساس: هامش الربح. قد يكون سالبا عند البيع بخسارة — لذا بلا قيد >= 0.';
+COMMENT ON COLUMN core.quotation_versions.locked IS 'العرض المرسل لقطة مجمدة. التعديل يعني نسخة جديدة، لا تحديثا.';
+COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
+COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';

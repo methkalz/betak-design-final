@@ -1,0 +1,62 @@
+# ============================================================================
+# بيتك ديزاين — إعداد Supabase المحلي
+#
+# ⚠️ لم يُنشأ بـ`supabase init` (الـCLI و Docker غير مثبَّتين بعد على جهاز
+# التطوير). عند أول `supabase init` ستُضاف أقسام كثيرة — احتفظ بقسم
+# [db.migrations] أدناه كما هو.
+# ============================================================================
+
+project_id = "baytak-design"
+
+[db]
+port = 54322
+major_version = 15   # يطابق الإنتاج: supabase/postgres:15.8.1.085
+
+[db.migrations]
+# ⚠️ الترتيب مقصود وحسّاس — لا تستبدله بـ"./schemas/*.sql".
+# ملفات المخطط التصريحي تُنفَّذ بالترتيب المذكور هنا، والاعتماديات ليست أبجدية:
+#   • private.can_see_project تستدعي private.role_in (تسبقها أبجديًا)
+#   • api.inventory_roll_balances تعتمد على api.roll_balances
+#   • سياسات RLS تستدعي private.has_role فيجب أن تأتي بعد دوال private
+# الملفات نفسها مرتَّبة داخليًا بترتيب الاعتماد لا الأبجدية.
+schema_paths = [
+  "./schemas/00_extensions_and_schemas.sql",
+  "./schemas/05_roles.sql",
+  "./schemas/10_types.sql",
+  "./schemas/20_core_tables.sql",
+  "./schemas/25_constraints.sql",
+  "./schemas/26_indexes.sql",
+  "./schemas/30_private_identity_functions.sql",
+  "./schemas/31_private_permission_functions.sql",
+  "./schemas/32_private_inventory_helpers.sql",
+  "./schemas/35_private_guard_functions.sql",
+  "./schemas/40_api_views.sql",
+  "./schemas/50_api_reserve_fabric.sql",
+  "./schemas/51_api_consume_fabric.sql",
+  "./schemas/52_api_release_reservation.sql",
+  "./schemas/60_rls_policies.sql",
+  "./schemas/70_triggers.sql",
+  "./schemas/80_comments.sql",
+]
+
+[api]
+enabled = true
+port = 54321
+# يطابق PGRST_DB_SCHEMAS على الإنتاج. بدون "api" لا يرى التطبيق شيئًا.
+schemas = ["public", "storage", "graphql_public", "api"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "baytakdesign://"
+additional_redirect_urls = ["baytakdesign://"]
+enable_signup = false          # الأدمن ينشئ الحسابات — انظر DECISIONS.md §2
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"

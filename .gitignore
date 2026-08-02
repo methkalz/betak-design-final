@@ -1,4 +1,22 @@
 node_modules
 .env
+.env.*
+!.env.example
 .expo
 .rork
+
+# أسرار التشغيل — لا تُرفع أبدًا
+qinova_vps.env
+supabase_mcp_vps
+*Operator-Runbook*.md
+.coolify_env
+
+# إعداد MCP — يكشف عنوان السيرفر ومستخدم root، والمستودع عام
+.mcp.json
+.claude/settings.local.json
+
+# مخلفات Python وأنظمة التشغيل والمحررات
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
