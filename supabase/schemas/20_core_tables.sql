@@ -243,7 +243,8 @@ CREATE TABLE core.fabric_usage (
     CONSTRAINT fabric_usage_planned_m_check CHECK ((planned_m >= (0)::numeric)),
     CONSTRAINT fabric_usage_waste_m_check CHECK ((waste_m >= (0)::numeric)),
     CONSTRAINT reason_required_for_waste CHECK (((waste_m = (0)::numeric) OR (length(btrim(reason)) > 0))),
-    CONSTRAINT reason_required_when_over_plan CHECK (((actual_m <= planned_m) OR (length(btrim(reason)) > 0)))
+    CONSTRAINT reason_required_when_over_plan CHECK (((actual_m <= planned_m) OR (length(btrim(reason)) > 0))),
+    CONSTRAINT usage_actual_equals_planned_plus_waste CHECK ((actual_m = (planned_m + waste_m)))
 );
 
 CREATE TABLE core.field_visits (
@@ -289,7 +290,7 @@ CREATE TABLE core.stock_movements (
     idempotency_key uuid NOT NULL,
     operation_group_id uuid,
     CONSTRAINT reason_required_for_exceptions CHECK (((type <> ALL (ARRAY['damage'::core.movement_type, 'adjustment_in'::core.movement_type, 'adjustment_out'::core.movement_type, 'overconsumption'::core.movement_type])) OR (length(btrim(reason)) > 0))),
-    CONSTRAINT reservation_required CHECK (((type <> ALL (ARRAY['reservation'::core.movement_type, 'reservation_release'::core.movement_type, 'consumption'::core.movement_type])) OR (reservation_id IS NOT NULL))),
+    CONSTRAINT reservation_required CHECK (((type <> ALL (ARRAY['reservation'::core.movement_type, 'reservation_release'::core.movement_type, 'consumption'::core.movement_type, 'overconsumption'::core.movement_type])) OR (reservation_id IS NOT NULL))),
     CONSTRAINT stock_movements_quantity_m_check CHECK ((quantity_m > (0)::numeric))
 );
 

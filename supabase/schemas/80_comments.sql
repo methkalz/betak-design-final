@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (50)
+-- التعليقات (52)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -33,12 +33,14 @@ COMMENT ON COLUMN core.fabric_rolls.initial_meters IS 'الطول عند الا�
 COMMENT ON COLUMN core.fabric_variants.cost_per_meter_agorot IS 'حساس: تكلفة الجملة. يمنع ظهوره في أي view للأدوار field أو tailor.';
 COMMENT ON TABLE core.fabric_usage IS 'الفارق بين المخطط والفعلي. تجاوز الخطة يستوجب سببا ويولد إشعارا للأدمن.';
 COMMENT ON COLUMN core.fabric_usage.planned_m IS 'لكل حدث استهلاك: الجزء المغطى بالحجز (لا «المتبقي قبل العملية»). actual_m = planned_m + waste_m لكل صف، و Σ(planned_m) ≤ quantity_m للحجز.';
+COMMENT ON CONSTRAINT usage_actual_equals_planned_plus_waste ON core.fabric_usage IS 'المعادلة الرسمية للصف-كحدث: actual = planned (المغطى بالحجز) + waste (الزيادة). مساواة دقيقة — الأعمدة numeric(12,3) والجمع عليها exact.';
 COMMENT ON TABLE core.field_visits IS 'العامل الميداني يرى زياراته فقط — سياسة RLS تعتمد على assignee_id.';
 COMMENT ON TABLE core.movement_effects IS 'المصدر الوحيد لأثر كل نوع حركة. مفروض بقيد FK من stock_movements.type — إضافة قيمة enum توجب صفًا هنا أولًا وإلا فشل الإدراج.';
 COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل للتعديل. لا UPDATE ولا DELETE — التصحيح بحركة معاكسة.';
 COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. لا تخزن كميات سالبة — النوع هو ما يحدد دخولا أم خروجا.';
 COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
 COMMENT ON COLUMN core.stock_movements.operation_group_id IS 'يجمع حركات إجراء مستخدم واحد (استهلاك 30 + زيادة 5 = صفان بنفس المعرّف). يُولَّد داخل الـRPC حصرًا — لا يُقبل من الجهاز أبدًا.';
+COMMENT ON CONSTRAINT reservation_required ON core.stock_movements IS 'الحجز وفكّه والاستهلاك والزيادة عن الحجز لا معنى لها بلا حجز مرجعي. damage_reserved تُضاف هنا عند اعتمادها.';
 COMMENT ON TABLE core.organization_members IS 'مصدر الحقيقة للصلاحيات. private.is_org_member و private.has_role يقرآن من هنا.';
 COMMENT ON TABLE core.notifications IS 'إشعار لمستخدم بعينه. سياسة RLS: يرى المستخدم صفوفه هو فقط.';
 COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيانات العمل معلقة على هذا الجدول.';

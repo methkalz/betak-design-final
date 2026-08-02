@@ -224,6 +224,21 @@ fk = sql("""select count(*) from pg_constraint
   where conname = 'stock_movements_type_effects_fk' and contype = 'f';""")
 check('قيد FK من stock_movements.type إلى movement_effects قائم', ' 1' in fk, fk)
 
+orphan = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','overconsumption',1,'{PROJ}',null,
+          'زيادة يتيمة','{ADMIN}',gen_random_uuid());""")
+check('overconsumption بلا حجز مرفوضة من المحرّك — حتى كـpostgres',
+      'reservation_required' in orphan, orphan)
+
+badeq = sql(f"""insert into core.fabric_usage
+  (organization_id, project_id, reservation_id, roll_id,
+   planned_m, actual_m, waste_m, reason, created_by)
+  values ('{ORG}','{PROJ}','{RES1}','{ROLL}',10,10,3,'معادلة مكسورة','{ADMIN}');""")
+check('معادلة fabric_usage مفروضة: actual ≠ planned + waste يُرفض',
+      'usage_actual_equals_planned_plus_waste' in badeq, badeq)
+
 print('\n=== damaged_reserved_m — الـinvariant الموسّع ===')
 DMG = 'cccc0000-0000-4000-8000-0000000000f9'
 sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
