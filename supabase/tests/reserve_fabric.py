@@ -143,6 +143,11 @@ check('حالة المشروع انتقلت إلى fabric_allocated', 'fabric_al
 r = as_user(ADMIN, f"select api.reserve_fabric('{PROJECT}','{ROLL_A}',1,'{K4}',1);")
 check('lock_version قديم يُرفض (BD409)', 'مستخدم آخر' in r, r)
 
+sql(f"update core.projects set notes = notes || '.' where id='{PROJECT}';")
+r = as_user(ADMIN, f"select api.reserve_fabric('{PROJECT}','{ROLL_A}',5,'{K1}',1);")
+check('إعادة حجز ناجح تعمل رغم تغيّر إصدار المشروع (idempotency قبل فحص الإصدار)',
+      '"was_replayed": true' in r.replace(' :', ':'), r)
+
 print('\n=== concurrency: two live connections, 15 m each, 15 m available ===')
 race = ("set role postgres;\n"
         "select set_config('request.jwt.claims',"

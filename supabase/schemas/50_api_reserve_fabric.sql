@@ -16,6 +16,7 @@ declare
   v_qty numeric(12,3); v_payload jsonb; v_prior core.client_operations%rowtype;
   v_bal record; v_res_id uuid; v_roll_code text; v_result jsonb;
 begin
+  -- أمن وهوية — قبل كل شيء، بما فيه إعادة التشغيل
   v_uid := private.current_uid();
   if v_uid is null then
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
@@ -51,16 +52,8 @@ begin
     raise exception 'الرول غير موجود في هذه المؤسسة.' using errcode = 'BD404';
   end if;
 
-  if v_status not in ('customer_approved', 'fabric_allocated', 'with_tailor') then
-    raise exception 'لا يمكن الحجز والمشروع في حالة "%". يلزم اعتماد الزبون أولًا.',
-      v_status using errcode = 'BD409';
-  end if;
-  if p_expected_project_version is not null
-     and p_expected_project_version <> v_lock_ver then
-    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
-      using errcode = 'BD409';
-  end if;
-
+  -- البصمة الكاملة ثم الـidempotency — قبل فحوص الحالة والإصدار.
+  -- p_expected_project_version ليس جزءًا من هوية العملية (شرط تزامن لا مدخل).
   v_payload := jsonb_build_object(
     'op', 'reserve_fabric', 'user_id', v_uid, 'project_id', p_project_id,
     'roll_id', p_roll_id, 'quantity_m', v_qty);
@@ -75,7 +68,17 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- القفل يسلسل الحجوزات على هذا الرول
+  -- فحوص الحالة — للعمليات الجديدة فقط
+  if v_status not in ('customer_approved', 'fabric_allocated', 'with_tailor') then
+    raise exception 'لا يمكن الحجز والمشروع في حالة "%". يلزم اعتماد الزبون أولًا.',
+      v_status using errcode = 'BD409';
+  end if;
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
+
   perform 1 from core.fabric_rolls where id = p_roll_id for update;
 
   select * into v_prior from core.client_operations o
@@ -88,7 +91,6 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- الرصيد من المصدر المركزي — بعد القفل
   select * into v_bal from private.roll_balance(p_roll_id);
 
   if v_qty > v_bal.available_m then

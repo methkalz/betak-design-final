@@ -48,15 +48,12 @@ begin
   end if;
 
   select p.lock_version into v_lock_ver from core.projects p where p.id = v_project;
-  if p_expected_project_version is not null
-     and p_expected_project_version <> v_lock_ver then
-    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
-      using errcode = 'BD409';
-  end if;
 
+  -- البصمة تشمل السبب والملاحظات
   v_payload := jsonb_build_object(
     'op', 'release_reservation', 'user_id', v_uid,
-    'reservation_id', p_reservation_id, 'quantity_m', v_qty);
+    'reservation_id', p_reservation_id, 'quantity_m', v_qty,
+    'reason_code', p_reason_code, 'notes', coalesce(p_notes, ''));
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -68,7 +65,12 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- الأقفال بالترتيب الثابت: roll ← reservation
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
+
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
 
@@ -87,7 +89,6 @@ begin
       using errcode = 'BD409';
   end if;
 
-  -- المتبقي من المصدر المركزي: الأصلي − المستهلك − المحرَّر − التالف
   v_remaining := private.reservation_remaining(p_reservation_id);
   if v_qty > v_remaining then
     raise exception 'التحرير (% م) أكبر من المتبقي في الحجز (% م). المستهلك لا يُحرَّر.',

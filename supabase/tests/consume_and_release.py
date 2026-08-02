@@ -193,6 +193,37 @@ check('  لم يُنشأ سجل استهلاك ثانٍ', ' 3' in c, c)
 r = as_user(TLR, f"select api.consume_fabric('{RES2}',1,'{K(6)}','آخر');")
 check('9) نفس المفتاح بحمولة مختلفة يُرفض', 'بمدخلات مختلفة' in r, r)
 
+r = as_user(TLR, f"select api.consume_fabric('{RES2}',35,'{K(6)}','سبب آخر تمامًا');")
+check('9b) نفس المفتاح والكمية بسبب مختلف يُرفض (السبب في البصمة)',
+      'بمدخلات مختلفة' in r, r)
+
+sql(f"update core.projects set notes = notes || '.' where id='{PROJ}';")
+r = as_user(TLR, f"select api.consume_fabric('{RES2}',35,'{K(6)}','خطأ قص',1);")
+check('9c) إعادة طلب ناجح تعمل رغم تغيّر إصدار المشروع',
+      '"was_replayed": true' in r.replace(' :', ':'), r)
+
+print('\n=== دلالة planned_m لكل حدث ===')
+pm = sql(f"""select string_agg(planned_m::text, ',' order by created_at)
+  from core.fabric_usage where reservation_id='{RES1}';""")
+check('★ planned_m لكل حدث: 8 ثم 12 (لا 20 ثم 12)', '8.000,12.000' in pm, pm)
+
+ps = sql(f"select sum(planned_m) from core.fabric_usage where reservation_id='{RES1}';")
+check('★ Σplanned = المحجوز الأصلي (20)', '20.000' in ps, ps)
+
+po = sql(f"""select planned_m::text || '|' || actual_m::text || '|' || waste_m::text
+  from core.fabric_usage where reservation_id='{RES2}';""")
+check('★ صف الزيادة: planned 30 · actual 35 · waste 5 (actual = planned + waste)',
+      '30.000|35.000|5.000' in po, po)
+
+print('\n=== سلامة movement_effects مفروضة لا متفق عليها ===')
+cov = sql("""select count(*) from unnest(enum_range(null::core.movement_type)) t
+  where not exists (select 1 from core.movement_effects e where e.type = t);""")
+check('كل قيمة enum لها صف في movement_effects', ' 0' in cov, cov)
+
+fk = sql("""select count(*) from pg_constraint
+  where conname = 'stock_movements_type_effects_fk' and contype = 'f';""")
+check('قيد FK من stock_movements.type إلى movement_effects قائم', ' 1' in fk, fk)
+
 print('\n=== damaged_reserved_m — الـinvariant الموسّع ===')
 DMG = 'cccc0000-0000-4000-8000-0000000000f9'
 sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
@@ -250,6 +281,18 @@ check('6) idempotency replay', '"was_replayed": true' in r2.replace(' :', ':'), 
 
 r = as_user(ADMIN, f"select api.release_reservation('{RES3}',2,'تغيير تصميم','{K(20)}');")
 check('7) payload mismatch يُرفض', 'بمدخلات مختلفة' in r, r)
+
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'سبب مختلف','{K(20)}');")
+check('7b) نفس المفتاح والكمية بسبب مختلف يُرفض', 'بمدخلات مختلفة' in r, r)
+
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'تغيير تصميم','{K(20)}','ملاحظة جديدة');")
+check('7c) نفس المفتاح بملاحظات مختلفة يُرفض (الملاحظات في البصمة)',
+      'بمدخلات مختلفة' in r, r)
+
+sql(f"update core.projects set notes = notes || '.' where id='{PROJ}';")
+r = as_user(ADMIN, f"select api.release_reservation('{RES3}',4,'تغيير تصميم','{K(20)}',null,1);")
+check('7d) إعادة تحرير ناجح تعمل رغم تغيّر إصدار المشروع',
+      '"was_replayed": true' in r.replace(' :', ':'), r)
 
 r = as_user(ADMIN, f"select api.release_reservation('{RES3}',6,'إلغاء','{K(22)}');")
 check('2) تحرير كامل للمتبقي', '"reservation_status": "released"' in r.replace(' :', ':'), r)

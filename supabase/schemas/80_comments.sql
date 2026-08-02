@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (48)
+-- التعليقات (50)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -32,8 +32,9 @@ COMMENT ON COLUMN core.fabric_rolls.dye_lot IS 'دفعة الصبغ. اختلا�
 COMMENT ON COLUMN core.fabric_rolls.initial_meters IS 'الطول عند الاستلام، للتوثيق فقط. الرصيد الحالي يحسب من سجل الحركة.';
 COMMENT ON COLUMN core.fabric_variants.cost_per_meter_agorot IS 'حساس: تكلفة الجملة. يمنع ظهوره في أي view للأدوار field أو tailor.';
 COMMENT ON TABLE core.fabric_usage IS 'الفارق بين المخطط والفعلي. تجاوز الخطة يستوجب سببا ويولد إشعارا للأدمن.';
+COMMENT ON COLUMN core.fabric_usage.planned_m IS 'لكل حدث استهلاك: الجزء المغطى بالحجز (لا «المتبقي قبل العملية»). actual_m = planned_m + waste_m لكل صف، و Σ(planned_m) ≤ quantity_m للحجز.';
 COMMENT ON TABLE core.field_visits IS 'العامل الميداني يرى زياراته فقط — سياسة RLS تعتمد على assignee_id.';
-COMMENT ON TABLE core.movement_effects IS 'المصدر الوحيد لأثر كل نوع حركة على on_hand و reserved. كل view أو دالة تحسب رصيدًا يجب أن تشتق من هذا الجدول — لا مصفوفات مضمّنة. available تُشتق دائمًا: greatest(0, on_hand − reserved).';
+COMMENT ON TABLE core.movement_effects IS 'المصدر الوحيد لأثر كل نوع حركة. مفروض بقيد FK من stock_movements.type — إضافة قيمة enum توجب صفًا هنا أولًا وإلا فشل الإدراج.';
 COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل للتعديل. لا UPDATE ولا DELETE — التصحيح بحركة معاكسة.';
 COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. لا تخزن كميات سالبة — النوع هو ما يحدد دخولا أم خروجا.';
 COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
@@ -53,3 +54,4 @@ COMMENT ON COLUMN core.quotation_versions.margin_percent IS 'حساس: هامش 
 COMMENT ON COLUMN core.quotation_versions.locked IS 'العرض المرسل لقطة مجمدة. التعديل يعني نسخة جديدة، لا تحديثا.';
 COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
 COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';
+COMMENT ON CONSTRAINT stock_movements_type_effects_fk ON core.stock_movements IS 'قيمة enum جديدة بلا صف في movement_effects ترفض الإدراج بدل إسقاط الحركة صامتة من حسابات الأرصدة.';

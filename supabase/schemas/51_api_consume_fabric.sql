@@ -53,15 +53,11 @@ begin
       using errcode = 'BD403';
   end if;
 
-  if p_expected_project_version is not null
-     and p_expected_project_version <> v_lock_ver then
-    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
-      using errcode = 'BD409';
-  end if;
-
+  -- البصمة تشمل السبب: نفس المفتاح بسبب مختلف = عملية مختلفة → BD400
   v_payload := jsonb_build_object(
     'op', 'consume_fabric', 'user_id', v_uid,
-    'reservation_id', p_reservation_id, 'quantity_m', v_qty);
+    'reservation_id', p_reservation_id, 'quantity_m', v_qty,
+    'reason', coalesce(p_reason, ''));
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -73,7 +69,13 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- الأقفال بالترتيب الثابت: roll ← reservation
+  -- فحص الإصدار — للعمليات الجديدة فقط، بعد احتمال الإعادة
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
+
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
 
@@ -91,7 +93,6 @@ begin
     raise exception 'الحجز محرَّر — لا يمكن الاستهلاك منه.' using errcode = 'BD409';
   end if;
 
-  -- المتبقي والرصيد من المصدرين المركزيين — بعد القفل
   v_remaining := private.reservation_remaining(p_reservation_id);
   v_from_res  := least(v_qty, greatest(0, v_remaining));
   v_over      := pg_catalog.round(v_qty - v_from_res, 3);
@@ -114,8 +115,6 @@ begin
     end if;
   end if;
 
-  -- حركتان محاسبيتان لإجراء مستخدم واحد، مربوطتان بمجموعة واحدة.
-  -- المعرّف يُولَّد هنا — لا يُقبل من الجهاز.
   v_group := gen_random_uuid();
 
   if v_from_res > 0 then
@@ -143,11 +142,12 @@ begin
            else status end
    where id = p_reservation_id;
 
+  -- دلالة الحدث: planned = الجزء المغطى بالحجز، فيصح actual = planned + waste
   insert into core.fabric_usage
     (organization_id, project_id, reservation_id, roll_id,
      planned_m, actual_m, waste_m, reason, created_by)
   values (v_org, v_project, p_reservation_id, v_roll,
-          greatest(0, v_remaining), v_qty, v_over, coalesce(p_reason,''), v_uid)
+          v_from_res, v_qty, v_over, coalesce(p_reason,''), v_uid)
   returning id into v_usage_id;
 
   insert into core.audit_logs
