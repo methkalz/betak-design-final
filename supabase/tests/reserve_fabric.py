@@ -170,15 +170,14 @@ check('التزامن: نجح واحد فقط', out.count('reservation_id') == 1
       f'reservation_id appeared {out.count("reservation_id")} times')
 check('التزامن: الآخر فشل بنقص الرصيد', 'أكبر من المتاح' in out, out)
 
+# يشتق من core.movement_effects — المصدر المركزي — لا مصفوفة يدوية (DECISIONS §8)
 final = sql(f"""select
-  sum(case when type in ('receipt','return','adjustment_in','transfer_in') then quantity_m
-      when type in ('consumption','damage','adjustment_out','transfer_out') then -quantity_m
-      else 0 end) as on_hand,
-  sum(case when type='reservation' then quantity_m
-      when type in ('reservation_release','consumption') then -quantity_m
-      else 0 end) as reserved,
-  count(*) filter (where type='reservation') as res_rows
-from core.stock_movements where roll_id='{ROLL_A}';""")
+  sum(m.quantity_m * e.on_hand_sign)  as on_hand,
+  sum(m.quantity_m * e.reserved_sign) as reserved,
+  count(*) filter (where m.type='reservation') as res_rows
+from core.stock_movements m
+join core.movement_effects e on e.type = m.type
+where m.roll_id='{ROLL_A}';""")
 print(final)
 nums = [t for t in final.replace('|', ' ').split() if t.replace('.', '').replace('-', '').isdigit()]
 on_hand, reserved, rows = (nums + ['?', '?', '?'])[:3]
