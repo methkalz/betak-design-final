@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- تفعيل RLS والسياسات (104) — بعد دوال private لأنها تستدعيها
+-- تفعيل RLS والسياسات (107) — بعد دوال private لأنها تستدعيها
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -20,6 +20,7 @@ ALTER TABLE ONLY core.fabric_rolls FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.fabric_variants FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.fabric_usage FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.field_visits FORCE ROW LEVEL SECURITY;
+ALTER TABLE ONLY core.movement_effects FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.stock_movements FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.organization_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.notifications FORCE ROW LEVEL SECURITY;
@@ -40,6 +41,7 @@ CREATE POLICY "admin writes pricing" ON core.pricing_rules TO authenticated USIN
 CREATE POLICY "admin writes products" ON core.fabric_products TO authenticated USING (private.is_admin(organization_id)) WITH CHECK (private.is_admin(organization_id));
 CREATE POLICY "admin writes rolls" ON core.fabric_rolls TO authenticated USING (private.is_admin(organization_id)) WITH CHECK (private.is_admin(organization_id));
 CREATE POLICY "admin writes variants" ON core.fabric_variants TO authenticated USING (private.is_admin(organization_id)) WITH CHECK (private.is_admin(organization_id));
+CREATE POLICY "anyone reads movement effects" ON core.movement_effects FOR SELECT TO authenticated USING (true);
 CREATE POLICY "anyone reads statuses" ON core.project_statuses FOR SELECT TO authenticated USING (true);
 CREATE POLICY "assignee updates own visit" ON core.field_visits FOR UPDATE TO authenticated USING ((assignee_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((assignee_id = ( SELECT auth.uid() AS uid)));
 ALTER TABLE core.attachments ENABLE ROW LEVEL SECURITY;
@@ -70,6 +72,7 @@ CREATE POLICY "members read products" ON core.fabric_products FOR SELECT TO auth
 CREATE POLICY "members read rolls" ON core.fabric_rolls FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 CREATE POLICY "members read settings" ON core.business_settings FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 CREATE POLICY "members read variants" ON core.fabric_variants FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
+ALTER TABLE core.movement_effects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.organization_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.organizations ENABLE ROW LEVEL SECURITY;

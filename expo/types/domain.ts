@@ -146,6 +146,9 @@ export type MovementType =
   | 'reservation'
   | 'reservation_release'
   | 'consumption'
+  /** استهلاك يتجاوز المحجوز: يخفض on_hand و available، ولا يمس reserved.
+   *  يُربط بحركة consumption المرافقة عبر operation_group_id. */
+  | 'overconsumption'
   | 'return'
   | 'damage'
   | 'adjustment_in'
@@ -166,6 +169,8 @@ export interface StockMovement {
   createdBy: UUID;
   createdAt: string;
   idempotencyKey: string;
+  /** يجمع حركات إجراء واحد (استهلاك + زيادة). يولَّد في الخادم حصرًا. */
+  operationGroupId?: UUID | null;
 }
 
 export type ReservationStatus = 'active' | 'partially_consumed' | 'consumed' | 'released';
@@ -174,9 +179,15 @@ export interface FabricReservation {
   id: UUID;
   organizationId: UUID;
   projectId: UUID;
+  /** المحجوز الأصلي — ثابت لا يُنقص. الإنقاص عبر consumed/released/damaged. */
   rollId: UUID;
   quantityM: number;
   consumedM: number;
+  /** المحرَّر تراكميًا. اختياري لتوافق البيانات المحفوظة قبل هذا الحقل. */
+  releasedM?: number;
+  /** التالف من المحجوز. invariant:
+   *  quantityM = consumedM + releasedM + damagedReservedM + remaining */
+  damagedReservedM?: number;
   status: ReservationStatus;
   createdBy: UUID;
   createdAt: string;

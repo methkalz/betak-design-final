@@ -121,6 +121,43 @@ Supabase Auth بالبريد وكلمة السر. الأدمن ينشئ الحس
 **التحقق:** `supabase/tests/schema_drift.py` يبني قاعدة مؤقتة من الملفات
 ويقارن بصمة الكتالوج مع الحية. آخر نتيجة: 709 كائنًا متطابقًا، NO DRIFT.
 
+### 8. محاسبة المخزون — المرجع المركزي وسياسة الـenum
+
+**`core.movement_effects` هو المصدر الوحيد لأثر الحركات.** كل رصيد يُحسب
+`sum(quantity_m × sign)` بالانضمام إليه — ممنوع تضمين مصفوفة أثر يدوية في أي
+view أو RPC أو اختبار. (الاختبار نفسه وقع في هذا الفخ: نسخة يدوية قديمة فيه
+أعطت نتائج خاطئة بعد إضافة النوع الجديد — فأُصلح ليشتق من الجدول.)
+
+| الحركة | on_hand | reserved |
+|---|---|---|
+| receipt / return / adjustment_in / transfer_in | + | 0 |
+| reservation | 0 | + |
+| reservation_release | 0 | − |
+| **consumption** | − | − |
+| **overconsumption** | − | 0 |
+| damage (من المتاح) / adjustment_out / transfer_out | − | 0 |
+
+**سياسة enum:** قيم `movement_type` تُضاف فقط — لا يُعاد تسميتها ولا تُحذف
+(حذف قيمة enum في PostgreSQL شبه مستحيل). لذا بقيت `consumption` باسمها
+وأُضيفت `overconsumption` — الزيادة عن الحجز لم تعد `adjustment_out` فلا
+تختلط بتصحيحات الجرد في تقارير الهدر.
+
+**`operation_group_id`** يربط حركات الإجراء الواحد (استهلاك 30 + زيادة 5)،
+ويُولَّد داخل الـRPC حصرًا — لا يُقبل من الجهاز.
+
+**invariant الحجز** (يفرضه قيد على المحرّك، وسّعناه قبل بناء RPC التلف لا بعده):
+
+```
+quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
+```
+
+والصيغ محصورة في مكانين: `private.reservation_remaining` و `private.roll_balance`.
+
+**قرار مؤجَّل لـRPC التلف:** تلف الكمية المحجوزة — إما قيمة enum جديدة
+`damage_reserved` (أثر −/−) أو حركتا `damage` + `reservation_release`
+بمجموعة واحدة. يُحسم عند بناء `record_fabric_damage`، والتعديل في
+`movement_effects` وحده.
+
 ---
 
 ## قرارات مؤجَّلة تحتاج حسمًا لاحقًا

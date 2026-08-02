@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- القيود والمفاتيح (144)
+-- القيود والمفاتيح (145)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -61,6 +61,8 @@ ALTER TABLE ONLY core.field_visits
     ADD CONSTRAINT field_visits_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.field_visits
     ADD CONSTRAINT field_visits_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.movement_effects
+    ADD CONSTRAINT movement_effects_pkey PRIMARY KEY (type);
 ALTER TABLE ONLY core.notifications
     ADD CONSTRAINT notifications_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.notifications

@@ -14,8 +14,7 @@ AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
   v_res core.fabric_reservations%rowtype; v_lock_ver integer;
-  v_qty numeric(12,3); v_remaining numeric(12,3);
-  v_on_hand numeric(12,3); v_reserved numeric(12,3);
+  v_qty numeric(12,3); v_remaining numeric(12,3); v_bal record;
   v_payload jsonb; v_prior core.client_operations%rowtype;
   v_new_status core.reservation_status; v_result jsonb;
 begin
@@ -28,7 +27,7 @@ begin
   if v_qty is null or v_qty <= 0 then
     raise exception 'الكمية يجب أن تكون أكبر من صفر.' using errcode = 'BD400';
   end if;
-  if p_reason_code is null or pg_catalog.btrim(p_reason_code) = '' then
+  if p_reason_code is null or btrim(p_reason_code) = '' then
     raise exception 'سبب التحرير إلزامي.' using errcode = 'BD400';
   end if;
   if p_idempotency_key is null then
@@ -49,21 +48,24 @@ begin
   end if;
 
   select p.lock_version into v_lock_ver from core.projects p where p.id = v_project;
-  if p_expected_project_version is not null and p_expected_project_version <> v_lock_ver then
-    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.' using errcode = 'BD409';
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
   end if;
 
-  v_payload := pg_catalog.jsonb_build_object(
-    'op','release_reservation','user_id',v_uid,
-    'reservation_id',p_reservation_id,'quantity_m',v_qty);
+  v_payload := jsonb_build_object(
+    'op', 'release_reservation', 'user_id', v_uid,
+    'reservation_id', p_reservation_id, 'quantity_m', v_qty);
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
   if found then
     if v_prior.payload is distinct from v_payload then
-      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.' using errcode='BD400';
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
     end if;
-    return v_prior.result || pg_catalog.jsonb_build_object('was_replayed', true);
+    return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
   -- الأقفال بالترتيب الثابت: roll ← reservation
@@ -74,17 +76,19 @@ begin
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
   if found then
     if v_prior.payload is distinct from v_payload then
-      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.' using errcode='BD400';
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
     end if;
-    return v_prior.result || pg_catalog.jsonb_build_object('was_replayed', true);
+    return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
   if v_res.status = 'released' then
-    raise exception 'الحجز محرَّر بالكامل مسبقًا — لا يُعاد فتحه.' using errcode = 'BD409';
+    raise exception 'الحجز محرَّر بالكامل مسبقًا — لا يُعاد فتحه.'
+      using errcode = 'BD409';
   end if;
 
-  -- المتبقي = الأصلي − المستهلك − المحرَّر. المستهلك لا يُحرَّر.
-  v_remaining := pg_catalog.round(v_res.quantity_m - v_res.consumed_m - v_res.released_m, 3);
+  -- المتبقي من المصدر المركزي: الأصلي − المستهلك − المحرَّر − التالف
+  v_remaining := private.reservation_remaining(p_reservation_id);
   if v_qty > v_remaining then
     raise exception 'التحرير (% م) أكبر من المتبقي في الحجز (% م). المستهلك لا يُحرَّر.',
       v_qty, v_remaining using errcode = 'BD422';
@@ -96,47 +100,42 @@ begin
   values (v_org, v_roll, 'reservation_release', v_qty, v_project, p_reservation_id,
           p_reason_code || coalesce(' — ' || p_notes, ''), v_uid, p_idempotency_key);
 
-  -- استُنفد الحجز؟ 'released' إن لم يُستهلك منه شيء، وإلا 'consumed'.
   v_new_status := case
-    when v_qty >= v_remaining and v_res.consumed_m = 0 then 'released'
+    when v_qty >= v_remaining
+         and v_res.consumed_m = 0 and v_res.damaged_reserved_m = 0 then 'released'
     when v_qty >= v_remaining then 'consumed'
     else v_res.status end;
 
   update core.fabric_reservations
-     set released_m  = pg_catalog.round(released_m + v_qty, 3),   -- quantity_m لا تُمس
+     set released_m  = pg_catalog.round(released_m + v_qty, 3),
          status      = v_new_status,
-         released_at = case when v_new_status <> v_res.status then pg_catalog.now()
+         released_at = case when v_new_status <> v_res.status then now()
                             else released_at end
    where id = p_reservation_id;
 
   insert into core.audit_logs
     (organization_id, actor_id, action, entity, entity_id, summary, payload)
-  values (v_org, v_uid, 'inventory.release', 'fabric_reservation', p_reservation_id::text,
-          pg_catalog.format('تحرير %s م من الرول %s — %s', v_qty, v_roll_code, p_reason_code),
+  values (v_org, v_uid, 'inventory.release', 'fabric_reservation',
+          p_reservation_id::text,
+          format('تحرير %s م من الرول %s — %s', v_qty, v_roll_code, p_reason_code),
           v_payload);
 
-  select
-    pg_catalog.round(coalesce(sum(case
-      when m.type in ('receipt','return','adjustment_in','transfer_in')       then  m.quantity_m
-      when m.type in ('consumption','damage','adjustment_out','transfer_out') then -m.quantity_m
-      else 0 end), 0), 3),
-    greatest(0, pg_catalog.round(coalesce(sum(case
-      when m.type = 'reservation'         then  m.quantity_m
-      when m.type = 'reservation_release' then -m.quantity_m
-      when m.type = 'consumption'         then -m.quantity_m
-      else 0 end), 0), 3))
-  into v_on_hand, v_reserved
-  from core.stock_movements m where m.roll_id = v_roll;
+  select * into v_bal from private.roll_balance(v_roll);
 
-  v_result := pg_catalog.jsonb_build_object(
-    'reservation_id', p_reservation_id, 'roll_id', v_roll, 'roll_code', v_roll_code,
-    'released_quantity_m', v_qty, 'reservation_status', v_new_status,
+  v_result := jsonb_build_object(
+    'reservation_id', p_reservation_id,
+    'roll_id', v_roll,
+    'roll_code', v_roll_code,
+    'released_quantity_m', v_qty,
+    'reservation_status', v_new_status,
     'reserved_initial_m', v_res.quantity_m,
     'consumed_total_m', v_res.consumed_m,
     'released_total_m', pg_catalog.round(v_res.released_m + v_qty, 3),
+    'damaged_total_m', v_res.damaged_reserved_m,
     'remaining_reserved_quantity_m', pg_catalog.round(v_remaining - v_qty, 3),
-    'on_hand_quantity_m', v_on_hand, 'reserved_quantity_m', v_reserved,
-    'available_quantity_m', greatest(0, pg_catalog.round(v_on_hand - v_reserved, 3)),
+    'on_hand_quantity_m', v_bal.on_hand_m,
+    'reserved_quantity_m', v_bal.reserved_m,
+    'available_quantity_m', v_bal.available_m,
     'was_replayed', false);
 
   insert into core.client_operations
@@ -144,7 +143,7 @@ begin
      kind, entity_id, state, payload, result, synced_at)
   values (v_org, v_uid, p_idempotency_key, p_idempotency_key,
           'release_reservation', p_reservation_id::text, 'synced', v_payload, v_result,
-          pg_catalog.now());
+          now());
 
   return v_result;
 end $function$;

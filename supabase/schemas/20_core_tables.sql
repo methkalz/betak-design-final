@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الجداول (28) والقيم الافتراضية (0)
+-- الجداول (29) والقيم الافتراضية (0)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -188,10 +188,12 @@ CREATE TABLE core.fabric_reservations (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     released_at timestamp with time zone,
     released_m numeric(12,3) DEFAULT 0 NOT NULL,
+    damaged_reserved_m numeric(12,3) DEFAULT 0 NOT NULL,
     CONSTRAINT fabric_reservations_consumed_m_check CHECK ((consumed_m >= (0)::numeric)),
+    CONSTRAINT fabric_reservations_damaged_reserved_m_check CHECK ((damaged_reserved_m >= (0)::numeric)),
     CONSTRAINT fabric_reservations_quantity_m_check CHECK ((quantity_m > (0)::numeric)),
     CONSTRAINT fabric_reservations_released_m_check CHECK ((released_m >= (0)::numeric)),
-    CONSTRAINT reservation_balance_invariant CHECK (((consumed_m + released_m) <= quantity_m))
+    CONSTRAINT reservation_balance_invariant CHECK ((((consumed_m + released_m) + damaged_reserved_m) <= quantity_m))
 );
 
 CREATE TABLE core.fabric_rolls (
@@ -264,6 +266,15 @@ CREATE TABLE core.field_visits (
     CONSTRAINT completed_visits_have_timestamp CHECK (((status <> 'completed'::core.visit_status) OR (completed_at IS NOT NULL)))
 );
 
+CREATE TABLE core.movement_effects (
+    type core.movement_type NOT NULL,
+    on_hand_sign smallint NOT NULL,
+    reserved_sign smallint NOT NULL,
+    label_ar text NOT NULL,
+    CONSTRAINT movement_effects_on_hand_sign_check CHECK ((on_hand_sign = ANY (ARRAY['-1'::integer, 0, 1]))),
+    CONSTRAINT movement_effects_reserved_sign_check CHECK ((reserved_sign = ANY (ARRAY['-1'::integer, 0, 1])))
+);
+
 CREATE TABLE core.stock_movements (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -276,7 +287,8 @@ CREATE TABLE core.stock_movements (
     created_by uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     idempotency_key uuid NOT NULL,
-    CONSTRAINT reason_required_for_exceptions CHECK (((type <> ALL (ARRAY['damage'::core.movement_type, 'adjustment_in'::core.movement_type, 'adjustment_out'::core.movement_type])) OR (length(btrim(reason)) > 0))),
+    operation_group_id uuid,
+    CONSTRAINT reason_required_for_exceptions CHECK (((type <> ALL (ARRAY['damage'::core.movement_type, 'adjustment_in'::core.movement_type, 'adjustment_out'::core.movement_type, 'overconsumption'::core.movement_type])) OR (length(btrim(reason)) > 0))),
     CONSTRAINT reservation_required CHECK (((type <> ALL (ARRAY['reservation'::core.movement_type, 'reservation_release'::core.movement_type, 'consumption'::core.movement_type])) OR (reservation_id IS NOT NULL))),
     CONSTRAINT stock_movements_quantity_m_check CHECK ((quantity_m > (0)::numeric))
 );
