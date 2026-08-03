@@ -67,8 +67,13 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if not exists (select 1 from core.movement_reasons where code = v_code and is_active) then
-    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
+  if not exists (
+    select 1 from core.movement_reasons
+    where code = v_code and is_active
+      and 'reservation_release'::core.movement_type = any (applies_to)
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد لهذه العملية.', v_code
+      using errcode = 'BD400';
   end if;
 
   if p_expected_project_version is not null
@@ -77,8 +82,18 @@ begin
       using errcode = 'BD409';
   end if;
 
+  -- الأقفال: roll ← reservation ← project
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
+  select p.lock_version into v_lock_ver
+  from core.projects p where p.id = v_project for update;
+
+  -- ★ الفحص الحاسم تحت القفل
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -114,11 +129,16 @@ begin
     pg_catalog.round(v_res.released_m + v_qty, 3),
     v_res.damaged_reserved_m);
 
+  -- released_at للتحرير النقي فقط؛ finalized_at لأي نهاية
   update core.fabric_reservations
-     set released_m  = pg_catalog.round(released_m + v_qty, 3),
-         status      = v_new_status,
-         released_at = case when v_new_status <> v_res.status then now()
-                            else released_at end
+     set released_m   = pg_catalog.round(released_m + v_qty, 3),
+         status       = v_new_status,
+         released_at  = case
+           when v_new_status = 'released' and v_res.status <> 'released'
+           then now() else released_at end,
+         finalized_at = case
+           when v_new_status in ('consumed','released','closed') and finalized_at is null
+           then now() else finalized_at end
    where id = p_reservation_id;
 
   insert into core.audit_logs

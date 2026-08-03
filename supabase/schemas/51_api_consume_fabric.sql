@@ -14,9 +14,10 @@ AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
   v_res core.fabric_reservations%rowtype; v_lock_ver integer; v_tailor uuid;
+  v_is_admin boolean;
   v_qty numeric(12,3); v_code text; v_notes text;
   v_remaining numeric(12,3); v_from_res numeric(12,3); v_over numeric(12,3);
-  v_bal record; v_group uuid;
+  v_bal record; v_group uuid; v_new_status core.reservation_status;
   v_payload jsonb; v_prior core.client_operations%rowtype;
   v_usage_id uuid; v_notified boolean := false; v_result jsonb;
 begin
@@ -25,7 +26,6 @@ begin
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
   end if;
 
-  -- تطبيع v3: القيمة المطبَّعة هي المستخدمة في البصمة والتخزين معًا
   v_qty   := pg_catalog.round(p_quantity_m, 3);
   v_code  := nullif(pg_catalog.btrim(coalesce(p_reason_code, '')), '');
   v_notes := pg_catalog.btrim(coalesce(p_notes, ''));
@@ -46,10 +46,11 @@ begin
     raise exception 'لست عضوًا في هذه المؤسسة.' using errcode = 'BD403';
   end if;
 
+  v_is_admin := private.has_role(v_org, array['admin']::core.app_role[]);
   select p.lock_version, p.tailor_id into v_lock_ver, v_tailor
   from core.projects p where p.id = v_project;
 
-  if not (private.has_role(v_org, array['admin']::core.app_role[])
+  if not (v_is_admin
           or (private.has_role(v_org, array['tailor']::core.app_role[])
               and v_tailor = v_uid)) then
     raise exception 'الاستهلاك يسجّله الأدمن أو الخياط المسند لهذا المشروع.'
@@ -71,21 +72,28 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- صلاحية الرمز — بعد احتمال الإعادة، وقبل أي أثر
-  if v_code is not null and not exists (
-    select 1 from core.movement_reasons where code = v_code and is_active
-  ) then
-    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
-  end if;
-
+  -- إخفاق سريع — الفحص الملزم تحت قفل المشروع لاحقًا
   if p_expected_project_version is not null
      and p_expected_project_version <> v_lock_ver then
     raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
       using errcode = 'BD409';
   end if;
 
+  -- الأقفال: roll ← reservation ← project (المشروع أخيرًا دائمًا)
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
+  select p.lock_version, p.tailor_id into v_lock_ver, v_tailor
+  from core.projects p where p.id = v_project for update;
+
+  -- ★ الفحوص الحاسمة تحت القفل: الإصدار + الإسناد
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
+  if not v_is_admin and v_tailor is distinct from v_uid then
+    raise exception 'لم تعد الخياط المسند لهذا المشروع.' using errcode = 'BD403';
+  end if;
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -107,6 +115,11 @@ begin
   v_from_res  := least(v_qty, greatest(0, v_remaining));
   v_over      := pg_catalog.round(v_qty - v_from_res, 3);
 
+  -- الرمز يخص الزيادة وحدها؛ بلا زيادة يُهمل (الاستهلاك المخطط ليس استثناء)
+  if v_over = 0 then
+    v_code := null;
+  end if;
+
   select * into v_bal from private.roll_balance(v_roll);
 
   if v_qty > v_bal.on_hand_m then
@@ -117,6 +130,14 @@ begin
   if v_over > 0 then
     if v_code is null then
       raise exception 'الاستهلاك يتجاوز المحجوز بـ% م — رمز السبب إلزامي.', v_over
+        using errcode = 'BD400';
+    end if;
+    if not exists (
+      select 1 from core.movement_reasons
+      where code = v_code and is_active
+        and 'overconsumption'::core.movement_type = any (applies_to)
+    ) then
+      raise exception 'رمز السبب "%" غير معتمد لهذه العملية.', v_code
         using errcode = 'BD400';
     end if;
     if v_over > v_bal.available_m then
@@ -130,9 +151,9 @@ begin
   if v_from_res > 0 then
     insert into core.stock_movements
       (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
-       reason_code, notes, created_by, idempotency_key, operation_group_id)
+       notes, created_by, idempotency_key, operation_group_id)
     values (v_org, v_roll, 'consumption', v_from_res, v_project, p_reservation_id,
-            v_code, v_notes, v_uid, p_idempotency_key, v_group);
+            v_notes, v_uid, p_idempotency_key, v_group);
   end if;
 
   if v_over > 0 then
@@ -143,13 +164,18 @@ begin
             v_code, v_notes, v_uid, gen_random_uuid(), v_group);
   end if;
 
+  v_new_status := private.reservation_status_for(
+    v_res.quantity_m,
+    pg_catalog.round(v_res.consumed_m + v_from_res, 3),
+    v_res.released_m,
+    v_res.damaged_reserved_m);
+
   update core.fabric_reservations
-     set consumed_m = pg_catalog.round(consumed_m + v_from_res, 3),
-         status = private.reservation_status_for(
-           quantity_m,
-           pg_catalog.round(consumed_m + v_from_res, 3),
-           released_m,
-           damaged_reserved_m)
+     set consumed_m   = pg_catalog.round(consumed_m + v_from_res, 3),
+         status       = v_new_status,
+         finalized_at = case
+           when v_new_status in ('consumed','released','closed') and finalized_at is null
+           then now() else finalized_at end
    where id = p_reservation_id;
 
   insert into core.fabric_usage

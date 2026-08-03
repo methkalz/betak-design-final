@@ -25,6 +25,24 @@ begin
     using errcode = '42501';
 end $function$;
 
+CREATE OR REPLACE FUNCTION private.enforce_reason_scope()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  if not exists (
+    select 1 from core.movement_reasons r
+    where r.code = new.reason_code
+      and r.is_active
+      and new.type = any (r.applies_to)
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد لحركة %.', new.reason_code, new.type
+      using errcode = 'BD400';
+  end if;
+  return new;
+end $function$;
+
 CREATE OR REPLACE FUNCTION private.guard_project_update()
  RETURNS trigger
  LANGUAGE plpgsql

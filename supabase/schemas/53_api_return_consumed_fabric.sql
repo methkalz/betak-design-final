@@ -37,7 +37,6 @@ begin
     raise exception 'idempotency_key إلزامي.' using errcode = 'BD400';
   end if;
 
-  -- كل السياق من سجل الاستهلاك — لا شيء من الجهاز
   select * into v_usage from core.fabric_usage where id = p_fabric_usage_id;
   if not found then
     raise exception 'سجل الاستهلاك غير موجود.' using errcode = 'BD404';
@@ -48,7 +47,6 @@ begin
   if not private.is_org_member(v_org) then
     raise exception 'لست عضوًا في هذه المؤسسة.' using errcode = 'BD403';
   end if;
-  -- قرار صاحب المشروع: الإرجاع يزيد المخزون الفعلي → admin حصرًا في الـMVP
   if not private.has_role(v_org, array['admin']::core.app_role[]) then
     raise exception 'إرجاع القماش المستهلك صلاحية الأدمن وحده.' using errcode = 'BD403';
   end if;
@@ -70,8 +68,13 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if not exists (select 1 from core.movement_reasons where code = v_code and is_active) then
-    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
+  if not exists (
+    select 1 from core.movement_reasons
+    where code = v_code and is_active
+      and 'return'::core.movement_type = any (applies_to)
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد لهذه العملية.', v_code
+      using errcode = 'BD400';
   end if;
 
   if p_expected_project_version is not null
@@ -80,9 +83,18 @@ begin
       using errcode = 'BD409';
   end if;
 
-  -- الأقفال: الرول ثم سجل الاستخدام (السقف يُحسب تحت هذا القفل)
+  -- الأقفال: roll ← usage ← project
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_usage from core.fabric_usage where id = p_fabric_usage_id for update;
+  select p.lock_version into v_lock_ver
+  from core.projects p where p.id = v_project for update;
+
+  -- ★ الفحص الحاسم تحت القفل
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -94,7 +106,6 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- السقف الصارم تحت القفل: المرتجع الجديد ≤ الفعلي − المرتجع سابقًا
   select pg_catalog.round(coalesce(sum(m.quantity_m), 0), 3) into v_prior_returns
   from core.stock_movements m
   where m.fabric_usage_id = p_fabric_usage_id and m.type = 'return';

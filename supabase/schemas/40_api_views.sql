@@ -148,7 +148,8 @@ SELECT res.id AS reservation_id,
     res.created_by,
     res.created_at,
     res.released_at,
-    res.damaged_reserved_m
+    res.damaged_reserved_m,
+    res.finalized_at
    FROM core.fabric_reservations res
      JOIN core.fabric_rolls r ON r.id = res.roll_id
      JOIN core.fabric_variants v ON v.id = r.variant_id;

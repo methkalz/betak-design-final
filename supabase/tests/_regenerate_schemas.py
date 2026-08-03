@@ -21,7 +21,6 @@ def write(name, title, body):
     print(f'  {name:44} {len(body):>7} bytes')
 
 
-# ── الدوال ──────────────────────────────────────────────────────────────────
 raw = open(os.path.join(SRC, 'functions.txt'), encoding='utf-8').read()
 funcs = {}
 for block in raw.split('-- ##FUNC ')[1:]:
@@ -30,20 +29,20 @@ for block in raw.split('-- ##FUNC ')[1:]:
 
 print('generating schema files:')
 
-# ⚠️ ترتيب اعتماديات صريح — الترتيب الأبجدي يكسر البناء:
-# can_see_project تسبق role_in أبجديًا لكنها تستدعيها.
+# ترتيب اعتماديات صريح — الترتيب الأبجدي يكسر البناء
 IDENTITY = ['private.current_uid', 'private.in_rpc']
 PERMS = ['private.is_org_member', 'private.role_in', 'private.has_role',
          'private.is_admin', 'private.is_financially_blind', 'private.can_see_project']
 INVHELP = ['private.reservation_remaining', 'private.roll_balance',
            'private.reservation_status_for']
 GUARDS = ['private.block_mutation', 'private.block_delete',
+          'private.enforce_reason_scope',
           'private.guard_project_update', 'private.guard_locked_version',
           'private.guard_locked_items']
 
 declared = set(IDENTITY + PERMS + INVHELP + GUARDS)
 missing = [k for k in funcs if k.startswith('private.') and k not in declared]
-assert not missing, f'دوال private غير مصنَّفة: {missing}'
+assert not missing, f'دوال private غير مصنفة: {missing}'
 
 write('30_private_identity_functions.sql', 'دوال الهوية',
       '\n\n'.join(funcs[k] + ';' for k in IDENTITY))
@@ -64,11 +63,10 @@ API_FILES = [
 ]
 api_declared = {k for k, _ in API_FILES}
 api_live = {k for k in funcs if k.startswith('api.')}
-assert api_live == api_declared, f'دوال api غير مصنَّفة: {api_live ^ api_declared}'
+assert api_live == api_declared, f'دوال api غير مصنفة: {api_live ^ api_declared}'
 for key, fname in API_FILES:
     write(fname, key, funcs[key] + ';')
 
-# ── الviews ─────────────────────────────────────────────────────────────────
 vraw = open(os.path.join(SRC, 'views.txt'), encoding='utf-8').read()
 vdefs = {}
 for block in vraw.split('-- ##VIEW ')[1:]:
@@ -79,7 +77,7 @@ for block in vraw.split('-- ##VIEW ')[1:]:
     assert 'security_invoker=on' in opts, f'{full} missing security_invoker!'
     vdefs[short] = (full, body.strip().rstrip(';'))
 
-# فرز طوبولوجي (Kahn) — الترتيب الأبجدي يكسر البناء
+# فرز طوبولوجي (Kahn) — الاعتماد لا الأبجدية
 deps = {v: set() for v in vdefs}
 for line in open(os.path.join(SRC, 'view_deps.txt'), encoding='utf-8'):
     if '|' in line:
@@ -96,7 +94,6 @@ while remaining:
         order.append(v)
         remaining.pop(v)
 
-moved = [v for i, v in enumerate(order) if v != sorted(vdefs)[i]]
 print(f'  (view order adjusted for dependencies; {len(order)} views)')
 
 parts = [f'create or replace view {vdefs[v][0]}\n  with (security_invoker = on) as\n'
@@ -105,7 +102,6 @@ write('40_api_views.sql',
       f'الviews ({len(parts)}) — كلها security_invoker، بترتيب الاعتماد لا الأبجدية',
       '\n\n'.join(parts))
 
-# ── البنية من pg_dump ───────────────────────────────────────────────────────
 dump = open(os.path.join(SRC, 'core_dump.sql'), encoding='utf-8').read()
 stmts, buf = [], []
 for line in dump.split('\n'):
@@ -129,9 +125,9 @@ for s in stmts:
     elif u.startswith('ALTER TABLE') and 'ADD CONSTRAINT' in u:
         buckets['constraints'].append(s)
     elif u.startswith('ALTER TABLE') and 'ROW LEVEL SECURITY' in u:
-        buckets['rls'].append(s)          # يعتمد على دوال private → ملف لاحق
+        buckets['rls'].append(s)
     elif u.startswith('CREATE POLICY'):
-        buckets['rls'].append(s)          # يستدعي private.has_role
+        buckets['rls'].append(s)
     elif u.startswith('ALTER TABLE') and 'SET DEFAULT' in u:
         buckets['defaults'].append(s)
     elif u.startswith('CREATE INDEX') or u.startswith('CREATE UNIQUE INDEX'):
@@ -149,8 +145,7 @@ write('10_types.sql', f'أنواع enum ({len(buckets["types"])})', '\n\n'.join(
 write('20_core_tables.sql',
       f'الجداول ({len(buckets["tables"])}) والقيم الافتراضية ({len(buckets["defaults"])})',
       '\n\n'.join(buckets['tables']) + '\n\n' + '\n'.join(buckets['defaults']))
-# الفهارس قبل القيود: الـFK الخماسي (stock_movements → fabric_usage) يستهدف
-# فهرسًا فريدًا — لو جاءت القيود أولًا فشل البناء من الصفر.
+# الفهارس قبل القيود: FK خماسي يستهدف فهرسًا فريدًا على fabric_usage
 write('25_indexes.sql', f'الفهارس ({len(buckets["indexes"])}) — قبل القيود عمدًا',
       '\n'.join(buckets['indexes']))
 write('26_constraints.sql', f'القيود والمفاتيح ({len(buckets["constraints"])})',
@@ -162,9 +157,7 @@ write('70_triggers.sql', f'الـtriggers ({len(buckets["triggers"])})', '\n'.jo
 write('80_comments.sql', f'التعليقات ({len(buckets["comments"])})', '\n'.join(buckets['comments']))
 
 if buckets['other']:
-    print(f'\n⚠️ {len(buckets["other"])} unbucketed statements — inspect:')
-    for s in buckets['other'][:8]:
-        print('   ', s.replace('\n', ' ')[:110])
-    write('99_unclassified.sql', 'عبارات لم تُصنَّف — راجعها', '\n\n'.join(buckets['other']))
+    print(f'unbucketed statements: {len(buckets["other"])}')
+    write('99_unclassified.sql', 'عبارات لم تصنف — راجعها', '\n\n'.join(buckets['other']))
 else:
-    print('\nall statements bucketed cleanly')
+    print('all statements bucketed cleanly')

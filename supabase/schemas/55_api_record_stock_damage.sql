@@ -63,8 +63,13 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if not exists (select 1 from core.movement_reasons where code = v_code and is_active) then
-    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
+  if not exists (
+    select 1 from core.movement_reasons
+    where code = v_code and is_active
+      and 'damage'::core.movement_type = any (applies_to)
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد لهذه العملية.', v_code
+      using errcode = 'BD400';
   end if;
 
   perform 1 from core.fabric_rolls where id = p_roll_id for update;
@@ -81,7 +86,6 @@ begin
 
   select * into v_bal from private.roll_balance(p_roll_id);
 
-  -- السقف المتاح لا الموجود: يحمي غطاء المحجوز و invariant الرول
   if v_qty > v_bal.available_m then
     raise exception 'التلف (% م) أكبر من المتاح غير المحجوز (% م) في الرول % — تلف الكمية المحجوزة يسجَّل عبر تلف المحجوز.',
       v_qty, v_bal.available_m, v_roll_code using errcode = 'BD422';

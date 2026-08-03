@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (58)
+-- التعليقات (60)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -24,8 +24,10 @@ COMMENT ON TABLE core.discount_requests IS 'الحد الأعلى المسموح
 COMMENT ON COLUMN core.fabric_products.kind IS 'يحدد فئة التسعير: crepe مقابل other. lining يعامل كبطانة لا كقماش رئيسي.';
 COMMENT ON TABLE core.fabric_reservations IS 'الحجز يمسك القماش دون إخراجه: available = on_hand − reserved.';
 COMMENT ON COLUMN core.fabric_reservations.quantity_m IS 'المحجوز الأصلي — ثابت لا يُنقص. الإنقاص يتم عبر consumed_m و released_m.';
+COMMENT ON COLUMN core.fabric_reservations.released_at IS 'وقت التحرير الكامل النقي فقط (status = released). الإغلاق المختلط أو بالتلف لا يمسّه — انظر finalized_at.';
 COMMENT ON COLUMN core.fabric_reservations.released_m IS 'المحرَّر تراكميًا. الـinvariant: quantity_m = consumed_m + released_m + remaining.';
 COMMENT ON COLUMN core.fabric_reservations.damaged_reserved_m IS 'ما تلف من الكمية المحجوزة. يدخل في الـinvariant: quantity_m = consumed_m + released_m + damaged_reserved_m + remaining.';
+COMMENT ON COLUMN core.fabric_reservations.finalized_at IS 'وقت دخول أي حالة نهائية (consumed / released / closed). يُختم مرة واحدة.';
 COMMENT ON CONSTRAINT reservation_balance_invariant ON core.fabric_reservations IS 'يفرض على المحرك: reserved_initial = consumed + released + damaged + remaining.';
 COMMENT ON TABLE core.fabric_rolls IS 'الرول قطعة مادية بلا عمود رصيد. مالك الـRPC يملك UPDATE على retired_at وحده — يكفي لـ SELECT … FOR UPDATE ولا يسمح بتعديل الكود أو الموقع أو الدفعة.';
 COMMENT ON COLUMN core.fabric_rolls.dye_lot IS 'دفعة الصبغ. اختلافها بين رولين مشروع واحد يوجب تحذيرا للمستخدم.';
@@ -34,7 +36,7 @@ COMMENT ON COLUMN core.fabric_variants.cost_per_meter_agorot IS 'حساس: تك�
 COMMENT ON TABLE core.fabric_usage IS 'الفارق بين المخطط والفعلي. تجاوز الخطة يستوجب سببا ويولد إشعارا للأدمن.';
 COMMENT ON COLUMN core.fabric_usage.planned_m IS 'لكل حدث استهلاك: الجزء المغطى بالحجز (لا «المتبقي قبل العملية»). actual_m = planned_m + waste_m لكل صف، و Σ(planned_m) ≤ quantity_m للحجز.';
 COMMENT ON CONSTRAINT usage_actual_equals_planned_plus_waste ON core.fabric_usage IS 'المعادلة الرسمية للصف-كحدث: actual = planned (المغطى بالحجز) + waste (الزيادة). مساواة دقيقة — الأعمدة numeric(12,3) والجمع عليها exact.';
-COMMENT ON TABLE core.movement_reasons IS 'الأسباب المعتمدة لحركات المخزون الاستثنائية. القائمة تُوسَّع بترحيل أو من الأدمن لاحقًا — الرمز غير الموجود/غير الفعال يُرفض في الـRPC وبالـFK معًا.';
+COMMENT ON TABLE core.movement_reasons IS 'الأسباب المعتمدة لحركات المخزون. الوجود يفرضه FK من stock_movements؛ الفاعلية (is_active) والنطاق (applies_to) يفرضهما محفّز enforce_reason_scope على الدفتر + فحص الدوال — على المحرّك لا بالاتفاق.';
 COMMENT ON TABLE core.field_visits IS 'العامل الميداني يرى زياراته فقط — سياسة RLS تعتمد على assignee_id.';
 COMMENT ON TABLE core.movement_effects IS 'المصدر الوحيد لأثر كل نوع حركة. مفروض بقيد FK من stock_movements.type — إضافة قيمة enum توجب صفًا هنا أولًا وإلا فشل الإدراج.';
 COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل للتعديل. لا UPDATE ولا DELETE — التصحيح بحركة معاكسة.';

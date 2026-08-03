@@ -189,6 +189,7 @@ CREATE TABLE core.fabric_reservations (
     released_at timestamp with time zone,
     released_m numeric(12,3) DEFAULT 0 NOT NULL,
     damaged_reserved_m numeric(12,3) DEFAULT 0 NOT NULL,
+    finalized_at timestamp with time zone,
     CONSTRAINT fabric_reservations_consumed_m_check CHECK ((consumed_m >= (0)::numeric)),
     CONSTRAINT fabric_reservations_damaged_reserved_m_check CHECK ((damaged_reserved_m >= (0)::numeric)),
     CONSTRAINT fabric_reservations_quantity_m_check CHECK ((quantity_m > (0)::numeric)),
@@ -253,8 +254,10 @@ CREATE TABLE core.movement_reasons (
     label_ar text NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     sort_order integer DEFAULT 100 NOT NULL,
+    applies_to core.movement_type[] DEFAULT '{}'::core.movement_type[] NOT NULL,
     CONSTRAINT movement_reasons_code_check CHECK ((code ~ '^[a-z][a-z0-9_]{2,40}$'::text)),
-    CONSTRAINT movement_reasons_label_ar_check CHECK ((length(btrim(label_ar)) > 0))
+    CONSTRAINT movement_reasons_label_ar_check CHECK ((length(btrim(label_ar)) > 0)),
+    CONSTRAINT reasons_have_scope CHECK ((cardinality(applies_to) > 0))
 );
 
 CREATE TABLE core.field_visits (

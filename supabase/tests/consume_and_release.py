@@ -309,7 +309,7 @@ r = sql(f"""insert into core.stock_movements
   (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
    fabric_usage_id, reason_code, created_by, idempotency_key)
   values ('{ORG}','{ROLL}','consumption',1,'{PROJ}','{RES1}',
-          '{USAGE1}','leftover_return','{ADMIN}',gen_random_uuid());""")
+          '{USAGE1}',null,'{ADMIN}',gen_random_uuid());""")
 check('3) حركة غير return تحمل fabric_usage_id مرفوضة',
       'fabric_usage_link_shape' in r, r)
 
@@ -549,6 +549,65 @@ check('★ تلف المتاح: on_hand −1 · reserved ثابت · available �
 invariants('بعد تلف المخزون')
 
 run('rm -f /tmp/ret_A.sql /tmp/ret_B.sql /tmp/reta /tmp/retb')
+
+print('\n=== أختام الإنهاء الدلالية (مانع الدمج 1) ===')
+ts = sql(f"""select (released_at is null)::text || '|' || (finalized_at is not null)::text
+  from core.fabric_reservations where id='{RESD}';""")
+check('★ إغلاق بالتلف: released_at فارغ و finalized_at مختوم',
+      'true|true' in ts, ts)
+
+ts = sql(f"""select (released_at is null)::text || '|' || (finalized_at is not null)::text
+  from core.fabric_reservations where id='{DMG}';""")
+check('★ إغلاق مختلط (تحرير+تلف→closed): released_at فارغ و finalized_at مختوم',
+      'true|true' in ts, ts)
+
+ts = sql(f"""select (released_at is not null)::text || '|' || (finalized_at is not null)::text || '|' || status
+  from core.fabric_reservations where id='cccc0000-0000-4000-8000-0000000000f3';""")
+check('★ تحرير نقي: released_at و finalized_at مختومان معًا',
+      'true|true|released' in ts, ts)
+
+ts = sql(f"""select (released_at is null)::text || '|' || (finalized_at is not null)::text || '|' || status
+  from core.fabric_reservations where id='{RES1}';""")
+check('★ استهلاك نقي: finalized_at مختوم و released_at فارغ',
+      'true|true|consumed' in ts, ts)
+
+print('\n=== نطاقات الأسباب (ملاحظة المراجعة 3) ===')
+r = as_user(ADMIN, f"select api.release_reservation('{RES2}',1,'water_damage','{K(90)}');")
+check('water_damage لتحرير حجز → مرفوض بالنطاق', 'غير معتمد لهذه العملية' in r, r)
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, reason_code, notes, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','damage',1,'leftover_return','','{ADMIN}',gen_random_uuid());""")
+check('المحفّز يرفض رمزًا خارج نطاقه حتى كـpostgres', 'غير معتمد لحركة' in r, r)
+
+print('\n=== ذرية فحص الإصدار (مانع الدمج 2): سباق حقيقي بين القراءة والقفل ===')
+RACEV = 'cccc0000-0000-4000-8000-0000000000fc'
+sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
+values ('{RACEV}','{ORG}','{PROJ}','{ROLL}',5,'{ADMIN}');
+insert into core.stock_movements (organization_id,roll_id,type,quantity_m,project_id,reservation_id,created_by,idempotency_key)
+values ('{ORG}','{ROLL}','reservation',5,'{PROJ}','{RACEV}','{ADMIN}',gen_random_uuid());""")
+cur_ver = sql(f"select lock_version from core.projects where id='{PROJ}';")
+ver = [t for t in cur_ver.split() if t.isdigit()][0]
+
+# A: يمسك قفل المشروع ويرفع الإصدار ثم يلتزم بعد 6 ثوانٍ
+put_text(f"""begin;
+update core.projects set notes = notes || '.' where id = '{PROJ}';
+select pg_sleep(6);
+commit;
+""", '/tmp/vrace_A.sql')
+# B: يبدأ بعد ثانية بالإصدار القديم — الفحص المبكر يمرّ (تعديل A غير ملتزَم بعد)،
+# ثم يحجب على قفل المشروع، وبعد التزام A يجب أن يرفض تحت القفل
+put_text(("set role postgres;\n"
+          "select set_config('request.jwt.claims','{\"sub\":\"" + ADMIN + "\",\"role\":\"authenticated\"}',false) \\g /dev/null\n"
+          "set role authenticated;\n"
+          "select pg_sleep(1.5);\n"
+          f"select api.consume_fabric('{RACEV}',1,'{K(91)}',null,null,{ver});\n"), '/tmp/vrace_B.sql')
+out = run(f'docker exec -i {DB} psql -U postgres -q < /tmp/vrace_A.sql > /tmp/vra 2>&1 & '
+          f'docker exec -i {DB} psql -U postgres -q < /tmp/vrace_B.sql > /tmp/vrb 2>&1 & '
+          'wait; echo "=B="; cat /tmp/vrb', timeout=180)
+check('★ الإصدار القديم يُرفض تحت القفل رغم مرور الفحص المبكر (BD409)',
+      'مستخدم آخر' in out and 'usage_id' not in out, out[:600])
+run('rm -f /tmp/vrace_A.sql /tmp/vrace_B.sql /tmp/vra /tmp/vrb')
 
 print('\n=== cleanup ===')
 sql(PURGE + 'select 1;')

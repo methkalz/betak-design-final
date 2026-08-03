@@ -75,8 +75,13 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if not exists (select 1 from core.movement_reasons where code = v_code and is_active) then
-    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
+  if not exists (
+    select 1 from core.movement_reasons
+    where code = v_code and is_active
+      and 'damage_reserved'::core.movement_type = any (applies_to)
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد لهذه العملية.', v_code
+      using errcode = 'BD400';
   end if;
 
   if p_expected_project_version is not null
@@ -85,12 +90,18 @@ begin
       using errcode = 'BD409';
   end if;
 
-  -- الأقفال بالترتيب الثابت: roll ← reservation ← project
+  -- الأقفال: roll ← reservation ← project
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
-  select p.tailor_id into v_tailor from core.projects p where p.id = v_project for update;
+  select p.lock_version, p.tailor_id into v_lock_ver, v_tailor
+  from core.projects p where p.id = v_project for update;
 
-  -- ★ إعادة التحقق بعد القفل (شرط المراجعة): الإسناد قد يكون تغيّر
+  -- ★ الفحوص الحاسمة تحت القفل: الإصدار + الإسناد معًا
+  if p_expected_project_version is not null
+     and p_expected_project_version <> v_lock_ver then
+    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
+      using errcode = 'BD409';
+  end if;
   if not v_is_admin and v_tailor is distinct from v_uid then
     raise exception 'لم تعد الخياط المسند لهذا المشروع.' using errcode = 'BD403';
   end if;
@@ -128,11 +139,13 @@ begin
     v_res.quantity_m, v_res.consumed_m, v_res.released_m,
     pg_catalog.round(v_res.damaged_reserved_m + v_qty, 3));
 
+  -- التلف لا يمسّ released_at أبدًا — finalized_at وحده عند الإغلاق
   update core.fabric_reservations
      set damaged_reserved_m = pg_catalog.round(damaged_reserved_m + v_qty, 3),
-         status = v_new_status,
-         released_at = case when v_new_status <> v_res.status then now()
-                            else released_at end
+         status       = v_new_status,
+         finalized_at = case
+           when v_new_status in ('consumed','released','closed') and finalized_at is null
+           then now() else finalized_at end
    where id = p_reservation_id;
 
   insert into core.audit_logs
@@ -143,7 +156,6 @@ begin
                  (select label_ar from core.movement_reasons where code = v_code)),
           v_payload);
 
-  -- الخياط سجّل تلفًا → الأدمن يُشعَر (الأدمن لا يُشعِر نفسه)
   if not v_is_admin then
     insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
     select v_org, om.user_id, 'low_stock', 'تلف في قماش محجوز',
