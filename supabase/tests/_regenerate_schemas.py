@@ -54,12 +54,19 @@ write('32_private_inventory_helpers.sql', 'مساعدات المخزون',
 write('35_private_guard_functions.sql', 'دوال الحُرّاس (تستدعيها triggers)',
       '\n\n'.join(funcs[k] + ';' for k in GUARDS))
 
-for key, fname, title in [
-    ('api.reserve_fabric', '50_api_reserve_fabric.sql', 'api.reserve_fabric'),
-    ('api.consume_fabric', '51_api_consume_fabric.sql', 'api.consume_fabric'),
-    ('api.release_reservation', '52_api_release_reservation.sql', 'api.release_reservation'),
-]:
-    write(fname, title, funcs[key] + ';')
+API_FILES = [
+    ('api.reserve_fabric', '50_api_reserve_fabric.sql'),
+    ('api.consume_fabric', '51_api_consume_fabric.sql'),
+    ('api.release_reservation', '52_api_release_reservation.sql'),
+    ('api.return_consumed_fabric', '53_api_return_consumed_fabric.sql'),
+    ('api.record_reserved_damage', '54_api_record_reserved_damage.sql'),
+    ('api.record_stock_damage', '55_api_record_stock_damage.sql'),
+]
+api_declared = {k for k, _ in API_FILES}
+api_live = {k for k in funcs if k.startswith('api.')}
+assert api_live == api_declared, f'دوال api غير مصنَّفة: {api_live ^ api_declared}'
+for key, fname in API_FILES:
+    write(fname, key, funcs[key] + ';')
 
 # ── الviews ─────────────────────────────────────────────────────────────────
 vraw = open(os.path.join(SRC, 'views.txt'), encoding='utf-8').read()

@@ -227,22 +227,35 @@ quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
 
 | العملية | admin | sales | الخياط المسند | field |
 |---|---|---|---|---|
-| `return_consumed_fabric` | ✅ | ✅* | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
-| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅** | ❌ |
+| `return_consumed_fabric` | ✅ | ❌ | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
+| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅* | ❌ |
 | `record_stock_damage` (`damage` من المتاح) | ✅ | ❌ | ❌ | ❌ |
 
-\* صلاحية المبيعات مشروطة بأن يستلم القماشَ فعليًا ويؤكد رجوعه للمخزن —
-**سؤال مفتوح لصاحب المشروع**؛ إن كان دوره تجاريًا فقط تُقصر على الأدمن.
-\*\* شرط تنفيذ الخياط: التحقق من أنه المسند حاليًا **يُعاد بعد قفل**
-المشروع/الحجز لا قبله، فلا يسجّل تلفًا على مشروع فُكّ إسناده عنه للتو.
+**المصفوفة نهائية بقرار صاحب المشروع (2026-08-03):** المبيعات لا يستلم
+القماش المرتجع فعليًا → الإرجاع وتلف المخزون **للأدمن حصرًا**. توسيعها لاحقًا
+يكون بدور مستقل (`warehouse`) لا بتوسيع sales.
+\* شرط تنفيذ الخياط: التحقق من أنه المسند حاليًا **يُعاد بعد قفل**
+المشروع/الحجز لا قبله — منفَّذ ومُختبَر (فكّ الإسناد ثم المحاولة → BD403).
+
+**نموذج الأسباب (0033):** `reason_code` FK إلى `core.movement_reasons`
+(قائمة معتمدة قابلة للتوسعة) + `notes` نص حر منفصل — **الدمج ممنوع**، فهو
+يفسد تجميع التقارير. القيد `reason_code_required_for_exceptions` يفرض الرمز
+على: damage · damage_reserved · adjustment_in/out · overconsumption · return.
+العمود القديم `reason` أعيدت تسميته `notes` في `stock_movements` و
+`fabric_usage` معًا.
 
 **هـ. بصمات idempotency** (v3 — كل مدخل مؤثر، بلا `expected_project_version`):
 
 ```
+consume_fabric         : op, user_id, reservation_id,  quantity_m, reason_code, notes
+release_reservation    : op, user_id, reservation_id,  quantity_m, reason_code, notes
 return_consumed_fabric : op, user_id, fabric_usage_id, quantity_m, reason_code, notes
-record_reserved_damage : op, user_id, reservation_id,  quantity_m, reason
-record_stock_damage    : op, user_id, roll_id,         quantity_m, reason
+record_reserved_damage : op, user_id, reservation_id,  quantity_m, reason_code, notes
+record_stock_damage    : op, user_id, roll_id,         quantity_m, reason_code, notes
 ```
+
+ترقية v3 آمنة تاريخيًا **بدليل**: استعلام الطاقم الحرفي على
+`client_operations` أعاد صفر صفوف قبل الترحيل 0033 — لا عمليات v2 حقيقية.
 
 **قاعدة التطبيع الملزمة (v3، مطبقة بأثر رجعي على consume/release في 0032):**
 تُطبَّع المدخلات **قبل** حساب البصمة، و**القيمة المطبَّعة نفسها هي المخزنة**:

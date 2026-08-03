@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (54)
+-- التعليقات (58)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -34,14 +34,18 @@ COMMENT ON COLUMN core.fabric_variants.cost_per_meter_agorot IS 'حساس: تك�
 COMMENT ON TABLE core.fabric_usage IS 'الفارق بين المخطط والفعلي. تجاوز الخطة يستوجب سببا ويولد إشعارا للأدمن.';
 COMMENT ON COLUMN core.fabric_usage.planned_m IS 'لكل حدث استهلاك: الجزء المغطى بالحجز (لا «المتبقي قبل العملية»). actual_m = planned_m + waste_m لكل صف، و Σ(planned_m) ≤ quantity_m للحجز.';
 COMMENT ON CONSTRAINT usage_actual_equals_planned_plus_waste ON core.fabric_usage IS 'المعادلة الرسمية للصف-كحدث: actual = planned (المغطى بالحجز) + waste (الزيادة). مساواة دقيقة — الأعمدة numeric(12,3) والجمع عليها exact.';
+COMMENT ON TABLE core.movement_reasons IS 'الأسباب المعتمدة لحركات المخزون الاستثنائية. القائمة تُوسَّع بترحيل أو من الأدمن لاحقًا — الرمز غير الموجود/غير الفعال يُرفض في الـRPC وبالـFK معًا.';
 COMMENT ON TABLE core.field_visits IS 'العامل الميداني يرى زياراته فقط — سياسة RLS تعتمد على assignee_id.';
 COMMENT ON TABLE core.movement_effects IS 'المصدر الوحيد لأثر كل نوع حركة. مفروض بقيد FK من stock_movements.type — إضافة قيمة enum توجب صفًا هنا أولًا وإلا فشل الإدراج.';
 COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل للتعديل. لا UPDATE ولا DELETE — التصحيح بحركة معاكسة.';
 COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. لا تخزن كميات سالبة — النوع هو ما يحدد دخولا أم خروجا.';
+COMMENT ON COLUMN core.stock_movements.notes IS 'نص حر. لا يُدمج بالرمز أبدًا — الدمج يفسد التجميع في التقارير.';
 COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
 COMMENT ON COLUMN core.stock_movements.operation_group_id IS 'يجمع حركات إجراء مستخدم واحد (استهلاك 30 + زيادة 5 = صفان بنفس المعرّف). يُولَّد داخل الـRPC حصرًا — لا يُقبل من الجهاز أبدًا.';
 COMMENT ON COLUMN core.stock_movements.fabric_usage_id IS 'حركات return فقط حاليًا: سجل الاستهلاك الذي يُرجَع منه. الـFK الخماسي يفرض تطابق المؤسسة والرول والحجز والمشروع مع السجل — لا يُقبل roll_id من العميل عند الإرجاع بل يُشتق كله من هذا السجل.';
+COMMENT ON COLUMN core.stock_movements.reason_code IS 'رمز معتمد من movement_reasons — عليه تُبنى تقارير الهدر والإرجاع.';
 COMMENT ON CONSTRAINT fabric_usage_link_shape ON core.stock_movements IS 'كل return يحمل السياق الكامل (usage + project + reservation) فلا يستطيع NULL إعفاءه من الـFK الخماسي، وأي حركة غير return لا تحمل fabric_usage_id. مع القيد الخماسي يصير تطابق الرول والحجز والمشروع مفروضًا فعلًا لا ادعاءً.';
+COMMENT ON CONSTRAINT reason_code_required_for_exceptions ON core.stock_movements IS 'الحركات الاستثنائية تحتاج رمز سبب معتمدًا (FK) — لا نصًا حرًّا غير فارغ.';
 COMMENT ON TABLE core.organization_members IS 'مصدر الحقيقة للصلاحيات. private.is_org_member و private.has_role يقرآن من هنا.';
 COMMENT ON TABLE core.notifications IS 'إشعار لمستخدم بعينه. سياسة RLS: يرى المستخدم صفوفه هو فقط.';
 COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيانات العمل معلقة على هذا الجدول.';

@@ -5,7 +5,7 @@
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
 -- ════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE FUNCTION api.consume_fabric(p_reservation_id uuid, p_quantity_m numeric, p_idempotency_key uuid, p_reason text DEFAULT NULL::text, p_expected_project_version integer DEFAULT NULL::integer)
+CREATE OR REPLACE FUNCTION api.consume_fabric(p_reservation_id uuid, p_quantity_m numeric, p_idempotency_key uuid, p_reason_code text DEFAULT NULL::text, p_notes text DEFAULT NULL::text, p_expected_project_version integer DEFAULT NULL::integer)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -14,7 +14,7 @@ AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
   v_res core.fabric_reservations%rowtype; v_lock_ver integer; v_tailor uuid;
-  v_qty numeric(12,3); v_reason text;
+  v_qty numeric(12,3); v_code text; v_notes text;
   v_remaining numeric(12,3); v_from_res numeric(12,3); v_over numeric(12,3);
   v_bal record; v_group uuid;
   v_payload jsonb; v_prior core.client_operations%rowtype;
@@ -25,8 +25,10 @@ begin
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
   end if;
 
-  v_qty := pg_catalog.round(p_quantity_m, 3);
-  v_reason := pg_catalog.btrim(coalesce(p_reason, ''));
+  -- تطبيع v3: القيمة المطبَّعة هي المستخدمة في البصمة والتخزين معًا
+  v_qty   := pg_catalog.round(p_quantity_m, 3);
+  v_code  := nullif(pg_catalog.btrim(coalesce(p_reason_code, '')), '');
+  v_notes := pg_catalog.btrim(coalesce(p_notes, ''));
   if v_qty is null or v_qty <= 0 then
     raise exception 'الكمية يجب أن تكون أكبر من صفر.' using errcode = 'BD400';
   end if;
@@ -57,7 +59,7 @@ begin
   v_payload := jsonb_build_object(
     'op', 'consume_fabric', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
-    'reason', v_reason);
+    'reason_code', coalesce(v_code, ''), 'notes', v_notes);
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -67,6 +69,13 @@ begin
         using errcode = 'BD400';
     end if;
     return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
+  -- صلاحية الرمز — بعد احتمال الإعادة، وقبل أي أثر
+  if v_code is not null and not exists (
+    select 1 from core.movement_reasons where code = v_code and is_active
+  ) then
+    raise exception 'رمز السبب "%" غير معتمد.', v_code using errcode = 'BD400';
   end if;
 
   if p_expected_project_version is not null
@@ -106,8 +115,8 @@ begin
   end if;
 
   if v_over > 0 then
-    if v_reason = '' then
-      raise exception 'الاستهلاك يتجاوز المحجوز بـ% م — السبب إلزامي.', v_over
+    if v_code is null then
+      raise exception 'الاستهلاك يتجاوز المحجوز بـ% م — رمز السبب إلزامي.', v_over
         using errcode = 'BD400';
     end if;
     if v_over > v_bal.available_m then
@@ -121,17 +130,17 @@ begin
   if v_from_res > 0 then
     insert into core.stock_movements
       (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
-       reason, created_by, idempotency_key, operation_group_id)
+       reason_code, notes, created_by, idempotency_key, operation_group_id)
     values (v_org, v_roll, 'consumption', v_from_res, v_project, p_reservation_id,
-            v_reason, v_uid, p_idempotency_key, v_group);
+            v_code, v_notes, v_uid, p_idempotency_key, v_group);
   end if;
 
   if v_over > 0 then
     insert into core.stock_movements
       (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
-       reason, created_by, idempotency_key, operation_group_id)
+       reason_code, notes, created_by, idempotency_key, operation_group_id)
     values (v_org, v_roll, 'overconsumption', v_over, v_project, p_reservation_id,
-            'زيادة عن المحجوز: ' || v_reason, v_uid, gen_random_uuid(), v_group);
+            v_code, v_notes, v_uid, gen_random_uuid(), v_group);
   end if;
 
   update core.fabric_reservations
@@ -145,9 +154,9 @@ begin
 
   insert into core.fabric_usage
     (organization_id, project_id, reservation_id, roll_id,
-     planned_m, actual_m, waste_m, reason, created_by)
+     planned_m, actual_m, waste_m, reason_code, notes, created_by)
   values (v_org, v_project, p_reservation_id, v_roll,
-          v_from_res, v_qty, v_over, v_reason, v_uid)
+          v_from_res, v_qty, v_over, v_code, v_notes, v_uid)
   returning id into v_usage_id;
 
   insert into core.audit_logs
@@ -160,8 +169,10 @@ begin
   if v_over > 0 then
     insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
     select v_org, om.user_id, 'low_stock', 'استهلاك يتجاوز المخطط',
-           format('الرول %s: استهلاك %s م بزيادة %s م. السبب: %s',
-                  v_roll_code, v_qty, v_over, v_reason),
+           format('الرول %s: استهلاك %s م بزيادة %s م. السبب: %s%s',
+                  v_roll_code, v_qty, v_over,
+                  (select label_ar from core.movement_reasons where code = v_code),
+                  case when v_notes <> '' then ' — ' || v_notes else '' end),
            'baytakdesign://projects/' || v_project::text
     from core.organization_members om
     where om.organization_id = v_org and om.role = 'admin' and om.is_active;

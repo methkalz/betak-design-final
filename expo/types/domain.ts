@@ -168,7 +168,10 @@ export interface StockMovement {
   quantityM: number;
   projectId: UUID | null;
   reservationId: UUID | null;
-  reason: string;
+  /** رمز سبب معتمد من قائمة movement_reasons — عليه تُبنى التقارير. */
+  reasonCode?: string | null;
+  /** نص حر. لا يُدمج بالرمز أبدًا — الدمج يفسد التجميع. */
+  notes: string;
   createdBy: UUID;
   createdAt: string;
   idempotencyKey: string;
@@ -214,7 +217,8 @@ export interface FabricUsage {
   plannedM: number;
   actualM: number;
   wasteM: number;
-  reason: string;
+  reasonCode?: string | null;
+  notes: string;
   createdBy: UUID;
   createdAt: string;
 }

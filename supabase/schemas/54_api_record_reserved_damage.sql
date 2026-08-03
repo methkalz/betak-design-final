@@ -1,11 +1,11 @@
 -- ════════════════════════════════════════════════════════════════════
--- api.release_reservation
+-- api.record_reserved_damage
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
 -- ════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE FUNCTION api.release_reservation(p_reservation_id uuid, p_quantity_m numeric, p_reason_code text, p_idempotency_key uuid, p_notes text DEFAULT NULL::text, p_expected_project_version integer DEFAULT NULL::integer)
+CREATE OR REPLACE FUNCTION api.record_reserved_damage(p_reservation_id uuid, p_quantity_m numeric, p_reason_code text, p_idempotency_key uuid, p_notes text DEFAULT NULL::text, p_expected_project_version integer DEFAULT NULL::integer)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -13,11 +13,13 @@ CREATE OR REPLACE FUNCTION api.release_reservation(p_reservation_id uuid, p_quan
 AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
-  v_res core.fabric_reservations%rowtype; v_lock_ver integer;
+  v_res core.fabric_reservations%rowtype; v_lock_ver integer; v_tailor uuid;
+  v_is_admin boolean;
   v_qty numeric(12,3); v_code text; v_notes text;
-  v_remaining numeric(12,3); v_bal record;
+  v_remaining numeric(12,3); v_bal record; v_mv_id uuid;
+  v_new_status core.reservation_status;
   v_payload jsonb; v_prior core.client_operations%rowtype;
-  v_new_status core.reservation_status; v_result jsonb;
+  v_notified boolean := false; v_result jsonb;
 begin
   v_uid := private.current_uid();
   if v_uid is null then
@@ -31,7 +33,7 @@ begin
     raise exception 'الكمية يجب أن تكون أكبر من صفر.' using errcode = 'BD400';
   end if;
   if v_code is null then
-    raise exception 'رمز سبب التحرير إلزامي.' using errcode = 'BD400';
+    raise exception 'رمز سبب التلف إلزامي.' using errcode = 'BD400';
   end if;
   if p_idempotency_key is null then
     raise exception 'idempotency_key إلزامي.' using errcode = 'BD400';
@@ -46,14 +48,20 @@ begin
   if not private.is_org_member(v_org) then
     raise exception 'لست عضوًا في هذه المؤسسة.' using errcode = 'BD403';
   end if;
-  if not private.has_role(v_org, array['admin','sales']::core.app_role[]) then
-    raise exception 'دورك لا يسمح بتحرير الحجز.' using errcode = 'BD403';
+
+  v_is_admin := private.has_role(v_org, array['admin']::core.app_role[]);
+  select p.lock_version, p.tailor_id into v_lock_ver, v_tailor
+  from core.projects p where p.id = v_project;
+
+  if not (v_is_admin
+          or (private.has_role(v_org, array['tailor']::core.app_role[])
+              and v_tailor = v_uid)) then
+    raise exception 'تلف المحجوز يسجّله الأدمن أو الخياط المسند لهذا المشروع.'
+      using errcode = 'BD403';
   end if;
 
-  select p.lock_version into v_lock_ver from core.projects p where p.id = v_project;
-
   v_payload := jsonb_build_object(
-    'op', 'release_reservation', 'user_id', v_uid,
+    'op', 'record_reserved_damage', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
     'reason_code', v_code, 'notes', v_notes);
 
@@ -77,8 +85,15 @@ begin
       using errcode = 'BD409';
   end if;
 
+  -- الأقفال بالترتيب الثابت: roll ← reservation ← project
   select r.code into v_roll_code from core.fabric_rolls r where r.id = v_roll for update;
   select * into v_res from core.fabric_reservations where id = p_reservation_id for update;
+  select p.tailor_id into v_tailor from core.projects p where p.id = v_project for update;
+
+  -- ★ إعادة التحقق بعد القفل (شرط المراجعة): الإسناد قد يكون تغيّر
+  if not v_is_admin and v_tailor is distinct from v_uid then
+    raise exception 'لم تعد الخياط المسند لهذا المشروع.' using errcode = 'BD403';
+  end if;
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -91,68 +106,81 @@ begin
   end if;
 
   if v_res.status in ('released', 'closed') then
-    raise exception 'الحجز % مسبقًا — لا يُعاد فتحه.',
-      case v_res.status when 'released' then 'محرَّر بالكامل' else 'مغلق' end
+    raise exception 'الحجز % — لا يُسجَّل تلف عليه.',
+      case v_res.status when 'released' then 'محرَّر' else 'مغلق' end
       using errcode = 'BD409';
   end if;
 
   v_remaining := private.reservation_remaining(p_reservation_id);
   if v_qty > v_remaining then
-    raise exception 'التحرير (% م) أكبر من المتبقي في الحجز (% م). المستهلك لا يُحرَّر.',
+    raise exception 'التلف (% م) أكبر من المتبقي في الحجز (% م).',
       v_qty, v_remaining using errcode = 'BD422';
   end if;
 
   insert into core.stock_movements
     (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
      reason_code, notes, created_by, idempotency_key)
-  values (v_org, v_roll, 'reservation_release', v_qty, v_project, p_reservation_id,
-          v_code, v_notes, v_uid, p_idempotency_key);
+  values (v_org, v_roll, 'damage_reserved', v_qty, v_project, p_reservation_id,
+          v_code, v_notes, v_uid, p_idempotency_key)
+  returning id into v_mv_id;
 
   v_new_status := private.reservation_status_for(
-    v_res.quantity_m,
-    v_res.consumed_m,
-    pg_catalog.round(v_res.released_m + v_qty, 3),
-    v_res.damaged_reserved_m);
+    v_res.quantity_m, v_res.consumed_m, v_res.released_m,
+    pg_catalog.round(v_res.damaged_reserved_m + v_qty, 3));
 
   update core.fabric_reservations
-     set released_m  = pg_catalog.round(released_m + v_qty, 3),
-         status      = v_new_status,
+     set damaged_reserved_m = pg_catalog.round(damaged_reserved_m + v_qty, 3),
+         status = v_new_status,
          released_at = case when v_new_status <> v_res.status then now()
                             else released_at end
    where id = p_reservation_id;
 
   insert into core.audit_logs
     (organization_id, actor_id, action, entity, entity_id, summary, payload)
-  values (v_org, v_uid, 'inventory.release', 'fabric_reservation',
+  values (v_org, v_uid, 'inventory.damage_reserved', 'fabric_reservation',
           p_reservation_id::text,
-          format('تحرير %s م من الرول %s — %s', v_qty, v_roll_code,
+          format('تلف %s م من محجوز الرول %s — %s', v_qty, v_roll_code,
                  (select label_ar from core.movement_reasons where code = v_code)),
           v_payload);
+
+  -- الخياط سجّل تلفًا → الأدمن يُشعَر (الأدمن لا يُشعِر نفسه)
+  if not v_is_admin then
+    insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
+    select v_org, om.user_id, 'low_stock', 'تلف في قماش محجوز',
+           format('الرول %s: تلف %s م. السبب: %s%s', v_roll_code, v_qty,
+                  (select label_ar from core.movement_reasons where code = v_code),
+                  case when v_notes <> '' then ' — ' || v_notes else '' end),
+           'baytakdesign://projects/' || v_project::text
+    from core.organization_members om
+    where om.organization_id = v_org and om.role = 'admin' and om.is_active;
+    v_notified := true;
+  end if;
 
   select * into v_bal from private.roll_balance(v_roll);
 
   v_result := jsonb_build_object(
+    'movement_id', v_mv_id,
     'reservation_id', p_reservation_id,
     'roll_id', v_roll,
     'roll_code', v_roll_code,
-    'released_quantity_m', v_qty,
+    'damaged_quantity_m', v_qty,
     'reservation_status', v_new_status,
     'reserved_initial_m', v_res.quantity_m,
     'consumed_total_m', v_res.consumed_m,
-    'released_total_m', pg_catalog.round(v_res.released_m + v_qty, 3),
-    'damaged_total_m', v_res.damaged_reserved_m,
+    'released_total_m', v_res.released_m,
+    'damaged_total_m', pg_catalog.round(v_res.damaged_reserved_m + v_qty, 3),
     'remaining_reserved_quantity_m', pg_catalog.round(v_remaining - v_qty, 3),
     'on_hand_quantity_m', v_bal.on_hand_m,
     'reserved_quantity_m', v_bal.reserved_m,
     'available_quantity_m', v_bal.available_m,
+    'admin_notification_created', v_notified,
     'was_replayed', false);
 
   insert into core.client_operations
     (organization_id, user_id, client_operation_id, idempotency_key,
      kind, entity_id, state, payload, result, synced_at)
   values (v_org, v_uid, p_idempotency_key, p_idempotency_key,
-          'release_reservation', p_reservation_id::text, 'synced', v_payload, v_result,
-          now());
+          'record_reserved_damage', v_mv_id::text, 'synced', v_payload, v_result, now());
 
   return v_result;
 end $function$;

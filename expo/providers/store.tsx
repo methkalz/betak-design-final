@@ -1019,7 +1019,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         quantityM: round3(quantityM),
         projectId,
         reservationId,
-        reason,
+        notes: reason,
         createdBy: userId ?? 'system',
         createdAt: new Date().toISOString(),
         idempotencyKey: uid('idem'),
@@ -1150,7 +1150,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           plannedM: planned,
           actualM: round3(quantityM),
           wasteM: round3(Math.max(0, quantityM - planned)),
-          reason: reason.trim(),
+          notes: reason.trim(),
           createdBy: userId ?? 'system',
           createdAt: new Date().toISOString(),
         });

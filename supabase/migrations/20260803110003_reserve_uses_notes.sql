@@ -1,9 +1,9 @@
--- ════════════════════════════════════════════════════════════════════
--- api.reserve_fabric
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
--- ════════════════════════════════════════════════════════════════════
+-- ============================================================================
+-- بيتك ديزاين — 0035 — reserve_fabric تكتب في notes بعد إعادة تسمية العمود
+-- فات ترحيلَ 0033 تحديثُ هذه الدالة (الوحيدة الباقية على العمود القديم)،
+-- فكسر أول حجز: column reason does not exist. أمسكها انحدارُ مجموعة reserve.
+-- الجسم مستخرج من التعريف الحي بـpg_get_functiondef وعُدِّل سطر الإدراج وحده.
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION api.reserve_fabric(p_project_id uuid, p_roll_id uuid, p_quantity_m numeric, p_idempotency_key uuid, p_expected_project_version integer DEFAULT NULL::integer)
  RETURNS jsonb
@@ -141,3 +141,5 @@ begin
 
   return v_result;
 end $function$;
+
+notify pgrst, 'reload schema';
