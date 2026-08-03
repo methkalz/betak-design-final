@@ -43,6 +43,8 @@ schema_paths = [
   "./schemas/57_api_send_quotation_version.sql",
   "./schemas/58_api_approve_quotation_version.sql",
   "./schemas/59_api_reject_quotation_version.sql",
+  "./schemas/59a_api_request_discount.sql",
+  "./schemas/59b_api_decide_discount_request.sql",
   "./schemas/60_rls_policies.sql",
   "./schemas/70_triggers.sql",
   "./schemas/80_comments.sql",

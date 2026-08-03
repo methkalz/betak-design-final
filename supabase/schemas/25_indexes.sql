@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الفهارس (37) — قبل القيود عمدًا
+-- الفهارس (38) — قبل القيود عمدًا
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -11,6 +11,7 @@ CREATE INDEX audit_logs_org_created_idx ON core.audit_logs USING btree (organiza
 CREATE INDEX client_operations_user_state_idx ON core.client_operations USING btree (organization_id, user_id, state) WHERE (state <> 'synced'::core.sync_state);
 CREATE INDEX customers_org_active_idx ON core.customers USING btree (organization_id, full_name) WHERE (archived_at IS NULL);
 CREATE INDEX customers_org_phone_idx ON core.customers USING btree (organization_id, phone) WHERE (archived_at IS NULL);
+CREATE UNIQUE INDEX discount_requests_one_pending_idx ON core.discount_requests USING btree (organization_id, version_id) WHERE (status = 'pending'::core.discount_request_status);
 CREATE INDEX discount_requests_pending_idx ON core.discount_requests USING btree (organization_id, created_at DESC) WHERE (status = 'pending'::core.discount_request_status);
 CREATE UNIQUE INDEX fabric_usage_return_target_uidx ON core.fabric_usage USING btree (organization_id, id, roll_id, reservation_id, project_id);
 CREATE INDEX field_visits_assignee_idx ON core.field_visits USING btree (organization_id, assignee_id, scheduled_at);
