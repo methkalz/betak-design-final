@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الفهارس (35) — قبل القيود عمدًا
+-- الفهارس (37) — قبل القيود عمدًا
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -27,7 +27,9 @@ CREATE INDEX projects_install_date_idx ON core.projects USING btree (organizatio
 CREATE INDEX projects_org_customer_idx ON core.projects USING btree (organization_id, customer_id);
 CREATE INDEX projects_org_status_idx ON core.projects USING btree (organization_id, status_code);
 CREATE INDEX projects_tailor_idx ON core.projects USING btree (organization_id, tailor_id) WHERE (tailor_id IS NOT NULL);
-CREATE INDEX quotations_project_idx ON core.quotations USING btree (organization_id, project_id);
+CREATE UNIQUE INDEX quotation_versions_one_approved_idx ON core.quotation_versions USING btree (organization_id, quotation_id) WHERE (status = 'approved'::core.quotation_status);
+CREATE UNIQUE INDEX quotation_versions_one_draft_idx ON core.quotation_versions USING btree (organization_id, quotation_id) WHERE (status = 'draft'::core.quotation_status);
+CREATE UNIQUE INDEX quotation_versions_one_sent_idx ON core.quotation_versions USING btree (organization_id, quotation_id) WHERE (status = 'sent'::core.quotation_status);
 CREATE INDEX reservations_project_idx ON core.fabric_reservations USING btree (organization_id, project_id);
 CREATE INDEX reservations_roll_open_idx ON core.fabric_reservations USING btree (organization_id, roll_id) WHERE (status = ANY (ARRAY['active'::core.reservation_status, 'partially_consumed'::core.reservation_status]));
 CREATE INDEX rolls_variant_idx ON core.fabric_rolls USING btree (organization_id, variant_id) WHERE (retired_at IS NULL);

@@ -304,7 +304,10 @@ end $$;
 
 \echo ''
 \echo '31) نسخة عرض مقفلة: تعديل المبلغ مرفوض'
-update core.quotation_versions set locked = true, sent_at = now()
+-- الترقية إلى sent بالشكل الكامل الذي يفرضه version_lifecycle_shape
+update core.quotation_versions
+   set status = 'sent', locked = true, sent_at = now(),
+       sent_by = 'aaaaaaaa-0000-0000-0000-000000000001'
  where id='f1000000-0000-0000-0000-000000000001';
 do $$
 begin
@@ -319,7 +322,9 @@ end $$;
 \echo '32) لكن الاعتماد مسموح على النسخة المقفلة'
 do $$
 begin
-  update core.quotation_versions set status='approved', approved_at=now()
+  update core.quotation_versions
+     set status='approved', approved_at=now(),
+         decision_recorded_by='aaaaaaaa-0000-0000-0000-000000000001'
    where id='f1000000-0000-0000-0000-000000000001';
   raise notice 'OK: approval allowed on locked version';
 exception when others then

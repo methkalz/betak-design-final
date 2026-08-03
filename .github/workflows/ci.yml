@@ -87,6 +87,9 @@ jobs:
       - name: consume/release/return/damage suite
         run: python3 supabase/tests/consume_and_release.py 2>&1 | tee logs/consume.log
 
+      - name: quotation contracts suite
+        run: python3 supabase/tests/quotation_contracts.py 2>&1 | tee logs/quotation.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log
 

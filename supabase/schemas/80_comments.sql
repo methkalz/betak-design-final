@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (60)
+-- التعليقات (62)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -12,6 +12,7 @@ COMMENT ON TABLE core.audit_logs IS 'غير قابل للتعديل. أي عمل
 COMMENT ON COLUMN core.audit_logs.actor_id IS 'يسمح بأن يكون null: العملية قد تنفذ من نظام أو مهمة مجدولة لا من مستخدم.';
 COMMENT ON TABLE core.profiles IS 'بيانات المستخدم العامة. المفتاح هو auth.users.id — لا كلمات سر ولا PIN هنا.';
 COMMENT ON COLUMN core.business_settings.vat_percent IS 'نسبة ض.ق.م. مصدر الحقيقة الوحيد — لا تكرر على core.organizations.';
+COMMENT ON COLUMN core.business_settings.timezone IS 'المنطقة الزمنية للمؤسسة (اسم IANA). تُستعمل لاشتقاق سنة ترقيم المستندات؛ اسم غير صالح يُفشل عملية الترقيم بخطأ صريح من at time zone.';
 COMMENT ON TABLE core.client_operations IS 'دفتر الـidempotency. يقرأ في مستهل كل RPC حساس قبل تنفيذ أي أثر جانبي.';
 COMMENT ON COLUMN core.client_operations.result IS 'يعاد حرفيا عند تكرار نفس idempotency_key بدل إعادة تنفيذ العملية.';
 COMMENT ON COLUMN core.client_operations.payload IS 'بصمة مدخلات الطلب. إعادة استخدام المفتاح ببصمة مختلفة تُرفض بـBD400.';
@@ -62,6 +63,7 @@ COMMENT ON COLUMN core.quotation_versions.internal_cost_agorot IS 'حساس: ا�
 COMMENT ON COLUMN core.quotation_versions.margin_percent IS 'حساس: هامش الربح. قد يكون سالبا عند البيع بخسارة — لذا بلا قيد >= 0.';
 COMMENT ON COLUMN core.quotation_versions.locked IS 'العرض المرسل لقطة مجمدة. التعديل يعني نسخة جديدة، لا تحديثا.';
 COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
+COMMENT ON TABLE core.document_sequences IS 'عدادات ترقيم المستندات (عروض الأسعار وغيرها) لكل مؤسسة وسنة. تُقرأ وتُكتب عبر RPC حصرًا تحت قفل FOR UPDATE على صف (المؤسسة، النوع، السنة) — لا منح لـauthenticated إطلاقًا.';
 COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';
 COMMENT ON CONSTRAINT stock_movements_type_effects_fk ON core.stock_movements IS 'قيمة enum جديدة بلا صف في movement_effects ترفض الإدراج بدل إسقاط الحركة صامتة من حسابات الأرصدة.';
 COMMENT ON CONSTRAINT stock_movements_usage_consistency_fk ON core.stock_movements IS 'إرجاع إلى رول أو حجز أو مشروع غير الذي استُهلك منه = خطأ FK من المحرّك، حتى من الأدوار مرتفعة الصلاحية.';

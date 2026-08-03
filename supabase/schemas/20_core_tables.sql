@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الجداول (30) والقيم الافتراضية (0)
+-- الجداول (31) والقيم الافتراضية (0)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -59,6 +59,7 @@ CREATE TABLE core.business_settings (
     vat_percent numeric(5,2) DEFAULT 18 NOT NULL,
     currency character(3) DEFAULT 'ILS'::bpchar NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    timezone text DEFAULT 'Asia/Jerusalem'::text NOT NULL,
     CONSTRAINT business_settings_admin_discount_limit_percent_check CHECK (((admin_discount_limit_percent >= (0)::numeric) AND (admin_discount_limit_percent <= (100)::numeric))),
     CONSTRAINT business_settings_delivery_cost_per_meter_agorot_check CHECK ((delivery_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_employee_discount_limit_percent_check CHECK (((employee_discount_limit_percent >= (0)::numeric) AND (employee_discount_limit_percent <= (100)::numeric))),
@@ -66,6 +67,7 @@ CREATE TABLE core.business_settings (
     CONSTRAINT business_settings_measure_install_cost_per_meter_agorot_check CHECK ((measure_install_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_min_margin_percent_check CHECK (((min_margin_percent >= (0)::numeric) AND (min_margin_percent <= (100)::numeric))),
     CONSTRAINT business_settings_quotation_validity_days_check CHECK ((quotation_validity_days > 0)),
+    CONSTRAINT business_settings_timezone_check CHECK ((length(btrim(timezone)) > 0)),
     CONSTRAINT business_settings_track_cost_per_meter_agorot_check CHECK ((track_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_vat_percent_check CHECK (((vat_percent >= (0)::numeric) AND (vat_percent <= (100)::numeric))),
     CONSTRAINT discount_limits_ordered CHECK ((employee_discount_limit_percent <= admin_discount_limit_percent))
@@ -156,7 +158,9 @@ CREATE TABLE core.discount_requests (
     decided_at timestamp with time zone,
     decision_note text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    content_fingerprint text NOT NULL,
     CONSTRAINT decision_is_complete CHECK ((((status = 'pending'::core.discount_request_status) AND (decided_by IS NULL) AND (decided_at IS NULL)) OR ((status <> 'pending'::core.discount_request_status) AND (decided_by IS NOT NULL) AND (decided_at IS NOT NULL)))),
+    CONSTRAINT discount_requests_fingerprint_check CHECK ((length(btrim(content_fingerprint)) > 0)),
     CONSTRAINT discount_requests_reason_check CHECK ((length(btrim(reason)) > 0)),
     CONSTRAINT discount_requests_requested_percent_check CHECK (((requested_percent > (0)::numeric) AND (requested_percent <= (100)::numeric)))
 );
@@ -450,6 +454,11 @@ CREATE TABLE core.quotation_versions (
     sent_at timestamp with time zone,
     approved_at timestamp with time zone,
     locked boolean DEFAULT false NOT NULL,
+    sent_by uuid,
+    rejected_at timestamp with time zone,
+    superseded_at timestamp with time zone,
+    decision_recorded_by uuid,
+    decision_note text DEFAULT ''::text NOT NULL,
     CONSTRAINT discount_within_subtotal CHECK ((discount_agorot <= subtotal_agorot)),
     CONSTRAINT quotation_versions_discount_agorot_check CHECK ((discount_agorot >= 0)),
     CONSTRAINT quotation_versions_discount_percent_check CHECK (((discount_percent >= (0)::numeric) AND (discount_percent <= (100)::numeric))),
@@ -458,7 +467,16 @@ CREATE TABLE core.quotation_versions (
     CONSTRAINT quotation_versions_total_agorot_check CHECK ((total_agorot >= 0)),
     CONSTRAINT quotation_versions_vat_agorot_check CHECK ((vat_agorot >= 0)),
     CONSTRAINT quotation_versions_version_number_check CHECK ((version_number > 0)),
-    CONSTRAINT sent_versions_are_locked CHECK (((sent_at IS NULL) OR locked))
+    CONSTRAINT version_lifecycle_shape CHECK (
+CASE status
+    WHEN 'draft'::core.quotation_status THEN ((sent_at IS NULL) AND (sent_by IS NULL) AND (locked = false) AND (approved_at IS NULL) AND (rejected_at IS NULL) AND (superseded_at IS NULL) AND (decision_recorded_by IS NULL))
+    WHEN 'sent'::core.quotation_status THEN ((sent_at IS NOT NULL) AND (sent_by IS NOT NULL) AND locked AND (approved_at IS NULL) AND (rejected_at IS NULL) AND (superseded_at IS NULL) AND (decision_recorded_by IS NULL))
+    WHEN 'approved'::core.quotation_status THEN ((sent_at IS NOT NULL) AND (sent_by IS NOT NULL) AND locked AND (approved_at IS NOT NULL) AND (decision_recorded_by IS NOT NULL) AND (rejected_at IS NULL) AND (superseded_at IS NULL))
+    WHEN 'rejected'::core.quotation_status THEN ((sent_at IS NOT NULL) AND (sent_by IS NOT NULL) AND locked AND (rejected_at IS NOT NULL) AND (decision_recorded_by IS NOT NULL) AND (length(btrim(decision_note)) > 0) AND (approved_at IS NULL) AND (superseded_at IS NULL))
+    WHEN 'expired'::core.quotation_status THEN ((sent_at IS NOT NULL) AND (sent_by IS NOT NULL) AND locked AND (approved_at IS NULL) AND (rejected_at IS NULL) AND (decision_recorded_by IS NULL))
+    WHEN 'superseded'::core.quotation_status THEN (locked AND (superseded_at IS NOT NULL) AND ((sent_at IS NULL) = (sent_by IS NULL)) AND (approved_at IS NULL) AND (rejected_at IS NULL))
+    ELSE false
+END)
 );
 
 CREATE TABLE core.quotations (
@@ -487,6 +505,16 @@ CREATE TABLE core.tailor_assignments (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT tailor_assignments_stage_history_check CHECK ((jsonb_typeof(stage_history) = 'array'::text))
+);
+
+CREATE TABLE core.document_sequences (
+    organization_id uuid NOT NULL,
+    doc_type text NOT NULL,
+    year integer NOT NULL,
+    last_number integer DEFAULT 0 NOT NULL,
+    CONSTRAINT document_sequences_doc_type_check CHECK ((length(btrim(doc_type)) > 0)),
+    CONSTRAINT document_sequences_last_number_check CHECK ((last_number >= 0)),
+    CONSTRAINT document_sequences_year_check CHECK (((year >= 2000) AND (year <= 2100)))
 );
 
 CREATE TABLE core.user_devices (
