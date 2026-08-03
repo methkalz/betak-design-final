@@ -13,7 +13,7 @@ from vps import run, put_text  # noqa: E402
 
 IID = os.environ.get('BAYTAK_INSTANCE_ID') or open(
     os.path.join(HELPER, 'instance_id.txt')).read().strip()
-DB = f'supabase-db-{IID}'
+DB = os.environ.get('BAYTAK_DB_CONTAINER') or f'supabase-db-{IID}'
 SCHEMAS = os.path.join(os.path.dirname(HERE), 'schemas')
 SCRATCH = 'baytak_schema_check'
 
@@ -110,10 +110,17 @@ if not failed:
     if len(only_scratch) > 25:
         print(f'  … +{len(only_scratch)-25} more')
 
+    drifted = bool(only_live or only_scratch)
     print('\n=== VERDICT ===')
-    print('NO DRIFT' if not only_live and not only_scratch
+    print('NO DRIFT' if not drifted
           else f'DRIFT: {len(only_live)} missing, {len(only_scratch)} extra')
 
 print('\n=== teardown ===')
 print(run(f'docker exec {DB} psql -U postgres -c "drop database if exists {SCRATCH};" 2>&1').strip())
 run('rm -f /tmp/d.sql /tmp/s.sql /tmp/fp.sql')
+
+# بوابة CI: الفشل بكود خروج لا بطباعة فقط
+if failed:
+    sys.exit(1)
+if 'drifted' in dir() and drifted:
+    sys.exit(1)
