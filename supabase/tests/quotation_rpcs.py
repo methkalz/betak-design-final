@@ -359,6 +359,31 @@ probe = sql(f"""select (private.version_content_fingerprint('{v3}')
 check('32 بصمة حتمية 64-hex وبادئة fp1|ILS|1|inclusive',
       'true|64|fp1|ILS|1|inclusive' in probe, probe)
 
+# ── اللقطة الذرية: المحرك يقرأ من السياق لا من الجداول الحية ─────────────────
+# سياق مُفتعل بسعر 99999 بينما القاعدة الحية 29000 — إن خرج 199998 فالمحرك
+# يقرأ اللقطة الملتقطة حصرًا (إغلاق اعتراض «اللقطة غير الذرية» بالدليل).
+probe = sql(f"""select line_total_agorot || '|' || internal_cost_agorot
+from private.price_project_windows('{ORG}'::uuid, '{pid('PA')}'::uuid,
+  jsonb_build_object(
+    'settings', jsonb_build_object(
+      'track_cost_per_meter_agorot', 0, 'delivery_cost_per_meter_agorot', 0,
+      'measure_install_cost_per_meter_agorot', 0, 'lining_cost_per_meter_agorot', 0),
+    'rules', jsonb_build_array(jsonb_build_object(
+      'band','standard','category','crepe_with_lining',
+      'customer_price_per_meter_agorot', 99999,
+      'tailor_cost_per_meter_agorot', 0))));""", quiet=False)
+check('33 المحرك يسعّر من اللقطة المفتعلة (99999) لا من القاعدة الحية (29000)',
+      '199998|' in probe, probe)
+
+probe = sql(f"""select (i.unit_price_agorot = (r->>'customer_price_per_meter_agorot')::bigint)::text
+from core.quotation_items i
+join core.quotation_versions v on v.id = i.version_id,
+lateral jsonb_array_elements(v.pricing_context->'rules') r
+where i.version_id = '{v3}'
+  and r->>'band' = i.band::text and r->>'category' = i.category::text;""", quiet=False)
+check('34 اتساق ذاتي: سعر البند = القاعدة المخزنة داخل pricing_context نفسها',
+      'true' in probe, probe)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

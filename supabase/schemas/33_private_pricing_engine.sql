@@ -5,7 +5,7 @@
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
 -- ════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE FUNCTION private.price_project_windows(p_org uuid, p_project uuid)
+CREATE OR REPLACE FUNCTION private.price_project_windows(p_org uuid, p_project uuid, p_ctx jsonb)
  RETURNS TABLE(window_id uuid, room_name text, window_name text, description text, width_cm numeric, height_cm numeric, running_meters numeric, quantity integer, category core.pricing_category, band core.height_band, unit_price_agorot bigint, line_total_agorot bigint, internal_cost_agorot bigint, fabric_meters numeric, lining_meters numeric, sort_order integer)
  LANGUAGE plpgsql
  STABLE
@@ -13,10 +13,14 @@ CREATE OR REPLACE FUNCTION private.price_project_windows(p_org uuid, p_project u
 AS $function$
 declare
   w record;
-  s core.business_settings%rowtype;
   v_band core.height_band;
   v_cat core.pricing_category;
-  v_rule core.pricing_rules%rowtype;
+  v_price bigint;
+  v_tailor bigint;
+  v_track bigint;
+  v_delivery bigint;
+  v_mi bigint;
+  v_lining_default bigint;
   v_rm numeric(12,3);
   v_fm numeric(12,3);
   v_lm numeric(12,3);
@@ -25,15 +29,20 @@ declare
   v_cost_per_rm numeric;  -- دقة كاملة عمدًا — التقريب مرة واحدة على البند
   v_sort integer := 0;
 begin
-  select * into s from core.business_settings where organization_id = p_org;
-  if not found then
-    raise exception 'إعدادات المؤسسة غير موجودة.' using errcode = 'BD404';
+  if p_ctx is null or p_ctx->'settings' is null or p_ctx->'rules' is null then
+    raise exception 'سياق تسعير ناقص — المحرك يقرأ من اللقطة الملتقطة حصرًا.'
+      using errcode = 'BD400';
   end if;
+
+  v_track          := (p_ctx->'settings'->>'track_cost_per_meter_agorot')::bigint;
+  v_delivery       := (p_ctx->'settings'->>'delivery_cost_per_meter_agorot')::bigint;
+  v_mi             := (p_ctx->'settings'->>'measure_install_cost_per_meter_agorot')::bigint;
+  v_lining_default := (p_ctx->'settings'->>'lining_cost_per_meter_agorot')::bigint;
 
   for w in
     select win.id, win.name, win.width_cm, win.height_cm, win.quantity,
            win.fullness, win.has_lining, win.notes,
-           win.fabric_variant_id, win.lining_variant_id,
+           win.fabric_variant_id,
            r.name as room_name,
            fv.cost_per_meter_agorot as fabric_cost,
            fp.kind as fabric_kind,
@@ -48,7 +57,7 @@ begin
   loop
     v_sort := v_sort + 1;
 
-    -- فوق 500 سم: لا تسعير تلقائي (§10 هـ — تصحيح انحراف النموذج الأولي)
+    -- فوق 500 سم: لا تسعير تلقائي (§10 هـ)
     if w.height_cm > 500 then
       raise exception 'الشباك "%" ارتفاعه % سم — فوق 500 سم يلزم تسعيرة خاصة من الأدمن، لا تسعير تلقائي.',
         w.name, w.height_cm using errcode = 'BD422';
@@ -66,9 +75,13 @@ begin
                 else 'other_without_lining'
               end::core.pricing_category;
 
-    select * into v_rule from core.pricing_rules pr
-    where pr.organization_id = p_org and pr.band = v_band and pr.category = v_cat;
-    if not found then
+    -- القاعدة من اللقطة الملتقطة — لا من الجدول الحي
+    select (r->>'customer_price_per_meter_agorot')::bigint,
+           (r->>'tailor_cost_per_meter_agorot')::bigint
+      into v_price, v_tailor
+    from jsonb_array_elements(p_ctx->'rules') r
+    where r->>'band' = v_band::text and r->>'category' = v_cat::text;
+    if v_price is null then
       raise exception 'لا قاعدة تسعير للفئة % والارتفاع % — راجع إعدادات التسعير.',
         v_cat, v_band using errcode = 'BD422';
     end if;
@@ -79,15 +92,12 @@ begin
     v_lm := case when w.has_lining then v_fm else 0 end;
 
     v_fab_cost := w.fabric_cost;
-    v_lin_cost := coalesce(w.lining_variant_cost, s.lining_cost_per_meter_agorot);
+    v_lin_cost := coalesce(w.lining_variant_cost, v_lining_default);
 
     v_cost_per_rm :=
         v_fab_cost * w.fullness
       + case when w.has_lining then v_lin_cost * w.fullness else 0 end
-      + v_rule.tailor_cost_per_meter_agorot
-      + s.track_cost_per_meter_agorot
-      + s.delivery_cost_per_meter_agorot
-      + s.measure_install_cost_per_meter_agorot;
+      + v_tailor + v_track + v_delivery + v_mi;
 
     window_id            := w.id;
     room_name            := w.room_name;
@@ -99,8 +109,8 @@ begin
     quantity             := w.quantity;
     category             := v_cat;
     band                 := v_band;
-    unit_price_agorot    := v_rule.customer_price_per_meter_agorot;
-    line_total_agorot    := pg_catalog.round(v_rule.customer_price_per_meter_agorot * v_rm)::bigint;
+    unit_price_agorot    := v_price;
+    line_total_agorot    := pg_catalog.round(v_price * v_rm)::bigint;
     internal_cost_agorot := pg_catalog.round(v_cost_per_rm * v_rm)::bigint;
     fabric_meters        := v_fm;
     lining_meters        := v_lm;

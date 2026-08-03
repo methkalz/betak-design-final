@@ -188,6 +188,12 @@ export interface WindowPricing {
   costLines: PriceBreakdownLine[];
   marginAgorot: number;
   marginPercent: number;
+  /**
+   * Heights above 500cm get NO automatic price (owner rule; the SQL engine
+   * rejects them with BD422). When true, every money figure here is zero
+   * and the window needs an admin-set special price.
+   */
+  requiresAdminPricing: boolean;
   warnings: string[];
 }
 
@@ -218,12 +224,29 @@ export function priceWindow(input: PriceInput): WindowPricing {
   const warnings: string[] = [];
 
   const band = resolveBand(win.heightCm);
-  if (win.heightCm > TALL_BAND_MAX_CM) {
-    warnings.push('الارتفاع يتجاوز 500 سم — يحتاج تسعيرة خاصة من الأدمن.');
-  }
   const kind: 'crepe' | 'other' = product?.kind === 'crepe' ? 'crepe' : 'other';
   const category = resolveCategory(kind, win.hasLining);
   const rule = findRule(rules, band, category);
+
+  // فوق 500 سم: لا تسعير تلقائي إطلاقًا — مطابقة لمحرك SQL (BD422).
+  // الأمتار تُعرض للمعلومة؛ كل الأرقام المالية صفر حتى يسعّر الأدمن يدويًا.
+  if (win.heightCm > TALL_BAND_MAX_CM) {
+    return {
+      band,
+      category,
+      runningMeters: runningMeters(win.widthCm, win.quantity),
+      fabricMeters: fabricMeters(win.widthCm, win.quantity, win.fullness),
+      liningMeters: win.hasLining ? fabricMeters(win.widthCm, win.quantity, win.fullness) : 0,
+      unitPriceAgorot: 0,
+      lineTotalAgorot: 0,
+      internalCostAgorot: 0,
+      costLines: [],
+      marginAgorot: 0,
+      marginPercent: 0,
+      requiresAdminPricing: true,
+      warnings: ['الارتفاع يتجاوز 500 سم — لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
+    };
+  }
 
   if (!rule) {
     warnings.push('لا توجد قاعدة تسعير مطابقة — راجع إعدادات التسعير.');
@@ -311,6 +334,7 @@ export function priceWindow(input: PriceInput): WindowPricing {
     costLines,
     marginAgorot,
     marginPercent: Math.round(marginPercent * 100) / 100,
+    requiresAdminPricing: false,
     warnings,
   };
 }
@@ -347,7 +371,12 @@ export function computeTotals(
   };
 }
 
-export type DiscountAuthority = 'allowed' | 'needs_admin' | 'forbidden';
+/**
+ * §10 ب: فوق حد الأدمن ليس ممنوعًا مطلقًا — قاعدة الدليل «ممنوع إلا
+ * Override موثق»: طلب خصم بنسبةٍ فوق الحد يعتمده الأدمن هو الـOverride.
+ * المحرك (send_quotation_version) يفرض ذلك؛ الواجهة تعكسه لا تناقضه.
+ */
+export type DiscountAuthority = 'allowed' | 'needs_admin' | 'needs_override';
 
 export function discountAuthority(
   discountPercent: number,
@@ -355,7 +384,7 @@ export function discountAuthority(
 ): DiscountAuthority {
   if (discountPercent <= settings.employeeDiscountLimitPercent) return 'allowed';
   if (discountPercent <= settings.adminDiscountLimitPercent) return 'needs_admin';
-  return 'forbidden';
+  return 'needs_override';
 }
 
 export interface DiscountCheck {
@@ -374,8 +403,8 @@ export function checkDiscount(
   const belowMinMargin = totals.marginPercent < settings.minMarginPercent;
   let message = 'الخصم ضمن صلاحية الموظف.';
   if (authority === 'needs_admin') message = 'الخصم يتطلب موافقة الأدمن.';
-  if (authority === 'forbidden')
-    message = `خصم أكثر من ${settings.adminDiscountLimitPercent}% ممنوع إلا بـ Override موثق من الأدمن.`;
+  if (authority === 'needs_override')
+    message = `خصم أكثر من ${settings.adminDiscountLimitPercent}% يلزمه Override موثق: طلب خصم يعتمده الأدمن.`;
   if (belowMinMargin)
     message = `السعر النهائي ينزل تحت هامش الربح الأدنى (${settings.minMarginPercent}%).`;
   return { authority, belowMinMargin, message };

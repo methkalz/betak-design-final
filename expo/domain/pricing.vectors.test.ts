@@ -6,7 +6,8 @@
  * (Excluded from tsc via tsconfig "exclude" — bun:test types are bun's.)
  */
 import { test, expect } from 'bun:test';
-import { lineArithmetic, totalsArithmetic } from './pricing';
+import { lineArithmetic, totalsArithmetic, priceWindow } from './pricing';
+import type { BusinessSettings, FabricProduct, FabricVariant, PricingRule, WindowUnit } from '@/types/domain';
 import vectors from './pricing.vectors.json';
 
 const S = vectors.settings;
@@ -47,3 +48,50 @@ for (const v of vectors.vectors) {
     expect(t.marginPercent).toBe(v.expected.marginPercent);
   });
 }
+
+// فوق 500 سم: لا تسعير تلقائي — مطابقة المعاينة لمحرك SQL (يرفض BD422).
+test('height above 500cm gets no automatic price (requiresAdminPricing)', () => {
+  const settings: BusinessSettings = {
+    organizationId: 'org-1',
+    trackCostPerMeterAgorot: S.trackCostPerMeterAgorot,
+    deliveryCostPerMeterAgorot: S.deliveryCostPerMeterAgorot,
+    measureInstallCostPerMeterAgorot: S.measureInstallCostPerMeterAgorot,
+    liningCostPerMeterAgorot: 900,
+    minMarginPercent: 35,
+    employeeDiscountLimitPercent: 5,
+    adminDiscountLimitPercent: 10,
+    quotationValidityDays: 14,
+    vatPercent: S.vatPercent,
+    currency: 'ILS',
+  };
+  const product: FabricProduct = {
+    id: 'p1', organizationId: 'org-1', name: 'كريب', kind: 'crepe',
+    supplier: '', widthCm: 280, composition: '', imageUrl: '',
+  };
+  const variant: FabricVariant = {
+    id: 'v1', organizationId: 'org-1', productId: 'p1', colorName: 'بيج',
+    colorHex: '', sku: 'CR-B', costPerMeterAgorot: 1400, imageUrl: '',
+  };
+  const rules: PricingRule[] = [
+    { id: 'r1', organizationId: 'org-1', band: 'tall', category: 'crepe_with_lining',
+      customerPricePerMeterAgorot: 45000, tailorCostPerMeterAgorot: 7000 },
+  ];
+  const win: WindowUnit = {
+    id: 'w1', organizationId: 'org-1', projectId: 'pr1', roomId: 'rm1',
+    name: 'شباك عالٍ', widthCm: 200, heightCm: 520, model: 'wave',
+    hasLining: true, track: 'ceiling_rail', fullness: 3,
+    fabricVariantId: 'v1', liningVariantId: null, quantity: 1,
+    notes: '', measuredAt: null, measuredBy: null,
+  };
+
+  const p = priceWindow({ window: win, product, variant, liningVariant: null, rules, settings });
+
+  expect(p.requiresAdminPricing).toBe(true);
+  expect(p.unitPriceAgorot).toBe(0);
+  expect(p.lineTotalAgorot).toBe(0);
+  expect(p.internalCostAgorot).toBe(0);
+  expect(p.costLines.length).toBe(0);
+  // الأمتار تبقى للمعلومة — المال وحده يغيب
+  expect(p.runningMeters).toBe(2.0);
+  expect(p.fabricMeters).toBe(6.0);
+});
