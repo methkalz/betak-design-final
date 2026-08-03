@@ -149,8 +149,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
 
   const costPerRunningMeter = costLines.reduce((sum, l) => sum + l.amountAgorot, 0);
   const internalCostAgorot = Math.round(costPerRunningMeter * rm);
-  const marginAgorot = lineTotalAgorot - internalCostAgorot;
-  const marginPercent = lineTotalAgorot > 0 ? (marginAgorot / lineTotalAgorot) * 100 : 0;
+  // Owner decision (2026-08-03): customer prices are FINAL, VAT-inclusive.
+  // Margin is always measured against VAT-exclusive revenue — measuring it
+  // against the inclusive price overstates it and hides min-margin breaches.
+  const lineRevenueExVat = Math.round(lineTotalAgorot / (1 + settings.vatPercent / 100));
+  const marginAgorot = lineRevenueExVat - internalCostAgorot;
+  const marginPercent = lineRevenueExVat > 0 ? (marginAgorot / lineRevenueExVat) * 100 : 0;
 
   if (marginPercent < settings.minMarginPercent && lineTotalAgorot > 0) {
     warnings.push('هامش الربح لهذا البند أقل من الحد الأدنى المسموح.');
@@ -191,10 +195,15 @@ export function computeTotals(
   const internalCostAgorot = items.reduce((s, i) => s + i.internalCostAgorot, 0);
   const discountAgorot = Math.round((subtotalAgorot * discountPercent) / 100);
   const net = subtotalAgorot - discountAgorot;
-  const vatAgorot = Math.round((net * settings.vatPercent) / 100);
-  const totalAgorot = net + vatAgorot;
-  const marginAgorot = net - internalCostAgorot;
-  const marginPercent = net > 0 ? Math.round((marginAgorot / net) * 10000) / 100 : 0;
+  // Owner decision (2026-08-03): prices are VAT-inclusive. The customer pays
+  // `net` as-is; VAT is extracted from it for reporting/PDF, never added on
+  // top. Margin compares VAT-exclusive revenue to internal cost.
+  const vatAgorot = net - Math.round(net / (1 + settings.vatPercent / 100));
+  const totalAgorot = net;
+  const revenueExVat = net - vatAgorot;
+  const marginAgorot = revenueExVat - internalCostAgorot;
+  const marginPercent =
+    revenueExVat > 0 ? Math.round((marginAgorot / revenueExVat) * 10000) / 100 : 0;
   return {
     subtotalAgorot,
     discountAgorot,

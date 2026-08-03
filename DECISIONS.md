@@ -341,7 +341,13 @@ draft ──send──→ sent ──approve──→ approved   (نهائية)
 | sales ≤ حد الموظف | يمرّ مباشرة |
 | sales فوق حد الموظف وحتى حد الأدمن | يلزم `discount_request` معتمد |
 | **admin ≤ حد الأدمن** | **يمرّ مباشرة — لا يطلب موافقة على صلاحيته هو** |
-| أي أحد فوق حد الأدمن | مرفوض في الـMVP (Override مؤجل) |
+| أي أحد فوق حد الأدمن | **Override موثق حصرًا** — `discount_request` بنسبةٍ فوق الحد يعتمده أدمن (التوثيق = صف الطلب نفسه + سجل التدقيق؛ لا عمود جديد — الطلب المعتمد بنسبة > حد الأدمن هو الـOverride) |
+
+قرار مالك 2026-08-03: صف الـOverride أعيد **حسب دليل الفريق** («ممنوع إلا
+Override موثق») بعد أن كانت المسودة السابقة جعلته مرفوضًا كليًا بلا قرار —
+انحراف صحّحته المراجعة. **حد الهامش الأدنى سقف مطلق لا يكسره أي مسار خصم،
+Override أو غيره** (نص الدليل: «السعر النهائي لا يجوز أن ينزل تحت هامش
+الربح الأدنى»).
 
 **صلاحية موافقة الخصم مربوطة بالمحتوى (بند 4):** طلب الخصم يحمل
 `content_fingerprint` (NOT NULL محركيًا) لبصمة بنود النسخة ومبالغها لحظة
@@ -363,28 +369,63 @@ draft ──send──→ sent ──approve──→ approved   (نهائية)
 اعتُمدت نسخة منه لا يقبل اعتماد أخرى (فهرس `one_approved` يفرضها) ولا
 إنشاء نسخ جديدة (BD409 من RPC الإنشاء).
 
-**هـ. تثبيت سياق التسعير (بند 6 — للتصديق):** `pricing_context jsonb`
-يملؤه RPC الإنشاء حصرًا:
-`calculation_version=1` · `captured_at` · `vat_percent` ·
-`rounding_policy='half_away_from_zero_per_stage'` · `currency` · لقطة قواعد
-التسعير الثماني · لقطة حدود الخصم و`min_margin_percent` و`validity_days`.
+**هـ. محرك التسعير — المفاهيم الثلاثة منفصلة قسرًا (بند 6 + تصحيح جولة
+التسعير):** المراجعة كشفت أن معادلة المسودة السابقة
+(`unit_price × running_meters × quantity`) كانت **مضاعفة فعلية** على
+الدلالة المخزنة: `running_meters` في النموذج الأولي وفي
+`quotation_items` تتضمن الكمية أصلًا (`width_m × quantity`). الصيغة
+الملزمة تفصل أساس الفوترة عن عدد القطع عن معامل الاستهلاك:
 
-**معادلات الحساب صريحةً (الأسعار قبل الضريبة، بالأغورة):**
 ```
-line_total = round(unit_price_agorot × running_meters × quantity)   لكل بند
-subtotal   = Σ line_total
-discount   = round(subtotal × discount_percent / 100)
-net        = subtotal − discount
-vat        = round(net × vat_percent / 100)
-total      = net + vat
-margin_%   = round((net − internal_cost) / net × 100, 2)
+لكل شباك (بند مستقل — «كل شباك يُحسب مستقلًا ثم تُجمع البنود»):
+billable_rm       = round3(width_m × quantity)        ← أساس الفوترة وأجور المكونات
+required_fabric_m = round3(billable_rm × fabric_multiplier)   ← windows.fullness (افتراضيًا 3)
+required_lining_m = has_lining ? round3(billable_rm × lining_multiplier) : 0   ← نفس fullness في v1
+line_total        = round(rate_per_rm × billable_rm)  ← سعر الزبون لا يُضرب في المعامل أبدًا
+cost_per_rm       = fabric_wholesale × fabric_multiplier
+                  + (has_lining ? lining_wholesale × lining_multiplier : 0)
+                  + tailor_cost(band) + track + delivery + measure_install
+internal_cost     = round(cost_per_rm × billable_rm)
 ```
-التقريب في كل مرحلة إلى الأغورة بنمط `round(numeric)` في PostgreSQL
-(النصف بعيدًا عن الصفر) — يطابق `Math.round` في TS للقيم غير السالبة،
-فمعاينة `domain/pricing.ts` تساوي حساب SQL بلا فرق أغورة. **إنفاذ الهامش
-الأدنى:** الإرسال يُرفض BD422 إذا `margin_percent < min_margin_percent`،
-وموافقة الخصم لا تتجاوزه (لا Override في الـMVP). الحساب كله في القاعدة —
-الجهاز لا يرسل أرقامًا.
+
+- **عقد التخزين:** `quotation_items.running_meters` = `billable_rm`
+  (الكمية داخلها)؛ عمود `quantity` للعرض والمرجعية فقط — **لا يدخل في أي
+  حساب لاحق أبدًا**.
+- `required_fabric_m` و`required_lining_m` هما **كميتا الحجز من المخزون**
+  (بكرات القماش والبطانة حجوزات مستقلة عبر `reserve_fabric` القائمة).
+- فصل الجملة عن البيع: كلفة القماش من `fabric_variants.cost_per_meter_agorot`
+  (مثال الدليل: 14×3=42 كلفةً/م جارٍ) وسعر الزبون من قواعد التسعير الثماني
+  (290) — لا يختلطان.
+- الخياط 40/70 بحسب الشريحة من `pricing_rules.tailor_cost_per_meter_agorot`؛
+  السكة والتوصيل والقياس-والتركيب من `business_settings` — في v1 كلها مفعلة
+  دائمًا (`components_enabled` في السياق كلها true؛ التعطيل الانتقائي مؤجل).
+- **فوق 500 سم: لا تسعير تلقائي — `BD422` ومراجعة أدمن.** (النموذج الأولي
+  كان يسعّر تلقائيًا بشريحة العالي مع تحذير فقط — انحراف عن الدليل صُحح
+  في العقد.)
+
+**التجميع والضريبة — قرار مالك 2026-08-03: الأسعار الثمانية نهائية
+«شاملة الضريبة»** (الدليل صامت؛ إضافة النموذج الأولي 18% فوق السعر كانت
+افتراض مبرمجين أُزيل):
+```
+subtotal       = Σ line_total                    ← شامل الضريبة
+discount       = round(subtotal × pct / 100)
+net            = subtotal − discount             ← ما يدفعه الزبون (total = net)
+vat            = net − round(net / (1 + vat%/100))  ← تُستخرج داخليًا للتقارير والـPDF
+revenue_ex_vat = net − vat
+margin_%       = round((revenue_ex_vat − Σ internal_cost) / revenue_ex_vat × 100, 2)
+```
+مثال الدليل: عرض 580 شاملة → ضريبة مستخرجة 88.47 ₪، إيراد صافٍ 491.53،
+هامش 35.3% — **الهامش يُقاس على الإيراد الصافي بلا ضريبة دائمًا**، وإنفاذ
+الحد الأدنى (رفض الإرسال BD422) على هذا الأساس، بلا استثناء حتى مع خصم
+Override معتمد. التقريب: إلى الأغورة «النصف بعيدًا عن الصفر» في كل مرحلة
+(`round(numeric)` في PG = `Math.round` في TS لغير السالب)؛ الأمتار
+`round3`. `pricing_context` يحمل: `calculation_version=1` · `captured_at`
+· **`vat_mode='inclusive'`** · `vat_percent` ·
+`rounding_policy='half_away_from_zero_per_stage'` · `currency` · لقطة
+القواعد الثماني · لقطة الإعدادات (تكاليف المكونات، حدود الخصم،
+`min_margin_percent`، `validity_days`) · `components_enabled`.
+`domain/pricing.ts` حُدّث ليطابق السياسة المقررة (معاينة فقط — SQL هو
+الحجة). الحساب كله في القاعدة — الجهاز لا يرسل أرقامًا.
 
 **و. تغيّر السعر/الضريبة بعد الإرسال: أثره صفر على المرسل.** كل المبالغ
 والسياق مجمّدة في النسخة. النسخ الجديدة تلتقط القواعد الحالية. المنقضي
