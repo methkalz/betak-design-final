@@ -49,7 +49,6 @@ begin
 
   select p.lock_version into v_lock_ver from core.projects p where p.id = v_project;
 
-  -- البصمة تشمل السبب والملاحظات
   v_payload := jsonb_build_object(
     'op', 'release_reservation', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
@@ -84,8 +83,9 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if v_res.status = 'released' then
-    raise exception 'الحجز محرَّر بالكامل مسبقًا — لا يُعاد فتحه.'
+  if v_res.status in ('released', 'closed') then
+    raise exception 'الحجز % مسبقًا — لا يُعاد فتحه.',
+      case v_res.status when 'released' then 'محرَّر بالكامل' else 'مغلق' end
       using errcode = 'BD409';
   end if;
 
@@ -101,11 +101,12 @@ begin
   values (v_org, v_roll, 'reservation_release', v_qty, v_project, p_reservation_id,
           p_reason_code || coalesce(' — ' || p_notes, ''), v_uid, p_idempotency_key);
 
-  v_new_status := case
-    when v_qty >= v_remaining
-         and v_res.consumed_m = 0 and v_res.damaged_reserved_m = 0 then 'released'
-    when v_qty >= v_remaining then 'consumed'
-    else v_res.status end;
+  -- الحالة من الآلة المركزية
+  v_new_status := private.reservation_status_for(
+    v_res.quantity_m,
+    v_res.consumed_m,
+    pg_catalog.round(v_res.released_m + v_qty, 3),
+    v_res.damaged_reserved_m);
 
   update core.fabric_reservations
      set released_m  = pg_catalog.round(released_m + v_qty, 3),

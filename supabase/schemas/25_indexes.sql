@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الفهارس (33)
+-- الفهارس (35) — قبل القيود عمدًا
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -12,6 +12,7 @@ CREATE INDEX client_operations_user_state_idx ON core.client_operations USING bt
 CREATE INDEX customers_org_active_idx ON core.customers USING btree (organization_id, full_name) WHERE (archived_at IS NULL);
 CREATE INDEX customers_org_phone_idx ON core.customers USING btree (organization_id, phone) WHERE (archived_at IS NULL);
 CREATE INDEX discount_requests_pending_idx ON core.discount_requests USING btree (organization_id, created_at DESC) WHERE (status = 'pending'::core.discount_request_status);
+CREATE UNIQUE INDEX fabric_usage_return_target_uidx ON core.fabric_usage USING btree (organization_id, id, roll_id, reservation_id, project_id);
 CREATE INDEX field_visits_assignee_idx ON core.field_visits USING btree (organization_id, assignee_id, scheduled_at);
 CREATE INDEX field_visits_project_idx ON core.field_visits USING btree (organization_id, project_id);
 CREATE INDEX items_version_idx ON core.quotation_items USING btree (organization_id, version_id, sort_order);
@@ -32,6 +33,7 @@ CREATE INDEX reservations_roll_open_idx ON core.fabric_reservations USING btree 
 CREATE INDEX rolls_variant_idx ON core.fabric_rolls USING btree (organization_id, variant_id) WHERE (retired_at IS NULL);
 CREATE INDEX rooms_project_idx ON core.rooms USING btree (organization_id, project_id, sort_order);
 CREATE INDEX stock_movements_operation_group_idx ON core.stock_movements USING btree (operation_group_id) WHERE (operation_group_id IS NOT NULL);
+CREATE INDEX stock_movements_usage_returns_idx ON core.stock_movements USING btree (fabric_usage_id) WHERE (type = 'return'::core.movement_type);
 CREATE INDEX tailor_assignments_tailor_idx ON core.tailor_assignments USING btree (organization_id, tailor_id, stage);
 CREATE INDEX usage_reservation_idx ON core.fabric_usage USING btree (organization_id, reservation_id);
 CREATE INDEX variants_product_idx ON core.fabric_variants USING btree (organization_id, product_id) WHERE (archived_at IS NULL);

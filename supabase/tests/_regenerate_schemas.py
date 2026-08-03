@@ -35,7 +35,8 @@ print('generating schema files:')
 IDENTITY = ['private.current_uid', 'private.in_rpc']
 PERMS = ['private.is_org_member', 'private.role_in', 'private.has_role',
          'private.is_admin', 'private.is_financially_blind', 'private.can_see_project']
-INVHELP = ['private.reservation_remaining', 'private.roll_balance']
+INVHELP = ['private.reservation_remaining', 'private.roll_balance',
+           'private.reservation_status_for']
 GUARDS = ['private.block_mutation', 'private.block_delete',
           'private.guard_project_update', 'private.guard_locked_version',
           'private.guard_locked_items']
@@ -141,9 +142,12 @@ write('10_types.sql', f'أنواع enum ({len(buckets["types"])})', '\n\n'.join(
 write('20_core_tables.sql',
       f'الجداول ({len(buckets["tables"])}) والقيم الافتراضية ({len(buckets["defaults"])})',
       '\n\n'.join(buckets['tables']) + '\n\n' + '\n'.join(buckets['defaults']))
-write('25_constraints.sql', f'القيود والمفاتيح ({len(buckets["constraints"])})',
+# الفهارس قبل القيود: الـFK الخماسي (stock_movements → fabric_usage) يستهدف
+# فهرسًا فريدًا — لو جاءت القيود أولًا فشل البناء من الصفر.
+write('25_indexes.sql', f'الفهارس ({len(buckets["indexes"])}) — قبل القيود عمدًا',
+      '\n'.join(buckets['indexes']))
+write('26_constraints.sql', f'القيود والمفاتيح ({len(buckets["constraints"])})',
       '\n'.join(buckets['constraints']))
-write('26_indexes.sql', f'الفهارس ({len(buckets["indexes"])})', '\n'.join(buckets['indexes']))
 write('60_rls_policies.sql',
       f'تفعيل RLS والسياسات ({len(buckets["rls"])}) — بعد دوال private لأنها تستدعيها',
       '\n'.join(buckets['rls']))

@@ -239,6 +239,53 @@ badeq = sql(f"""insert into core.fabric_usage
 check('معادلة fabric_usage مفروضة: actual ≠ planned + waste يُرفض',
       'usage_actual_equals_planned_plus_waste' in badeq, badeq)
 
+print('\n=== عقود الإرجاع والتلف (الترحيلات 0029–0031) ===')
+
+sm = sql("""select
+  private.reservation_status_for(10,10,0,0) || '|' ||
+  private.reservation_status_for(10,0,10,0) || '|' ||
+  private.reservation_status_for(10,3,3,4)  || '|' ||
+  private.reservation_status_for(10,0,0,10) || '|' ||
+  private.reservation_status_for(10,2,0,0)  || '|' ||
+  private.reservation_status_for(10,0,2,3);""")
+check('آلة الحالة: نقي→consumed/released، مختلط/تلف→closed، جزئي→partial/active',
+      'consumed|released|closed|closed|partially_consumed|active' in sm, sm)
+
+orph_ret = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,'{PROJ}','{ADMIN}',gen_random_uuid());""")
+check('return بلا سجل استهلاك مرفوض (return_requires_usage)',
+      'return_requires_usage' in orph_ret, orph_ret)
+
+usage_row = sql(f"""select id || '|' || roll_id from core.fabric_usage
+  where reservation_id='{RES1}' order by created_at limit 1;""")
+uid_roll = [l for l in usage_row.splitlines() if '|' in l]
+USAGE1 = uid_roll[0].split('|')[0].strip() if uid_roll else ''
+
+wrong_roll = sql(f"""insert into core.fabric_rolls (id,organization_id,variant_id,code,initial_meters)
+  values ('cccc0000-0000-4000-8000-0000000000ee','{ORG}','{VAR}','CR-901',10);
+insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','cccc0000-0000-4000-8000-0000000000ee','return',1,'{PROJ}','{RES1}',
+          '{USAGE1}','إرجاع لرول مختلف','{ADMIN}',gen_random_uuid());""")
+check('إرجاع إلى رول غير رول الاستهلاك مرفوض من المحرّك (FK الخماسي)',
+      'stock_movements_usage_consistency_fk' in wrong_roll, wrong_roll)
+
+dmg_orphan = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, created_by, idempotency_key, reason)
+  values ('{ORG}','{ROLL}','damage_reserved',1,'{PROJ}','{ADMIN}',gen_random_uuid(),'تلف');""")
+check('damage_reserved بلا حجز مرفوضة (reservation_required)',
+      'reservation_required' in dmg_orphan, dmg_orphan)
+
+dmg_noreason = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   created_by, idempotency_key, reason)
+  values ('{ORG}','{ROLL}','damage_reserved',1,'{PROJ}','{RES1}',
+          '{ADMIN}',gen_random_uuid(),'');""")
+check('damage_reserved بلا سبب مرفوضة (reason_required)',
+      'reason_required_for_exceptions' in dmg_noreason, dmg_noreason)
+
 print('\n=== damaged_reserved_m — الـinvariant الموسّع ===')
 DMG = 'cccc0000-0000-4000-8000-0000000000f9'
 sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)
@@ -258,8 +305,11 @@ check('قيد invariant يرفض consumed+released+damaged > quantity',
       'reservation_balance_invariant' in viol, viol)
 
 r = as_user(ADMIN, f"select api.release_reservation('{DMG}',6,'إغلاق بعد تلف','{K(41)}');")
-check('تحرير كامل المتبقي بعد تلف → الحالة consumed لا released',
-      '"reservation_status": "consumed"' in r.replace(' :', ':'), r)
+check('تحرير كامل المتبقي بعد تلف → closed (لا consumed ولا released)',
+      '"reservation_status": "closed"' in r.replace(' :', ':'), r)
+
+r = as_user(ADMIN, f"select api.release_reservation('{DMG}',1,'محاولة بعد الإغلاق','{K(42)}');")
+check('الحجز المغلق لا يُعاد فتحه', 'مغلق' in r, r)
 
 print('\n=== 11) فشل التدقيق يسبب تراجعًا كاملًا ===')
 sql(f"""insert into core.fabric_reservations (id,organization_id,project_id,roll_id,quantity_m,created_by)

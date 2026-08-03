@@ -12,6 +12,7 @@ const ON_HAND_OUT: MovementType[] = [
   'consumption',
   'overconsumption',
   'damage',
+  'damage_reserved',
   'adjustment_out',
   'transfer_out',
 ];
@@ -37,10 +38,12 @@ export function rollBalance(rollId: UUID, movements: StockMovement[]): RollBalan
     if (ON_HAND_OUT.includes(m.type)) onHand -= m.quantityM;
     if (m.type === 'reservation') reserved += m.quantityM;
     if (m.type === 'reservation_release') reserved -= m.quantityM;
+    if (m.type === 'damage_reserved') reserved -= m.quantityM;
     if (m.type === 'consumption') {
       reserved -= m.quantityM;
       consumed += m.quantityM;
     }
+    if (m.type === 'overconsumption') consumed += m.quantityM;
   }
   reserved = Math.max(0, reserved);
   return {
@@ -59,6 +62,7 @@ export const MOVEMENT_LABELS: Record<MovementType, string> = {
   overconsumption: 'استهلاك زائد',
   return: 'إرجاع',
   damage: 'تلف',
+  damage_reserved: 'تلف من المحجوز',
   adjustment_in: 'تسوية دخول',
   adjustment_out: 'تسوية خروج',
   transfer_in: 'تحويل وارد',

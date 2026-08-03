@@ -185,6 +185,60 @@ quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
 من جديد. يتطلب ربطًا صريحًا بين حركة الإرجاع وسجل الاستهلاك (عمود
 `usage_id` على دفتر الحركة أو ما يعادله — يُصمم في الفرع).
 
+### 9. عقود الإرجاع والتلف — مثبَّتة قبل كتابة أي RPC
+
+تنفيذ شروط الطاقم الخمسة (الترحيلات 0029–0031). **الدالتان لم تُكتبا بعد** —
+هذا عقد البيانات والصلاحيات والحالة الذي ستُكتبان عليه.
+
+**أ. آلة حالة الحجز** — دالة مركزية واحدة `private.reservation_status_for`:
+
+| الشرط | الحالة |
+|---|---|
+| remaining > 0 و consumed > 0 | `partially_consumed` |
+| remaining > 0 و consumed = 0 | `active` (ولو وُجد تلف/تحرير جزئي — الأرقام تحكي التفاصيل) |
+| remaining = 0 و consumed = quantity | `consumed` (نقي) |
+| remaining = 0 و released = quantity | `released` (نقي) |
+| remaining = 0 غير ذلك | **`closed`** — مزيج أو أي تلف؛ الحالة لا تسمي التلف استهلاكًا ولا تحريرًا |
+
+**ب. ربط الإرجاع — مفروض على المحرّك:** عمود `fabric_usage_id` على دفتر
+الحركة، مع **FK خماسي** `(org, usage, roll, reservation, project)` إلى فهرس
+فريد مطابق على `fabric_usage` — إرجاع إلى رول/حجز/مشروع غير المصدر يفشل من
+المحرّك حتى بصلاحيات عليا. وقيد `return_requires_usage`: لا حركة `return`
+بلا سجل استهلاك. **الـRPC يستقبل `p_fabric_usage_id` ولا يقبل `roll_id` من
+العميل** — المؤسسة والرول والحجز والمشروع تُشتق كلها من السجل.
+
+**ج. سقف الإرجاع:** `الإرجاع الجديد ≤ actual_m − Σ المرتجع سابقًا` محسوبًا
+تحت قفل `FOR UPDATE` على سجل الاستخدام (الفهرس الجزئي
+`stock_movements_usage_returns_idx` يخدم الجمع). الإرجاع لا يخفض
+`consumed_m` ولا يعيد فتح الحجز — يعود متاحًا، ومن يحتاجه يحجز من جديد.
+
+**د. مصفوفة الصلاحيات** (مقترحة للتصديق — القاعدة: الإرجاع عملية مخزون،
+والتلف المحجوز يقع عند الخياط):
+
+| العملية | admin | sales | الخياط المسند | field |
+|---|---|---|---|---|
+| `return_consumed_fabric` | ✅ | ✅ | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
+| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅ | ❌ |
+| `record_stock_damage` (`damage` من المتاح) | ✅ | ❌ | ❌ | ❌ |
+
+**هـ. بصمات idempotency** (v2 — كل مدخل مؤثر، بلا `expected_project_version`):
+
+```
+return_consumed_fabric : op, user_id, fabric_usage_id, quantity_m, reason, notes
+record_reserved_damage : op, user_id, reservation_id,  quantity_m, reason
+record_stock_damage    : op, user_id, roll_id,         quantity_m, reason
+```
+
+**و. الأثر المحاسبي** (صفوف `movement_effects` — `damage_reserved` مضافة):
+
+```
+return          +1 / 0    (يرفع المتاح)
+damage          −1 / 0    (من المتاح)
+damage_reserved −1 / −1   (المتاح ثابت — كالاستهلاك المخطط)
+```
+
+`operation_group_id` غير لازم للحركات المفردة الثلاث.
+
 ---
 
 ## قرارات مؤجَّلة تحتاج حسمًا لاحقًا

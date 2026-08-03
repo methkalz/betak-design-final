@@ -53,7 +53,6 @@ begin
       using errcode = 'BD403';
   end if;
 
-  -- البصمة تشمل السبب: نفس المفتاح بسبب مختلف = عملية مختلفة → BD400
   v_payload := jsonb_build_object(
     'op', 'consume_fabric', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
@@ -69,7 +68,6 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- فحص الإصدار — للعمليات الجديدة فقط، بعد احتمال الإعادة
   if p_expected_project_version is not null
      and p_expected_project_version <> v_lock_ver then
     raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
@@ -89,8 +87,10 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  if v_res.status = 'released' then
-    raise exception 'الحجز محرَّر — لا يمكن الاستهلاك منه.' using errcode = 'BD409';
+  if v_res.status in ('released', 'closed') then
+    raise exception 'الحجز % — لا يمكن الاستهلاك منه.',
+      case v_res.status when 'released' then 'محرَّر' else 'مغلق' end
+      using errcode = 'BD409';
   end if;
 
   v_remaining := private.reservation_remaining(p_reservation_id);
@@ -133,16 +133,16 @@ begin
             'زيادة عن المحجوز: ' || p_reason, v_uid, gen_random_uuid(), v_group);
   end if;
 
+  -- الحالة من الآلة المركزية
   update core.fabric_reservations
      set consumed_m = pg_catalog.round(consumed_m + v_from_res, 3),
-         status = case
-           when pg_catalog.round(consumed_m + v_from_res + released_m + damaged_reserved_m, 3)
-                >= quantity_m then 'consumed'
-           when pg_catalog.round(consumed_m + v_from_res, 3) > 0 then 'partially_consumed'
-           else status end
+         status = private.reservation_status_for(
+           quantity_m,
+           pg_catalog.round(consumed_m + v_from_res, 3),
+           released_m,
+           damaged_reserved_m)
    where id = p_reservation_id;
 
-  -- دلالة الحدث: planned = الجزء المغطى بالحجز، فيصح actual = planned + waste
   insert into core.fabric_usage
     (organization_id, project_id, reservation_id, roll_id,
      planned_m, actual_m, waste_m, reason, created_by)

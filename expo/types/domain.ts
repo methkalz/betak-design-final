@@ -151,6 +151,9 @@ export type MovementType =
   | 'overconsumption'
   | 'return'
   | 'damage'
+  /** تلف من كمية محجوزة: on_hand ↓ و reserved ↓ معًا، available ثابت.
+   *  التلف ليس تحريرًا — لا يظهر في تقارير الكميات المحررة. */
+  | 'damage_reserved'
   | 'adjustment_in'
   | 'adjustment_out'
   | 'transfer_in'
@@ -171,9 +174,18 @@ export interface StockMovement {
   idempotencyKey: string;
   /** يجمع حركات إجراء واحد (استهلاك + زيادة). يولَّد في الخادم حصرًا. */
   operationGroupId?: UUID | null;
+  /** حركات return فقط: سجل الاستهلاك المُرجَع منه. الخادم يشتق منه الرول
+   *  والحجز والمشروع — لا يُرسَل roll_id عند الإرجاع. */
+  fabricUsageId?: UUID | null;
 }
 
-export type ReservationStatus = 'active' | 'partially_consumed' | 'consumed' | 'released';
+/** closed = انتهى الحجز محاسبيًا بمزيج نتائج أو بتلف — لا استُهلك كله ولا حُرِّر كله. */
+export type ReservationStatus =
+  | 'active'
+  | 'partially_consumed'
+  | 'consumed'
+  | 'released'
+  | 'closed';
 
 export interface FabricReservation {
   id: UUID;

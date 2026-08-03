@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (52)
+-- التعليقات (53)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -40,7 +40,7 @@ COMMENT ON TABLE core.stock_movements IS 'دفتر أستاذ غير قابل ل
 COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. لا تخزن كميات سالبة — النوع هو ما يحدد دخولا أم خروجا.';
 COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
 COMMENT ON COLUMN core.stock_movements.operation_group_id IS 'يجمع حركات إجراء مستخدم واحد (استهلاك 30 + زيادة 5 = صفان بنفس المعرّف). يُولَّد داخل الـRPC حصرًا — لا يُقبل من الجهاز أبدًا.';
-COMMENT ON CONSTRAINT reservation_required ON core.stock_movements IS 'الحجز وفكّه والاستهلاك والزيادة عن الحجز لا معنى لها بلا حجز مرجعي. damage_reserved تُضاف هنا عند اعتمادها.';
+COMMENT ON COLUMN core.stock_movements.fabric_usage_id IS 'حركات return فقط حاليًا: سجل الاستهلاك الذي يُرجَع منه. الـFK الخماسي يفرض تطابق المؤسسة والرول والحجز والمشروع مع السجل — لا يُقبل roll_id من العميل عند الإرجاع بل يُشتق كله من هذا السجل.';
 COMMENT ON TABLE core.organization_members IS 'مصدر الحقيقة للصلاحيات. private.is_org_member و private.has_role يقرآن من هنا.';
 COMMENT ON TABLE core.notifications IS 'إشعار لمستخدم بعينه. سياسة RLS: يرى المستخدم صفوفه هو فقط.';
 COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيانات العمل معلقة على هذا الجدول.';
@@ -57,3 +57,4 @@ COMMENT ON COLUMN core.quotation_versions.locked IS 'العرض المرسل ل�
 COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
 COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';
 COMMENT ON CONSTRAINT stock_movements_type_effects_fk ON core.stock_movements IS 'قيمة enum جديدة بلا صف في movement_effects ترفض الإدراج بدل إسقاط الحركة صامتة من حسابات الأرصدة.';
+COMMENT ON CONSTRAINT stock_movements_usage_consistency_fk ON core.stock_movements IS 'إرجاع إلى رول أو حجز أو مشروع غير الذي استُهلك منه = خطأ FK من المحرّك، حتى من الأدوار مرتفعة الصلاحية.';

@@ -289,8 +289,10 @@ CREATE TABLE core.stock_movements (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     idempotency_key uuid NOT NULL,
     operation_group_id uuid,
-    CONSTRAINT reason_required_for_exceptions CHECK (((type <> ALL (ARRAY['damage'::core.movement_type, 'adjustment_in'::core.movement_type, 'adjustment_out'::core.movement_type, 'overconsumption'::core.movement_type])) OR (length(btrim(reason)) > 0))),
-    CONSTRAINT reservation_required CHECK (((type <> ALL (ARRAY['reservation'::core.movement_type, 'reservation_release'::core.movement_type, 'consumption'::core.movement_type, 'overconsumption'::core.movement_type])) OR (reservation_id IS NOT NULL))),
+    fabric_usage_id uuid,
+    CONSTRAINT reason_required_for_exceptions CHECK (((type <> ALL (ARRAY['damage'::core.movement_type, 'damage_reserved'::core.movement_type, 'adjustment_in'::core.movement_type, 'adjustment_out'::core.movement_type, 'overconsumption'::core.movement_type])) OR (length(btrim(reason)) > 0))),
+    CONSTRAINT reservation_required CHECK (((type <> ALL (ARRAY['reservation'::core.movement_type, 'reservation_release'::core.movement_type, 'consumption'::core.movement_type, 'overconsumption'::core.movement_type, 'damage_reserved'::core.movement_type])) OR (reservation_id IS NOT NULL))),
+    CONSTRAINT return_requires_usage CHECK (((type <> 'return'::core.movement_type) OR (fabric_usage_id IS NOT NULL))),
     CONSTRAINT stock_movements_quantity_m_check CHECK ((quantity_m > (0)::numeric))
 );
 
