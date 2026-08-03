@@ -202,10 +202,20 @@ quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
 
 **ب. ربط الإرجاع — مفروض على المحرّك:** عمود `fabric_usage_id` على دفتر
 الحركة، مع **FK خماسي** `(org, usage, roll, reservation, project)` إلى فهرس
-فريد مطابق على `fabric_usage` — إرجاع إلى رول/حجز/مشروع غير المصدر يفشل من
-المحرّك حتى بصلاحيات عليا. وقيد `return_requires_usage`: لا حركة `return`
-بلا سجل استهلاك. **الـRPC يستقبل `p_fabric_usage_id` ولا يقبل `roll_id` من
-العميل** — المؤسسة والرول والحجز والمشروع تُشتق كلها من السجل.
+فريد مطابق على `fabric_usage`. **الـRPC يستقبل `p_fabric_usage_id` ولا يقبل
+`roll_id` من العميل** — كل السياق يُشتق من السجل.
+
+⚠️ **الـFK وحده لا يكفي** (ثغرة أمسكتها المراجعة وأُكِّدت تجريبيًا ثم سُدَّت
+في 0032): بـ`MATCH SIMPLE` أي NULL في أعمدة الـFK يعفي الصف من المطابقة
+كليًا — فكان `return` برولٍ مختلف يمرّ إذا تُرك المشروع والحجز فارغين.
+القيد المكمل `fabric_usage_link_shape`: كل `return` يحمل السياق الكامل
+(usage + project + reservation)، وأي حركة غير `return` لا تحمل
+`fabric_usage_id` أصلًا. (`MATCH FULL` مرفوض — كان سيكسر الحركات غير
+المرتبطة التي تحمل مشروعًا أو حجزًا.)
+
+**سبب الإرجاع:** `reason_code` **إلزامي على المحرّك** (`return` مضمومة إلى
+`reason_required_for_exceptions`) و`notes` اختيارية — أسباب مرمّزة تجعل
+تقارير الإرجاع قابلة للتجميع.
 
 **ج. سقف الإرجاع:** `الإرجاع الجديد ≤ actual_m − Σ المرتجع سابقًا` محسوبًا
 تحت قفل `FOR UPDATE` على سجل الاستخدام (الفهرس الجزئي
@@ -217,17 +227,28 @@ quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
 
 | العملية | admin | sales | الخياط المسند | field |
 |---|---|---|---|---|
-| `return_consumed_fabric` | ✅ | ✅ | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
-| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅ | ❌ |
+| `return_consumed_fabric` | ✅ | ✅* | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
+| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅** | ❌ |
 | `record_stock_damage` (`damage` من المتاح) | ✅ | ❌ | ❌ | ❌ |
 
-**هـ. بصمات idempotency** (v2 — كل مدخل مؤثر، بلا `expected_project_version`):
+\* صلاحية المبيعات مشروطة بأن يستلم القماشَ فعليًا ويؤكد رجوعه للمخزن —
+**سؤال مفتوح لصاحب المشروع**؛ إن كان دوره تجاريًا فقط تُقصر على الأدمن.
+\*\* شرط تنفيذ الخياط: التحقق من أنه المسند حاليًا **يُعاد بعد قفل**
+المشروع/الحجز لا قبله، فلا يسجّل تلفًا على مشروع فُكّ إسناده عنه للتو.
+
+**هـ. بصمات idempotency** (v3 — كل مدخل مؤثر، بلا `expected_project_version`):
 
 ```
-return_consumed_fabric : op, user_id, fabric_usage_id, quantity_m, reason, notes
+return_consumed_fabric : op, user_id, fabric_usage_id, quantity_m, reason_code, notes
 record_reserved_damage : op, user_id, reservation_id,  quantity_m, reason
 record_stock_damage    : op, user_id, roll_id,         quantity_m, reason
 ```
+
+**قاعدة التطبيع الملزمة (v3، مطبقة بأثر رجعي على consume/release في 0032):**
+تُطبَّع المدخلات **قبل** حساب البصمة، و**القيمة المطبَّعة نفسها هي المخزنة**:
+الكمية `round(…, 3)` · السبب والملاحظات `btrim` · `NULL` و`''` تمثيل واحد
+(`''`). بدونها: مسافة زائدة = «عملية مختلفة»، أو تُخزن قيمة غير التي حُسبت
+منها الهوية.
 
 **و. الأثر المحاسبي** (صفوف `movement_effects` — `damage_reserved` مضافة):
 

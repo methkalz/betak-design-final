@@ -14,7 +14,8 @@ AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
   v_res core.fabric_reservations%rowtype; v_lock_ver integer;
-  v_qty numeric(12,3); v_remaining numeric(12,3); v_bal record;
+  v_qty numeric(12,3); v_reason_code text; v_notes text;
+  v_remaining numeric(12,3); v_bal record;
   v_payload jsonb; v_prior core.client_operations%rowtype;
   v_new_status core.reservation_status; v_result jsonb;
 begin
@@ -24,10 +25,12 @@ begin
   end if;
 
   v_qty := pg_catalog.round(p_quantity_m, 3);
+  v_reason_code := pg_catalog.btrim(coalesce(p_reason_code, ''));
+  v_notes := pg_catalog.btrim(coalesce(p_notes, ''));
   if v_qty is null or v_qty <= 0 then
     raise exception 'الكمية يجب أن تكون أكبر من صفر.' using errcode = 'BD400';
   end if;
-  if p_reason_code is null or btrim(p_reason_code) = '' then
+  if v_reason_code = '' then
     raise exception 'سبب التحرير إلزامي.' using errcode = 'BD400';
   end if;
   if p_idempotency_key is null then
@@ -52,7 +55,7 @@ begin
   v_payload := jsonb_build_object(
     'op', 'release_reservation', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
-    'reason_code', p_reason_code, 'notes', coalesce(p_notes, ''));
+    'reason_code', v_reason_code, 'notes', v_notes);
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -99,9 +102,9 @@ begin
     (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
      reason, created_by, idempotency_key)
   values (v_org, v_roll, 'reservation_release', v_qty, v_project, p_reservation_id,
-          p_reason_code || coalesce(' — ' || p_notes, ''), v_uid, p_idempotency_key);
+          v_reason_code || case when v_notes <> '' then ' — ' || v_notes else '' end,
+          v_uid, p_idempotency_key);
 
-  -- الحالة من الآلة المركزية
   v_new_status := private.reservation_status_for(
     v_res.quantity_m,
     v_res.consumed_m,
@@ -119,7 +122,7 @@ begin
     (organization_id, actor_id, action, entity, entity_id, summary, payload)
   values (v_org, v_uid, 'inventory.release', 'fabric_reservation',
           p_reservation_id::text,
-          format('تحرير %s م من الرول %s — %s', v_qty, v_roll_code, p_reason_code),
+          format('تحرير %s م من الرول %s — %s', v_qty, v_roll_code, v_reason_code),
           v_payload);
 
   select * into v_bal from private.roll_balance(v_roll);

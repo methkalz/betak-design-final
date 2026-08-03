@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (53)
+-- التعليقات (54)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -41,6 +41,7 @@ COMMENT ON COLUMN core.stock_movements.quantity_m IS 'موجبة دائما. ل�
 COMMENT ON COLUMN core.stock_movements.idempotency_key IS 'يرسله العميل. المفتاح الفريد مع organization_id يجعل إعادة الإرسال بلا أثر.';
 COMMENT ON COLUMN core.stock_movements.operation_group_id IS 'يجمع حركات إجراء مستخدم واحد (استهلاك 30 + زيادة 5 = صفان بنفس المعرّف). يُولَّد داخل الـRPC حصرًا — لا يُقبل من الجهاز أبدًا.';
 COMMENT ON COLUMN core.stock_movements.fabric_usage_id IS 'حركات return فقط حاليًا: سجل الاستهلاك الذي يُرجَع منه. الـFK الخماسي يفرض تطابق المؤسسة والرول والحجز والمشروع مع السجل — لا يُقبل roll_id من العميل عند الإرجاع بل يُشتق كله من هذا السجل.';
+COMMENT ON CONSTRAINT fabric_usage_link_shape ON core.stock_movements IS 'كل return يحمل السياق الكامل (usage + project + reservation) فلا يستطيع NULL إعفاءه من الـFK الخماسي، وأي حركة غير return لا تحمل fabric_usage_id. مع القيد الخماسي يصير تطابق الرول والحجز والمشروع مفروضًا فعلًا لا ادعاءً.';
 COMMENT ON TABLE core.organization_members IS 'مصدر الحقيقة للصلاحيات. private.is_org_member و private.has_role يقرآن من هنا.';
 COMMENT ON TABLE core.notifications IS 'إشعار لمستخدم بعينه. سياسة RLS: يرى المستخدم صفوفه هو فقط.';
 COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيانات العمل معلقة على هذا الجدول.';

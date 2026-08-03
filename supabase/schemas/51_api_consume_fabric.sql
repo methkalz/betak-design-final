@@ -14,8 +14,8 @@ AS $function$
 declare
   v_uid uuid; v_org uuid; v_project uuid; v_roll uuid; v_roll_code text;
   v_res core.fabric_reservations%rowtype; v_lock_ver integer; v_tailor uuid;
-  v_qty numeric(12,3); v_remaining numeric(12,3);
-  v_from_res numeric(12,3); v_over numeric(12,3);
+  v_qty numeric(12,3); v_reason text;
+  v_remaining numeric(12,3); v_from_res numeric(12,3); v_over numeric(12,3);
   v_bal record; v_group uuid;
   v_payload jsonb; v_prior core.client_operations%rowtype;
   v_usage_id uuid; v_notified boolean := false; v_result jsonb;
@@ -26,6 +26,7 @@ begin
   end if;
 
   v_qty := pg_catalog.round(p_quantity_m, 3);
+  v_reason := pg_catalog.btrim(coalesce(p_reason, ''));
   if v_qty is null or v_qty <= 0 then
     raise exception 'الكمية يجب أن تكون أكبر من صفر.' using errcode = 'BD400';
   end if;
@@ -56,7 +57,7 @@ begin
   v_payload := jsonb_build_object(
     'op', 'consume_fabric', 'user_id', v_uid,
     'reservation_id', p_reservation_id, 'quantity_m', v_qty,
-    'reason', coalesce(p_reason, ''));
+    'reason', v_reason);
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -105,7 +106,7 @@ begin
   end if;
 
   if v_over > 0 then
-    if p_reason is null or btrim(p_reason) = '' then
+    if v_reason = '' then
       raise exception 'الاستهلاك يتجاوز المحجوز بـ% م — السبب إلزامي.', v_over
         using errcode = 'BD400';
     end if;
@@ -122,7 +123,7 @@ begin
       (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
        reason, created_by, idempotency_key, operation_group_id)
     values (v_org, v_roll, 'consumption', v_from_res, v_project, p_reservation_id,
-            coalesce(p_reason,''), v_uid, p_idempotency_key, v_group);
+            v_reason, v_uid, p_idempotency_key, v_group);
   end if;
 
   if v_over > 0 then
@@ -130,10 +131,9 @@ begin
       (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
        reason, created_by, idempotency_key, operation_group_id)
     values (v_org, v_roll, 'overconsumption', v_over, v_project, p_reservation_id,
-            'زيادة عن المحجوز: ' || p_reason, v_uid, gen_random_uuid(), v_group);
+            'زيادة عن المحجوز: ' || v_reason, v_uid, gen_random_uuid(), v_group);
   end if;
 
-  -- الحالة من الآلة المركزية
   update core.fabric_reservations
      set consumed_m = pg_catalog.round(consumed_m + v_from_res, 3),
          status = private.reservation_status_for(
@@ -147,7 +147,7 @@ begin
     (organization_id, project_id, reservation_id, roll_id,
      planned_m, actual_m, waste_m, reason, created_by)
   values (v_org, v_project, p_reservation_id, v_roll,
-          v_from_res, v_qty, v_over, coalesce(p_reason,''), v_uid)
+          v_from_res, v_qty, v_over, v_reason, v_uid)
   returning id into v_usage_id;
 
   insert into core.audit_logs
@@ -161,7 +161,7 @@ begin
     insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
     select v_org, om.user_id, 'low_stock', 'استهلاك يتجاوز المخطط',
            format('الرول %s: استهلاك %s م بزيادة %s م. السبب: %s',
-                  v_roll_code, v_qty, v_over, p_reason),
+                  v_roll_code, v_qty, v_over, v_reason),
            'baytakdesign://projects/' || v_project::text
     from core.organization_members om
     where om.organization_id = v_org and om.role = 'admin' and om.is_active;

@@ -254,8 +254,8 @@ check('آلة الحالة: نقي→consumed/released، مختلط/تلف→clo
 orph_ret = sql(f"""insert into core.stock_movements
   (organization_id, roll_id, type, quantity_m, project_id, created_by, idempotency_key)
   values ('{ORG}','{ROLL}','return',1,'{PROJ}','{ADMIN}',gen_random_uuid());""")
-check('return بلا سجل استهلاك مرفوض (return_requires_usage)',
-      'return_requires_usage' in orph_ret, orph_ret)
+check('return بلا سجل استهلاك مرفوض (fabric_usage_link_shape)',
+      'fabric_usage_link_shape' in orph_ret, orph_ret)
 
 usage_row = sql(f"""select id || '|' || roll_id from core.fabric_usage
   where reservation_id='{RES1}' order by created_at limit 1;""")
@@ -285,6 +285,58 @@ dmg_noreason = sql(f"""insert into core.stock_movements
           '{ADMIN}',gen_random_uuid(),'');""")
 check('damage_reserved بلا سبب مرفوضة (reason_required)',
       'reason_required_for_exceptions' in dmg_noreason, dmg_noreason)
+
+print('\n=== سدّ تجاوز NULL في رابط الاستخدام (0032) ===')
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,null,'{RES1}',
+          '{USAGE1}','إرجاع','{ADMIN}',gen_random_uuid());""")
+check('1) return مع project_id فارغ مرفوض — لا إعفاء عبر NULL',
+      'fabric_usage_link_shape' in r, r)
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,'{PROJ}',null,
+          '{USAGE1}','إرجاع','{ADMIN}',gen_random_uuid());""")
+check('2) return مع reservation_id فارغ مرفوض', 'fabric_usage_link_shape' in r, r)
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','consumption',1,'{PROJ}','{RES1}',
+          '{USAGE1}','ليست إرجاعًا','{ADMIN}',gen_random_uuid());""")
+check('3) حركة غير return تحمل fabric_usage_id مرفوضة',
+      'fabric_usage_link_shape' in r, r)
+
+sql(f"""insert into core.projects (id,organization_id,customer_id,code,status_code)
+  values ('cccc0000-0000-4000-8000-0000000000d2','{ORG}','{CUST}','C-2','with_tailor')
+  on conflict do nothing;""")
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,'cccc0000-0000-4000-8000-0000000000d2','{RES1}',
+          '{USAGE1}','مشروع خاطئ','{ADMIN}',gen_random_uuid());""")
+check('4) مشروع خاطئ غير فارغ → FK الخماسي يرفض',
+      'stock_movements_usage_consistency_fk' in r, r)
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,'{PROJ}','{RES2}',
+          '{USAGE1}','حجز خاطئ','{ADMIN}',gen_random_uuid());""")
+check('5) حجز خاطئ غير فارغ → FK الخماسي يرفض',
+      'stock_movements_usage_consistency_fk' in r, r)
+
+r = sql(f"""insert into core.stock_movements
+  (organization_id, roll_id, type, quantity_m, project_id, reservation_id,
+   fabric_usage_id, reason, created_by, idempotency_key)
+  values ('{ORG}','{ROLL}','return',1,'{PROJ}','{RES1}',
+          '{USAGE1}','','{ADMIN}',gen_random_uuid());""")
+check('6) return بسياق كامل صحيح لكن بلا سبب مرفوض (reason_required)',
+      'reason_required_for_exceptions' in r, r)
 
 print('\n=== damaged_reserved_m — الـinvariant الموسّع ===')
 DMG = 'cccc0000-0000-4000-8000-0000000000f9'
