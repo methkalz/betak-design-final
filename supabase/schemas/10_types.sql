@@ -53,6 +53,7 @@ CREATE TYPE core.movement_type AS ENUM (
     'overconsumption',
     'return',
     'damage',
+    'damage_reserved',
     'adjustment_in',
     'adjustment_out',
     'transfer_in',
@@ -109,7 +110,8 @@ CREATE TYPE core.reservation_status AS ENUM (
     'active',
     'partially_consumed',
     'consumed',
-    'released'
+    'released',
+    'closed'
 );
 
 CREATE TYPE core.sync_state AS ENUM (

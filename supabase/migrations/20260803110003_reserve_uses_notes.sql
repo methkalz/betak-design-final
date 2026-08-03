@@ -1,9 +1,9 @@
--- ════════════════════════════════════════════════════════════════════
--- api.reserve_fabric
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
--- ════════════════════════════════════════════════════════════════════
+-- ============================================================================
+-- بيتك ديزاين — 0035 — reserve_fabric تكتب في notes بعد إعادة تسمية العمود
+-- فات ترحيلَ 0033 تحديثُ هذه الدالة (الوحيدة الباقية على العمود القديم)،
+-- فكسر أول حجز: column reason does not exist. أمسكها انحدارُ مجموعة reserve.
+-- الجسم مستخرج من التعريف الحي بـpg_get_functiondef وعُدِّل سطر الإدراج وحده.
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION api.reserve_fabric(p_project_id uuid, p_roll_id uuid, p_quantity_m numeric, p_idempotency_key uuid, p_expected_project_version integer DEFAULT NULL::integer)
  RETURNS jsonb
@@ -16,6 +16,7 @@ declare
   v_qty numeric(12,3); v_payload jsonb; v_prior core.client_operations%rowtype;
   v_bal record; v_res_id uuid; v_roll_code text; v_result jsonb;
 begin
+  -- أمن وهوية — قبل كل شيء، بما فيه إعادة التشغيل
   v_uid := private.current_uid();
   if v_uid is null then
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
@@ -51,6 +52,8 @@ begin
     raise exception 'الرول غير موجود في هذه المؤسسة.' using errcode = 'BD404';
   end if;
 
+  -- البصمة الكاملة ثم الـidempotency — قبل فحوص الحالة والإصدار.
+  -- p_expected_project_version ليس جزءًا من هوية العملية (شرط تزامن لا مدخل).
   v_payload := jsonb_build_object(
     'op', 'reserve_fabric', 'user_id', v_uid, 'project_id', p_project_id,
     'roll_id', p_roll_id, 'quantity_m', v_qty);
@@ -65,7 +68,7 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- إخفاق سريع غير حاسم — الفحص الملزم يتكرر تحت قفل المشروع أدناه
+  -- فحوص الحالة — للعمليات الجديدة فقط
   if v_status not in ('customer_approved', 'fabric_allocated', 'with_tailor') then
     raise exception 'لا يمكن الحجز والمشروع في حالة "%". يلزم اعتماد الزبون أولًا.',
       v_status using errcode = 'BD409';
@@ -86,20 +89,6 @@ begin
         using errcode = 'BD400';
     end if;
     return v_prior.result || jsonb_build_object('was_replayed', true);
-  end if;
-
-  -- ★ الفحص الحاسم تحت قفل المشروع (المشروع دائمًا آخر الأقفال)
-  select p.status_code, p.lock_version into v_status, v_lock_ver
-  from core.projects p where p.id = p_project_id for update;
-
-  if v_status not in ('customer_approved', 'fabric_allocated', 'with_tailor') then
-    raise exception 'لا يمكن الحجز والمشروع في حالة "%".', v_status
-      using errcode = 'BD409';
-  end if;
-  if p_expected_project_version is not null
-     and p_expected_project_version <> v_lock_ver then
-    raise exception 'تم تعديل المشروع من مستخدم آخر. أعد التحميل.'
-      using errcode = 'BD409';
   end if;
 
   select * into v_bal from private.roll_balance(p_roll_id);
@@ -152,3 +141,5 @@ begin
 
   return v_result;
 end $function$;
+
+notify pgrst, 'reload schema';

@@ -148,7 +148,8 @@ SELECT res.id AS reservation_id,
     res.created_by,
     res.created_at,
     res.released_at,
-    res.damaged_reserved_m
+    res.damaged_reserved_m,
+    res.finalized_at
    FROM core.fabric_reservations res
      JOIN core.fabric_rolls r ON r.id = res.roll_id
      JOIN core.fabric_variants v ON v.id = r.variant_id;
@@ -185,10 +186,13 @@ SELECT u.id AS usage_id,
     u.waste_m,
     round(u.actual_m - u.planned_m, 3) AS variance_m,
     u.actual_m > u.planned_m AS over_plan,
-    u.reason,
+    u.reason_code,
+    mr.label_ar AS reason_label,
+    u.notes,
     u.created_by,
     u.created_at
-   FROM core.fabric_usage u;
+   FROM core.fabric_usage u
+     LEFT JOIN core.movement_reasons mr ON mr.code = u.reason_code;
 
 create or replace view api.fabric_variant_costs
   with (security_invoker = on) as
@@ -528,14 +532,18 @@ SELECT m.id AS movement_id,
         END AS direction,
     m.project_id,
     m.reservation_id,
-    m.reason,
+    m.reason_code,
+    mr.label_ar AS reason_label,
+    m.notes,
     m.created_by,
     p.full_name AS created_by_name,
     m.created_at,
-    m.operation_group_id
+    m.operation_group_id,
+    m.fabric_usage_id
    FROM core.stock_movements m
      JOIN core.movement_effects e ON e.type = m.type
      JOIN core.fabric_rolls r ON r.id = m.roll_id
+     LEFT JOIN core.movement_reasons mr ON mr.code = m.reason_code
      LEFT JOIN core.profiles p ON p.id = m.created_by;
 
 create or replace view api.tailor_assignments

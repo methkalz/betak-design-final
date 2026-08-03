@@ -185,6 +185,111 @@ quantity_m = consumed_m + released_m + damaged_reserved_m + remaining
 من جديد. يتطلب ربطًا صريحًا بين حركة الإرجاع وسجل الاستهلاك (عمود
 `usage_id` على دفتر الحركة أو ما يعادله — يُصمم في الفرع).
 
+### 9. عقود الإرجاع والتلف — مثبَّتة قبل كتابة أي RPC
+
+تنفيذ شروط الطاقم الخمسة (الترحيلات 0029–0031). **الدالتان لم تُكتبا بعد** —
+هذا عقد البيانات والصلاحيات والحالة الذي ستُكتبان عليه.
+
+**أ. آلة حالة الحجز** — دالة مركزية واحدة `private.reservation_status_for`:
+
+| الشرط | الحالة |
+|---|---|
+| remaining > 0 و consumed > 0 | `partially_consumed` |
+| remaining > 0 و consumed = 0 | `active` (ولو وُجد تلف/تحرير جزئي — الأرقام تحكي التفاصيل) |
+| remaining = 0 و consumed = quantity | `consumed` (نقي) |
+| remaining = 0 و released = quantity | `released` (نقي) |
+| remaining = 0 غير ذلك | **`closed`** — مزيج أو أي تلف؛ الحالة لا تسمي التلف استهلاكًا ولا تحريرًا |
+
+**ب. ربط الإرجاع — مفروض على المحرّك:** عمود `fabric_usage_id` على دفتر
+الحركة، مع **FK خماسي** `(org, usage, roll, reservation, project)` إلى فهرس
+فريد مطابق على `fabric_usage`. **الـRPC يستقبل `p_fabric_usage_id` ولا يقبل
+`roll_id` من العميل** — كل السياق يُشتق من السجل.
+
+⚠️ **الـFK وحده لا يكفي** (ثغرة أمسكتها المراجعة وأُكِّدت تجريبيًا ثم سُدَّت
+في 0032): بـ`MATCH SIMPLE` أي NULL في أعمدة الـFK يعفي الصف من المطابقة
+كليًا — فكان `return` برولٍ مختلف يمرّ إذا تُرك المشروع والحجز فارغين.
+القيد المكمل `fabric_usage_link_shape`: كل `return` يحمل السياق الكامل
+(usage + project + reservation)، وأي حركة غير `return` لا تحمل
+`fabric_usage_id` أصلًا. (`MATCH FULL` مرفوض — كان سيكسر الحركات غير
+المرتبطة التي تحمل مشروعًا أو حجزًا.)
+
+**سبب الإرجاع:** `reason_code` **إلزامي على المحرّك** (`return` مضمومة إلى
+`reason_required_for_exceptions`) و`notes` اختيارية — أسباب مرمّزة تجعل
+تقارير الإرجاع قابلة للتجميع.
+
+**ج. سقف الإرجاع:** `الإرجاع الجديد ≤ actual_m − Σ المرتجع سابقًا` محسوبًا
+تحت قفل `FOR UPDATE` على سجل الاستخدام (الفهرس الجزئي
+`stock_movements_usage_returns_idx` يخدم الجمع). الإرجاع لا يخفض
+`consumed_m` ولا يعيد فتح الحجز — يعود متاحًا، ومن يحتاجه يحجز من جديد.
+
+**د. مصفوفة الصلاحيات** (مقترحة للتصديق — القاعدة: الإرجاع عملية مخزون،
+والتلف المحجوز يقع عند الخياط):
+
+| العملية | admin | sales | الخياط المسند | field |
+|---|---|---|---|---|
+| `return_consumed_fabric` | ✅ | ❌ | ❌ (يسلّم فعليًا ولا يسجّل) | ❌ |
+| `record_reserved_damage` (`damage_reserved`) | ✅ | ❌ | ✅* | ❌ |
+| `record_stock_damage` (`damage` من المتاح) | ✅ | ❌ | ❌ | ❌ |
+
+**المصفوفة نهائية بقرار صاحب المشروع (2026-08-03):** المبيعات لا يستلم
+القماش المرتجع فعليًا → الإرجاع وتلف المخزون **للأدمن حصرًا**. توسيعها لاحقًا
+يكون بدور مستقل (`warehouse`) لا بتوسيع sales.
+\* شرط تنفيذ الخياط: التحقق من أنه المسند حاليًا **يُعاد بعد قفل**
+المشروع/الحجز لا قبله — منفَّذ ومُختبَر (فكّ الإسناد ثم المحاولة → BD403).
+
+**نموذج الأسباب (0033):** `reason_code` FK إلى `core.movement_reasons`
+(قائمة معتمدة قابلة للتوسعة) + `notes` نص حر منفصل — **الدمج ممنوع**، فهو
+يفسد تجميع التقارير. القيد `reason_code_required_for_exceptions` يفرض الرمز
+على: damage · damage_reserved · adjustment_in/out · overconsumption · return.
+العمود القديم `reason` أعيدت تسميته `notes` في `stock_movements` و
+`fabric_usage` معًا.
+
+**هـ. بصمات idempotency** (v3 — كل مدخل مؤثر، بلا `expected_project_version`):
+
+```
+consume_fabric         : op, user_id, reservation_id,  quantity_m, reason_code, notes
+release_reservation    : op, user_id, reservation_id,  quantity_m, reason_code, notes
+return_consumed_fabric : op, user_id, fabric_usage_id, quantity_m, reason_code, notes
+record_reserved_damage : op, user_id, reservation_id,  quantity_m, reason_code, notes
+record_stock_damage    : op, user_id, roll_id,         quantity_m, reason_code, notes
+```
+
+ترقية v3 آمنة تاريخيًا **بدليل**: استعلام الطاقم الحرفي على
+`client_operations` أعاد صفر صفوف قبل الترحيل 0033 — لا عمليات v2 حقيقية.
+
+**قاعدة التطبيع الملزمة (v3، مطبقة بأثر رجعي على consume/release في 0032):**
+تُطبَّع المدخلات **قبل** حساب البصمة، و**القيمة المطبَّعة نفسها هي المخزنة**:
+الكمية `round(…, 3)` · السبب والملاحظات `btrim` · `NULL` و`''` تمثيل واحد
+(`''`). بدونها: مسافة زائدة = «عملية مختلفة»، أو تُخزن قيمة غير التي حُسبت
+منها الهوية.
+
+**ز. أختام الإنهاء (0036):** `released_at` = التحرير الكامل **النقي** فقط
+(`status = released`)؛ `finalized_at` = دخول أي حالة نهائية
+(consumed / released / closed)، يُختم مرة واحدة. التلف والإغلاق المختلط
+**لا يمسّان** `released_at` — نفس قاعدة الدفتر تسري على الطوابع الزمنية.
+
+**ح. ذرية فحص الإصدار (0036):** ترتيب الأقفال الملزم:
+`fabric_roll ← fabric_reservation ← fabric_usage ← project` — والمشروع
+**دائمًا الأخير**. فحص `expected_project_version` (وإسناد الخياط حيث يلزم)
+الحاسم يجري **بعد** `FOR UPDATE` على المشروع؛ الفحص المبكر إخفاق سريع فقط.
+مُثبَت باختبار سباق حقيقي: جلسة تمسك قفل المشروع وترفع الإصدار، والثانية
+تمرّ من الفحص المبكر ثم تُرفض `BD409` تحت القفل.
+
+**ط. نطاقات الأسباب (0036):** كل رمز له `applies_to movement_type[]` —
+مفروض في الدوال (رسالة `BD400` واضحة) وبمحفّز `enforce_reason_scope` على
+الدفتر (يصدّ المسارات مرتفعة الصلاحية). `water_damage` لتحرير حجز لم يعد
+يمرّ. الرمز يخص الزيادة في consume — الاستهلاك المخطط يُخزَّن بلا رمز.
+
+**و. الأثر المحاسبي** (صفوف `movement_effects` — `damage_reserved` مضافة):
+
+```
+return          +1 / 0    (يرفع المتاح)
+damage          −1 / 0    (من المتاح)
+damage_reserved −1 / −1   (المتاح ثابت — كالاستهلاك المخطط)
+```
+
+`operation_group_id` غير لازم للحركات المفردة الثلاث.
+
 ---
 
 ## قرارات مؤجَّلة تحتاج حسمًا لاحقًا

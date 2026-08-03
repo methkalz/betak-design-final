@@ -32,3 +32,19 @@ AS $function$
   )
   select oh, rs, greatest(0, pg_catalog.round(oh - rs, 3)) from agg;
 $function$;
+
+CREATE OR REPLACE FUNCTION private.reservation_status_for(p_quantity numeric, p_consumed numeric, p_released numeric, p_damaged numeric)
+ RETURNS core.reservation_status
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+  select case
+    when pg_catalog.round(p_quantity - p_consumed - p_released - p_damaged, 3) > 0 then
+      case when p_consumed > 0 then 'partially_consumed'::core.reservation_status
+           else 'active'::core.reservation_status end
+    when p_consumed = p_quantity then 'consumed'::core.reservation_status
+    when p_released = p_quantity then 'released'::core.reservation_status
+    else 'closed'::core.reservation_status
+  end;
+$function$;

@@ -151,6 +151,9 @@ export type MovementType =
   | 'overconsumption'
   | 'return'
   | 'damage'
+  /** تلف من كمية محجوزة: on_hand ↓ و reserved ↓ معًا، available ثابت.
+   *  التلف ليس تحريرًا — لا يظهر في تقارير الكميات المحررة. */
+  | 'damage_reserved'
   | 'adjustment_in'
   | 'adjustment_out'
   | 'transfer_in'
@@ -165,15 +168,27 @@ export interface StockMovement {
   quantityM: number;
   projectId: UUID | null;
   reservationId: UUID | null;
-  reason: string;
+  /** رمز سبب معتمد من قائمة movement_reasons — عليه تُبنى التقارير. */
+  reasonCode?: string | null;
+  /** نص حر. لا يُدمج بالرمز أبدًا — الدمج يفسد التجميع. */
+  notes: string;
   createdBy: UUID;
   createdAt: string;
   idempotencyKey: string;
   /** يجمع حركات إجراء واحد (استهلاك + زيادة). يولَّد في الخادم حصرًا. */
   operationGroupId?: UUID | null;
+  /** حركات return فقط: سجل الاستهلاك المُرجَع منه. الخادم يشتق منه الرول
+   *  والحجز والمشروع — لا يُرسَل roll_id عند الإرجاع. */
+  fabricUsageId?: UUID | null;
 }
 
-export type ReservationStatus = 'active' | 'partially_consumed' | 'consumed' | 'released';
+/** closed = انتهى الحجز محاسبيًا بمزيج نتائج أو بتلف — لا استُهلك كله ولا حُرِّر كله. */
+export type ReservationStatus =
+  | 'active'
+  | 'partially_consumed'
+  | 'consumed'
+  | 'released'
+  | 'closed';
 
 export interface FabricReservation {
   id: UUID;
@@ -202,7 +217,8 @@ export interface FabricUsage {
   plannedM: number;
   actualM: number;
   wasteM: number;
-  reason: string;
+  reasonCode?: string | null;
+  notes: string;
   createdBy: UUID;
   createdAt: string;
 }

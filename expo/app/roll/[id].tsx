@@ -230,9 +230,9 @@ export default function RollScreen() {
                     {db.profiles.find((p) => p.id === m.createdBy)?.fullName ?? 'النظام'}
                     {project ? ` • ${project.code}` : ''}
                   </AppText>
-                  {!!m.reason && (
+                  {!!m.notes && (
                     <AppText variant="caption" color={palette.muted}>
-                      {m.reason}
+                      {m.notes}
                     </AppText>
                   )}
                 </View>

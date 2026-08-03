@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- الـtriggers (8)
+-- الـtriggers (9)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -13,3 +13,4 @@ CREATE TRIGGER projects_no_delete BEFORE DELETE ON core.projects FOR EACH ROW EX
 CREATE TRIGGER quotation_items_guard BEFORE INSERT OR DELETE OR UPDATE ON core.quotation_items FOR EACH ROW EXECUTE FUNCTION private.guard_locked_items();
 CREATE TRIGGER quotation_versions_guard BEFORE UPDATE ON core.quotation_versions FOR EACH ROW EXECUTE FUNCTION private.guard_locked_version();
 CREATE TRIGGER stock_movements_immutable BEFORE DELETE OR UPDATE ON core.stock_movements FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
+CREATE TRIGGER stock_movements_reason_scope BEFORE INSERT ON core.stock_movements FOR EACH ROW WHEN ((new.reason_code IS NOT NULL)) EXECUTE FUNCTION private.enforce_reason_scope();
