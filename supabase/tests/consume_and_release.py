@@ -12,7 +12,7 @@ from vps import run, put_text  # noqa: E402
 
 IID = os.environ.get('BAYTAK_INSTANCE_ID') or open(
     os.path.join(HELPER, 'instance_id.txt')).read().strip()
-DB = f'supabase-db-{IID}'
+DB = os.environ.get('BAYTAK_DB_CONTAINER') or f'supabase-db-{IID}'
 
 ORG   = 'cccc0000-0000-4000-8000-000000000001'
 ORG2  = 'dddd0000-0000-4000-8000-000000000001'

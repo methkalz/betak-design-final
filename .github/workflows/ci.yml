@@ -1,0 +1,109 @@
+# ============================================================================
+# بيتك ديزاين — بوابة التحقق المستقلة
+#
+# قرار الطاقم: ستاك Supabase محلي كامل داخل الـrunner — لا PostgreSQL عارٍ —
+# لأن مجموعات HTTP/JWT وRLS تمرّ عبر Kong وPostgREST وAuth لا القاعدة وحدها.
+#
+# لا يتصل هذا الـworkflow بأي سيرفر حي ولا يستعمل أي سرّ إنتاجي:
+# `supabase start` يقلع ستاكًا مؤقتًا بمفاتيح تطوير معروفة، و`db reset` يثبت
+# أن أي مستنسخ للمستودع يعيد بناء القاعدة من الترحيلات وحدها.
+#
+# النطاق عمدًا «بوابة تحقق» فقط — لا نشر ولا staging (قرار الطاقم: لا تحويل
+# CI إلى مشروع طويل الآن).
+# ============================================================================
+name: verification-gate
+
+on:
+  push:
+    branches: [main, 'ci/**', 'feat/**', 'fix/**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash   # يمنح pipefail — وإلا ابتلع tee أكواد فشل المجموعات
+
+jobs:
+  database:
+    name: database suites (full local Supabase)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Rebuild database from migrations (from scratch)
+        run: supabase db reset
+
+      - name: Prepare test environment
+        run: |
+          mkdir -p "$RUNNER_TEMP/shim" logs
+          cp supabase/tests/ci/vps.py "$RUNNER_TEMP/shim/vps.py"
+
+          DBC=$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -1)
+          test -n "$DBC"
+          echo "database container: $DBC"
+          {
+            echo "VPS_HELPER_DIR=$RUNNER_TEMP/shim"
+            echo "BAYTAK_DB_CONTAINER=$DBC"
+            echo "BAYTAK_INSTANCE_ID=local"
+          } >> "$GITHUB_ENV"
+
+          # مفاتيح الستاك المحلي (مفاتيح تطوير عامة، لا أسرار) لاختبار HTTP/JWT
+          supabase status -o env > /tmp/status.env
+          . /tmp/status.env
+          {
+            echo "SUPABASE_URL=${API_URL}"
+            echo "SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "SUPABASE_JWT_SECRET=${JWT_SECRET}"
+          } > .env
+          echo "api url: ${API_URL}"
+
+      - name: RLS and write-surface suite
+        run: python3 supabase/tests/run_rls.py 2>&1 | tee logs/rls.log
+
+      - name: reserve_fabric suite
+        run: python3 supabase/tests/reserve_fabric.py 2>&1 | tee logs/reserve.log
+
+      - name: consume/release/return/damage suite
+        run: python3 supabase/tests/consume_and_release.py 2>&1 | tee logs/consume.log
+
+      - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
+        run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log
+
+      - name: Declarative schema drift check
+        run: python3 supabase/tests/schema_drift.py 2>&1 | tee logs/drift.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: logs/
+
+  typescript:
+    name: expo type-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies (frozen lockfile)
+        working-directory: expo
+        run: bun install --frozen-lockfile
+
+      - name: tsc --noEmit
+        working-directory: expo
+        run: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json

@@ -23,3 +23,6 @@ Thumbs.db
 
 # مخرجات مؤقتة لمولِّد المخطط التصريحي
 supabase/tests/extracted/
+
+# مخرجات مجموعات الاختبار في CI
+logs/
