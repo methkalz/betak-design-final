@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- تفعيل RLS والسياسات (110) — بعد دوال private لأنها تستدعيها
+-- تفعيل RLS والسياسات (112) — بعد دوال private لأنها تستدعيها
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -34,6 +34,7 @@ ALTER TABLE ONLY core.quotation_items FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.quotation_versions FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.quotations FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.tailor_assignments FORCE ROW LEVEL SECURITY;
+ALTER TABLE ONLY core.document_sequences FORCE ROW LEVEL SECURITY;
 ALTER TABLE ONLY core.user_devices FORCE ROW LEVEL SECURITY;
 CREATE POLICY "admin and sales schedule visits" ON core.field_visits FOR INSERT TO authenticated WITH CHECK (private.has_role(organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role]));
 CREATE POLICY "admin manages assignments" ON core.tailor_assignments TO authenticated USING (private.is_admin(organization_id)) WITH CHECK (private.is_admin(organization_id));
@@ -52,6 +53,7 @@ ALTER TABLE core.business_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.client_operations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.discount_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE core.document_sequences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.fabric_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.fabric_reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.fabric_rolls ENABLE ROW LEVEL SECURITY;

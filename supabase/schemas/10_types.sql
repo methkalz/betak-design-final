@@ -103,7 +103,8 @@ CREATE TYPE core.quotation_status AS ENUM (
     'sent',
     'approved',
     'rejected',
-    'expired'
+    'expired',
+    'superseded'
 );
 
 CREATE TYPE core.reservation_status AS ENUM (

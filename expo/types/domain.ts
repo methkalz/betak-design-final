@@ -253,9 +253,18 @@ export interface BusinessSettings {
   quotationValidityDays: number;
   vatPercent: number;
   currency: 'ILS';
+  /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
+  timezone?: string;
 }
 
-export type QuotationStatus = 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+export type QuotationStatus =
+  | 'draft'
+  | 'sent'
+  | 'approved'
+  | 'rejected'
+  | 'expired'
+  /** Replaced by a newer version — terminal, set atomically by the engine. */
+  | 'superseded';
 
 export interface Quotation {
   id: UUID;
@@ -309,6 +318,27 @@ export interface QuotationVersion {
   approvedAt: string | null;
   /** Immutable once sent — a new version must be created instead. */
   locked: boolean;
+  rejectedAt?: string | null;
+  supersededAt?: string | null;
+  /** Who actually sent it to the customer — a business fact, not metadata. */
+  sentBy?: UUID | null;
+  /** Who recorded the customer's decision (approve/reject). */
+  decisionRecordedBy?: UUID | null;
+  /** Required (non-empty) when the customer rejects. */
+  decisionNote?: string;
+  /**
+   * Derived by api.quotation_versions: 'expired' when status is 'sent' and
+   * valid_until has passed — the single source of truth for expiry. The
+   * stored status column is never mutated opportunistically.
+   */
+  effectiveStatus?: QuotationStatus;
+  /**
+   * Frozen pricing snapshot captured server-side at creation
+   * (calculation_version, vat_mode, vat_percent, rounding_policy, currency,
+   * rules[], settings{}, components_enabled). Later price/VAT changes have
+   * zero effect on this version.
+   */
+  pricingContext?: Record<string, unknown>;
 }
 
 export type DiscountRequestStatus = 'pending' | 'approved' | 'rejected';
@@ -325,6 +355,12 @@ export interface DiscountRequest {
   decidedBy: UUID | null;
   decidedAt: string | null;
   createdAt: string;
+  /**
+   * Fingerprint of the version's content at request time. An approval is
+   * granted for specific content: send_quotation_version recomputes and
+   * rejects the discount if the version changed after approval.
+   */
+  contentFingerprint?: string;
 }
 
 export type TailorStage = 'received' | 'cutting' | 'sewing' | 'ironing' | 'qc' | 'ready';

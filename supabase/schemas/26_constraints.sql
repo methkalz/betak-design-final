@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- القيود والمفاتيح (150)
+-- القيود والمفاتيح (156)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -33,6 +33,8 @@ ALTER TABLE ONLY core.discount_requests
     ADD CONSTRAINT discount_requests_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.discount_requests
     ADD CONSTRAINT discount_requests_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.document_sequences
+    ADD CONSTRAINT document_sequences_pkey PRIMARY KEY (organization_id, doc_type, year);
 ALTER TABLE ONLY core.fabric_products
     ADD CONSTRAINT fabric_products_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.fabric_products
@@ -106,11 +108,15 @@ ALTER TABLE ONLY core.quotation_items
 ALTER TABLE ONLY core.quotation_items
     ADD CONSTRAINT quotation_items_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY core.quotation_versions
+    ADD CONSTRAINT quotation_versions_org_id_quotation_key UNIQUE (organization_id, id, quotation_id);
+ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_organization_id_quotation_id_version_num_key UNIQUE (organization_id, quotation_id, version_number);
 ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.quotations
+    ADD CONSTRAINT quotations_one_per_project UNIQUE (organization_id, project_id);
 ALTER TABLE ONLY core.quotations
     ADD CONSTRAINT quotations_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.quotations
@@ -176,7 +182,9 @@ ALTER TABLE ONLY core.discount_requests
 ALTER TABLE ONLY core.discount_requests
     ADD CONSTRAINT discount_requests_organization_id_requested_by_fkey FOREIGN KEY (organization_id, requested_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.discount_requests
-    ADD CONSTRAINT discount_requests_organization_id_version_id_fkey FOREIGN KEY (organization_id, version_id) REFERENCES core.quotation_versions(organization_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT discount_requests_version_belongs_to_quotation_fk FOREIGN KEY (organization_id, version_id, quotation_id) REFERENCES core.quotation_versions(organization_id, id, quotation_id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.document_sequences
+    ADD CONSTRAINT document_sequences_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.fabric_products
     ADD CONSTRAINT fabric_products_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.fabric_reservations
@@ -252,11 +260,15 @@ ALTER TABLE ONLY core.quotation_items
 ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_organization_id_created_by_fkey FOREIGN KEY (organization_id, created_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.quotation_versions
+    ADD CONSTRAINT quotation_versions_organization_id_decision_recorded_by_fkey FOREIGN KEY (organization_id, decision_recorded_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.quotation_versions
     ADD CONSTRAINT quotation_versions_organization_id_quotation_id_fkey FOREIGN KEY (organization_id, quotation_id) REFERENCES core.quotations(organization_id, id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.quotation_versions
+    ADD CONSTRAINT quotation_versions_organization_id_sent_by_fkey FOREIGN KEY (organization_id, sent_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.quotations
-    ADD CONSTRAINT quotations_current_version_fk FOREIGN KEY (organization_id, current_version_id) REFERENCES core.quotation_versions(organization_id, id) ON DELETE SET NULL (current_version_id);
+    ADD CONSTRAINT quotations_current_version_fk FOREIGN KEY (organization_id, current_version_id, id) REFERENCES core.quotation_versions(organization_id, id, quotation_id) ON DELETE SET NULL (current_version_id);
 ALTER TABLE ONLY core.quotations
     ADD CONSTRAINT quotations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.quotations

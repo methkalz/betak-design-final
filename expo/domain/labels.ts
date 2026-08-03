@@ -135,6 +135,7 @@ export const QUOTATION_STATUS_LABELS: Record<QuotationStatus, string> = {
   approved: 'معتمد',
   rejected: 'مرفوض',
   expired: 'منتهي',
+  superseded: 'مُستبدَل',
 };
 
 export function quotationStatusColor(status: QuotationStatus): { bg: string; fg: string } {
@@ -147,6 +148,8 @@ export function quotationStatusColor(status: QuotationStatus): { bg: string; fg:
       return { bg: palette.successSoft, fg: palette.success };
     case 'rejected':
       return { bg: palette.dangerSoft, fg: palette.danger };
+    case 'superseded':
+      return { bg: palette.sand, fg: palette.muted };
     case 'expired':
     default:
       return { bg: palette.warningSoft, fg: palette.warning };

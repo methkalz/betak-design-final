@@ -35,12 +35,16 @@ PERMS = ['private.is_org_member', 'private.role_in', 'private.has_role',
          'private.is_admin', 'private.is_financially_blind', 'private.can_see_project']
 INVHELP = ['private.reservation_remaining', 'private.roll_balance',
            'private.reservation_status_for']
+# canonical قبل fingerprint — دالة SQL تستدعيها الأخرى نصيًا
+PRICING = ['private.price_project_windows',
+           'private.quotation_content_canonical',
+           'private.version_content_fingerprint']
 GUARDS = ['private.block_mutation', 'private.block_delete',
           'private.enforce_reason_scope',
           'private.guard_project_update', 'private.guard_locked_version',
           'private.guard_locked_items']
 
-declared = set(IDENTITY + PERMS + INVHELP + GUARDS)
+declared = set(IDENTITY + PERMS + INVHELP + PRICING + GUARDS)
 missing = [k for k in funcs if k.startswith('private.') and k not in declared]
 assert not missing, f'دوال private غير مصنفة: {missing}'
 
@@ -50,6 +54,9 @@ write('31_private_permission_functions.sql', 'دوال الصلاحيات — ب
       '\n\n'.join(funcs[k] + ';' for k in PERMS))
 write('32_private_inventory_helpers.sql', 'مساعدات المخزون',
       '\n\n'.join(funcs[k] + ';' for k in INVHELP))
+write('33_private_pricing_engine.sql',
+      'محرك التسعير والبصمة القانونية fp1 (§10 هـ + ح-1)',
+      '\n\n'.join(funcs[k] + ';' for k in PRICING))
 write('35_private_guard_functions.sql', 'دوال الحُرّاس (تستدعيها triggers)',
       '\n\n'.join(funcs[k] + ';' for k in GUARDS))
 
@@ -60,6 +67,10 @@ API_FILES = [
     ('api.return_consumed_fabric', '53_api_return_consumed_fabric.sql'),
     ('api.record_reserved_damage', '54_api_record_reserved_damage.sql'),
     ('api.record_stock_damage', '55_api_record_stock_damage.sql'),
+    ('api.create_quotation_version', '56_api_create_quotation_version.sql'),
+    ('api.send_quotation_version', '57_api_send_quotation_version.sql'),
+    ('api.approve_quotation_version', '58_api_approve_quotation_version.sql'),
+    ('api.reject_quotation_version', '59_api_reject_quotation_version.sql'),
 ]
 api_declared = {k for k, _ in API_FILES}
 api_live = {k for k in funcs if k.startswith('api.')}

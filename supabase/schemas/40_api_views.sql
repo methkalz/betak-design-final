@@ -481,7 +481,16 @@ SELECT ver.id AS version_id,
     ver.created_at,
     ver.sent_at,
     ver.approved_at,
-    ver.locked
+    ver.locked,
+    ver.rejected_at,
+    ver.superseded_at,
+    ver.sent_by,
+    ver.decision_recorded_by,
+    ver.decision_note,
+        CASE
+            WHEN ver.status = 'sent'::core.quotation_status AND ver.valid_until < now() THEN 'expired'::core.quotation_status
+            ELSE ver.status
+        END AS effective_status
    FROM core.quotation_versions ver;
 
 create or replace view api.quotations

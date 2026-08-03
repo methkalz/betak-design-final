@@ -87,7 +87,10 @@ export default function QuotationScreen() {
   const applyDiscount = () => {
     setError(null);
     setInfo(null);
-    if (check.authority === 'forbidden' || check.belowMinMargin) {
+    // فوق حد الأدمن ليس ممنوعًا مطلقًا (Override موثق عبر طلب خصم معتمد —
+    // المحرك يفرضه عند الإرسال)؛ هذه الشاشة المحلية لا تملك مسار الطلب بعد
+    // فتوقف التطبيق المباشر، أما الهامش الأدنى فسقف مطلق دائمًا.
+    if (check.authority === 'needs_override' || check.belowMinMargin) {
       setError(check.message);
       return;
     }
@@ -265,9 +268,9 @@ export default function QuotationScreen() {
           <View style={{ marginTop: spacing.md }}>
             <Banner
               tone={
-                check.belowMinMargin || check.authority === 'forbidden'
+                check.belowMinMargin
                   ? 'danger'
-                  : check.authority === 'needs_admin'
+                  : check.authority === 'needs_admin' || check.authority === 'needs_override'
                     ? 'warning'
                     : 'success'
               }
