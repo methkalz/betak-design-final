@@ -28,18 +28,145 @@ export function resolveCategory(kind: 'crepe' | 'other', hasLining: boolean): Pr
   return hasLining ? 'other_with_lining' : 'other_without_lining';
 }
 
+/**
+ * §10 rounding contract: SQL `numeric` is the sole financial authority.
+ * This preview mirrors it with EXACT integer arithmetic — meters as integer
+ * thousandths, money as integer agorot, fullness as integer thousandths —
+ * so every division below is integer division with explicit half-away-from-
+ * zero rounding, identical to PostgreSQL round(numeric). No float division
+ * touches any financial figure. All intermediates stay far below
+ * Number.MAX_SAFE_INTEGER for realistic shop ranges (price ≤ 10^7 agorot,
+ * meters ≤ 10^3, fullness ≤ 10). Shared golden vectors
+ * (pricing.vectors.json) are asserted against BOTH this file and SQL in CI.
+ */
+function divRoundHalfAway(numer: number, denom: number): number {
+  const sign = numer < 0 ? -1 : 1;
+  const n = Math.abs(numer);
+  const q = Math.floor(n / denom);
+  const r = n - q * denom;
+  return sign * (r * 2 >= denom ? q + 1 : q);
+}
+
+/** Running meters as integer thousandths: round3(widthCm/100 × quantity). */
+function runningMetersThousandths(widthCm: number, quantity: number): number {
+  const widthHundredthsCm = Math.round(widthCm * 100); // width has ≤2dp by contract
+  return divRoundHalfAway(widthHundredthsCm * quantity, 10);
+}
+
 /** Running meters of finished curtain for one window (width only). */
 export function runningMeters(widthCm: number, quantity: number): number {
-  return round3((widthCm / 100) * quantity);
+  return runningMetersThousandths(widthCm, quantity) / 1000;
 }
 
 /** Fabric consumed = running meters × fullness multiplier. */
 export function fabricMeters(widthCm: number, quantity: number, fullness: number): number {
-  return round3(runningMeters(widthCm, quantity) * fullness);
+  const rmTh = runningMetersThousandths(widthCm, quantity);
+  const fullnessTh = Math.round(fullness * 1000);
+  // thousandths × thousandths ÷ 1000 → thousandths (round3 of rm × fullness)
+  return divRoundHalfAway(rmTh * fullnessTh, 1000) / 1000;
 }
 
 export function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+export interface LineArithmeticInput {
+  widthCm: number;
+  quantity: number;
+  fullness: number;
+  hasLining: boolean;
+  unitPriceAgorot: number;
+  tailorCostAgorot: number;
+  fabricCostAgorot: number;
+  liningCostAgorot: number;
+  trackCostAgorot: number;
+  deliveryCostAgorot: number;
+  measureInstallCostAgorot: number;
+}
+
+export interface LineArithmeticResult {
+  runningMeters: number;
+  fabricMeters: number;
+  liningMeters: number;
+  lineTotalAgorot: number;
+  internalCostAgorot: number;
+  /** milli-agorot per running meter, unrounded — display rounds per line. */
+  costPerRunningMeterMilli: number;
+}
+
+/**
+ * The per-window arithmetic core (§10 هـ) — the exact mirror of
+ * private.price_project_windows: the customer rate multiplies billable
+ * running meters only; the consumption multiplier touches fabric quantity
+ * and cost only; cost-per-running-meter stays unrounded until the single
+ * per-line rounding.
+ */
+export function lineArithmetic(i: LineArithmeticInput): LineArithmeticResult {
+  const rmTh = runningMetersThousandths(i.widthCm, i.quantity);
+  const fullnessTh = Math.round(i.fullness * 1000);
+  // thousandths × thousandths ÷ 1000 → thousandths (round3 of rm × fullness)
+  const fabricTh = divRoundHalfAway(rmTh * fullnessTh, 1000);
+  const liningTh = i.hasLining ? fabricTh : 0;
+
+  const lineTotalAgorot = divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000);
+
+  const costPerRunningMeterMilli =
+    i.fabricCostAgorot * fullnessTh +
+    (i.hasLining ? i.liningCostAgorot * fullnessTh : 0) +
+    (i.tailorCostAgorot + i.trackCostAgorot + i.deliveryCostAgorot + i.measureInstallCostAgorot) * 1000;
+
+  const internalCostAgorot = divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000);
+
+  return {
+    runningMeters: rmTh / 1000,
+    fabricMeters: fabricTh / 1000,
+    liningMeters: liningTh / 1000,
+    lineTotalAgorot,
+    internalCostAgorot,
+    costPerRunningMeterMilli,
+  };
+}
+
+export interface TotalsArithmeticResult {
+  subtotalAgorot: number;
+  discountAgorot: number;
+  vatAgorot: number;
+  totalAgorot: number;
+  revenueExVatAgorot: number;
+  marginPercent: number;
+}
+
+/**
+ * Aggregation under the owner's VAT-inclusive policy (§10 هـ):
+ * total = net; VAT is extracted (never added on top); margin is measured
+ * against VAT-exclusive revenue.
+ */
+export function totalsArithmetic(
+  subtotalAgorot: number,
+  internalCostAgorot: number,
+  discountPercent: number,
+  vatPercent: number,
+): TotalsArithmeticResult {
+  const pctHundredths = Math.round(discountPercent * 100);
+  const vatHundredths = Math.round(vatPercent * 100);
+
+  const discountAgorot = divRoundHalfAway(subtotalAgorot * pctHundredths, 10_000);
+  const net = subtotalAgorot - discountAgorot;
+  const revenueExVatAgorot = divRoundHalfAway(net * 10_000, 10_000 + vatHundredths);
+  const vatAgorot = net - revenueExVatAgorot;
+  const marginPercent =
+    revenueExVatAgorot > 0
+      ? divRoundHalfAway((revenueExVatAgorot - internalCostAgorot) * 10_000, revenueExVatAgorot) / 100
+      : 0;
+
+  return {
+    subtotalAgorot,
+    discountAgorot,
+    vatAgorot,
+    totalAgorot: net,
+    revenueExVatAgorot,
+    marginPercent,
+  };
 }
 
 export interface PriceBreakdownLine {
@@ -98,32 +225,46 @@ export function priceWindow(input: PriceInput): WindowPricing {
   const category = resolveCategory(kind, win.hasLining);
   const rule = findRule(rules, band, category);
 
-  const rm = runningMeters(win.widthCm, win.quantity);
-  const fm = fabricMeters(win.widthCm, win.quantity, win.fullness);
-  const lm = win.hasLining ? fm : 0;
-
   if (!rule) {
     warnings.push('لا توجد قاعدة تسعير مطابقة — راجع إعدادات التسعير.');
   }
 
   const unitPriceAgorot = rule?.customerPricePerMeterAgorot ?? 0;
-  const lineTotalAgorot = Math.round(unitPriceAgorot * rm);
-
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
+
+  const line = lineArithmetic({
+    widthCm: win.widthCm,
+    quantity: win.quantity,
+    fullness: win.fullness,
+    hasLining: win.hasLining,
+    unitPriceAgorot,
+    tailorCostAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
+    fabricCostAgorot: fabricCostPerM,
+    liningCostAgorot: liningCostPerM,
+    trackCostAgorot: settings.trackCostPerMeterAgorot,
+    deliveryCostAgorot: settings.deliveryCostPerMeterAgorot,
+    measureInstallCostAgorot: settings.measureInstallCostPerMeterAgorot,
+  });
+  const rm = line.runningMeters;
+  const fm = line.fabricMeters;
+  const lm = line.liningMeters;
+  const lineTotalAgorot = line.lineTotalAgorot;
+  const internalCostAgorot = line.internalCostAgorot;
+  const fullnessTh = Math.round(win.fullness * 1000);
 
   const costLines: PriceBreakdownLine[] = [
     {
       label: product?.name ?? 'القماش',
       detail: `${(fabricCostPerM / 100).toFixed(0)} × ${win.fullness}`,
-      amountAgorot: Math.round(fabricCostPerM * win.fullness),
+      amountAgorot: divRoundHalfAway(fabricCostPerM * fullnessTh, 1000),
     },
   ];
   if (win.hasLining) {
     costLines.push({
       label: 'البطانة',
       detail: `${(liningCostPerM / 100).toFixed(0)} × ${win.fullness}`,
-      amountAgorot: Math.round(liningCostPerM * win.fullness),
+      amountAgorot: divRoundHalfAway(liningCostPerM * fullnessTh, 1000),
     });
   }
   costLines.push({
@@ -147,14 +288,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
     amountAgorot: settings.measureInstallCostPerMeterAgorot,
   });
 
-  const costPerRunningMeter = costLines.reduce((sum, l) => sum + l.amountAgorot, 0);
-  const internalCostAgorot = Math.round(costPerRunningMeter * rm);
   // Owner decision (2026-08-03): customer prices are FINAL, VAT-inclusive.
   // Margin is always measured against VAT-exclusive revenue — measuring it
   // against the inclusive price overstates it and hides min-margin breaches.
-  const lineRevenueExVat = Math.round(lineTotalAgorot / (1 + settings.vatPercent / 100));
-  const marginAgorot = lineRevenueExVat - internalCostAgorot;
-  const marginPercent = lineRevenueExVat > 0 ? (marginAgorot / lineRevenueExVat) * 100 : 0;
+  const lineTotals = totalsArithmetic(lineTotalAgorot, internalCostAgorot, 0, settings.vatPercent);
+  const marginAgorot = lineTotals.revenueExVatAgorot - internalCostAgorot;
+  const marginPercent = lineTotals.marginPercent;
 
   if (marginPercent < settings.minMarginPercent && lineTotalAgorot > 0) {
     warnings.push('هامش الربح لهذا البند أقل من الحد الأدنى المسموح.');
@@ -193,25 +332,18 @@ export function computeTotals(
 ): QuotationTotals {
   const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
   const internalCostAgorot = items.reduce((s, i) => s + i.internalCostAgorot, 0);
-  const discountAgorot = Math.round((subtotalAgorot * discountPercent) / 100);
-  const net = subtotalAgorot - discountAgorot;
   // Owner decision (2026-08-03): prices are VAT-inclusive. The customer pays
   // `net` as-is; VAT is extracted from it for reporting/PDF, never added on
   // top. Margin compares VAT-exclusive revenue to internal cost.
-  const vatAgorot = net - Math.round(net / (1 + settings.vatPercent / 100));
-  const totalAgorot = net;
-  const revenueExVat = net - vatAgorot;
-  const marginAgorot = revenueExVat - internalCostAgorot;
-  const marginPercent =
-    revenueExVat > 0 ? Math.round((marginAgorot / revenueExVat) * 10000) / 100 : 0;
+  const t = totalsArithmetic(subtotalAgorot, internalCostAgorot, discountPercent, settings.vatPercent);
   return {
     subtotalAgorot,
-    discountAgorot,
-    vatAgorot,
-    totalAgorot,
+    discountAgorot: t.discountAgorot,
+    vatAgorot: t.vatAgorot,
+    totalAgorot: t.totalAgorot,
     internalCostAgorot,
-    marginAgorot,
-    marginPercent,
+    marginAgorot: t.revenueExVatAgorot - internalCostAgorot,
+    marginPercent: t.marginPercent,
   };
 }
 

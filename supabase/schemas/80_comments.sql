@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (62)
+-- التعليقات (63)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -62,6 +62,7 @@ COMMENT ON COLUMN core.quotation_items.internal_cost_agorot IS 'حساس: تكل
 COMMENT ON COLUMN core.quotation_versions.internal_cost_agorot IS 'حساس: التكلفة الداخلية. تحذف من أي view لدور field أو tailor.';
 COMMENT ON COLUMN core.quotation_versions.margin_percent IS 'حساس: هامش الربح. قد يكون سالبا عند البيع بخسارة — لذا بلا قيد >= 0.';
 COMMENT ON COLUMN core.quotation_versions.locked IS 'العرض المرسل لقطة مجمدة. التعديل يعني نسخة جديدة، لا تحديثا.';
+COMMENT ON COLUMN core.quotation_versions.pricing_context IS 'لقطة قواعد التسعير والإعدادات لحظة الإنشاء (calculation_version, vat_mode, vat_percent, rounding_policy, currency, rules[], settings{}, components_enabled). يملؤها RPC الإنشاء حصرًا وتتجمد مع locked — تغيّر الأسعار أو الضريبة بعد الإرسال أثره صفر على النسخة (§10 و).';
 COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
 COMMENT ON TABLE core.document_sequences IS 'عدادات ترقيم المستندات (عروض الأسعار وغيرها) لكل مؤسسة وسنة. تُقرأ وتُكتب عبر RPC حصرًا تحت قفل FOR UPDATE على صف (المؤسسة، النوع، السنة) — لا منح لـauthenticated إطلاقًا.';
 COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';

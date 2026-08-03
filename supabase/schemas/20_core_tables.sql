@@ -459,6 +459,7 @@ CREATE TABLE core.quotation_versions (
     superseded_at timestamp with time zone,
     decision_recorded_by uuid,
     decision_note text DEFAULT ''::text NOT NULL,
+    pricing_context jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT discount_within_subtotal CHECK ((discount_agorot <= subtotal_agorot)),
     CONSTRAINT quotation_versions_discount_agorot_check CHECK ((discount_agorot >= 0)),
     CONSTRAINT quotation_versions_discount_percent_check CHECK (((discount_percent >= (0)::numeric) AND (discount_percent <= (100)::numeric))),

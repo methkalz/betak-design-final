@@ -79,7 +79,8 @@ begin
     or new.vat_agorot        is distinct from old.vat_agorot
     or new.total_agorot      is distinct from old.total_agorot
     or new.internal_cost_agorot is distinct from old.internal_cost_agorot
-    or new.valid_until       is distinct from old.valid_until then
+    or new.valid_until       is distinct from old.valid_until
+    or new.pricing_context   is distinct from old.pricing_context then
       raise exception 'النسخة % مقفلة: أنشئ نسخة جديدة بدل تعديلها.',
         old.version_number using errcode = '42501';
     end if;

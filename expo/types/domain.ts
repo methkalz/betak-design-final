@@ -332,6 +332,13 @@ export interface QuotationVersion {
    * stored status column is never mutated opportunistically.
    */
   effectiveStatus?: QuotationStatus;
+  /**
+   * Frozen pricing snapshot captured server-side at creation
+   * (calculation_version, vat_mode, vat_percent, rounding_policy, currency,
+   * rules[], settings{}, components_enabled). Later price/VAT changes have
+   * zero effect on this version.
+   */
+  pricingContext?: Record<string, unknown>;
 }
 
 export type DiscountRequestStatus = 'pending' | 'approved' | 'rejected';

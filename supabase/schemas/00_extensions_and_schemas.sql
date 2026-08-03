@@ -3,7 +3,11 @@
 -- أول ملف يُنفَّذ. كل ما بعده يعتمد عليه.
 -- ════════════════════════════════════════════════════════════════════
 
-create extension if not exists pgcrypto;
+-- سكيما extensions يرثها كل مستنسخ Supabase من الصورة؛ تُنشأ هنا صراحة كي
+-- تبنيها قاعدة فحص الانحراف المؤقتة أيضًا (البصمة القانونية fp1 تستدعي
+-- extensions.digest نصيًا داخل دالة SQL تُفحص عند الإنشاء).
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create schema if not exists core;
 create schema if not exists private;

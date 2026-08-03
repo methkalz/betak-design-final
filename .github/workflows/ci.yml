@@ -90,6 +90,12 @@ jobs:
       - name: quotation contracts suite
         run: python3 supabase/tests/quotation_contracts.py 2>&1 | tee logs/quotation.log
 
+      - name: quotation lifecycle RPCs suite
+        run: python3 supabase/tests/quotation_rpcs.py 2>&1 | tee logs/quotation_rpcs.log
+
+      - name: golden pricing vectors (SQL side)
+        run: python3 supabase/tests/golden_pricing_vectors.py 2>&1 | tee logs/golden_vectors.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log
 
@@ -121,3 +127,7 @@ jobs:
       - name: tsc --noEmit
         working-directory: expo
         run: bun x tsc --noEmit -p tsconfig.json   # عبر Bun المثبَّت — لا Node runner غير مثبَّت
+
+      - name: golden pricing vectors (TS side)
+        working-directory: expo
+        run: bun test   # نفس متجهات SQL — أي فرق أغورة واحد يفشل البوابة
