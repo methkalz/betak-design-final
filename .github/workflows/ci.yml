@@ -33,10 +33,10 @@ defaults:
 jobs:
   database:
     name: database suites (full local Supabase)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # اسم صريح — لا انتقال Major تلقائي مع -latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 (node24)
 
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1  # v1
         with:
@@ -89,17 +89,17 @@ jobs:
 
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1 (node24)
         with:
           name: test-logs
           path: logs/
 
   typescript:
     name: expo type-check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # اسم صريح — لا انتقال Major تلقائي مع -latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 (node24)
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
@@ -111,4 +111,4 @@ jobs:
 
       - name: tsc --noEmit
         working-directory: expo
-        run: node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+        run: bun x tsc --noEmit -p tsconfig.json   # عبر Bun المثبَّت — لا Node runner غير مثبَّت
