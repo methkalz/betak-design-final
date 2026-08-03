@@ -12,6 +12,7 @@ import {
 import { can, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid } from '@/lib/id';
+import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
   AttachmentKind,
@@ -64,6 +65,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [busy, setBusy] = useState<string | null>(null);
+  /** demo = بيانات محلية تجريبية؛ live = قاعدة الخادم الحقيقية (شريحة القراءة). */
+  const [source, setSource] = useState<'demo' | 'live'>('demo');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -93,6 +96,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   useEffect(() => {
     if (!hydrated) return;
+    // الوضع الحي لا يُحفظ محليًا: الحقيقة عند الخادم، وإعادة الفتح تجلبها من جديد
+    if (source === 'live') return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       AsyncStorage.setItem(DB_KEY, JSON.stringify(db)).catch((e) =>
@@ -102,12 +107,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [db, hydrated]);
+  }, [db, hydrated, source]);
 
   useEffect(() => {
     if (!hydrated) return;
+    if (source === 'live') return; // جلسة الوضع الحي يديرها Supabase (مخزن مشفر)
     AsyncStorage.setItem(SESSION_KEY, JSON.stringify(userId)).catch(() => {});
-  }, [userId, hydrated]);
+  }, [userId, hydrated, source]);
 
   const currentUser = useMemo<Profile | null>(
     () => db.profiles.find((p) => p.id === userId) ?? null,
@@ -245,7 +251,32 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     [db.profiles],
   );
 
-  const signOut = useCallback(() => setUserId(null), []);
+  // ── الوضع الحي (شريحة الربط الأولى — قراءة) ──────────────────────────────
+  const enterLive = useCallback((liveDb: Database, liveUserId: UUID) => {
+    setSource('live');
+    setDb(liveDb);
+    setUserId(liveUserId);
+  }, []);
+
+  const exitLive = useCallback(async () => {
+    setSource('demo');
+    setUserId(null);
+    try {
+      const rawDb = await AsyncStorage.getItem(DB_KEY);
+      setDb(rawDb ? (JSON.parse(rawDb) as Database) : buildSeed());
+    } catch {
+      setDb(buildSeed());
+    }
+  }, []);
+
+  const signOut = useCallback(() => {
+    if (source === 'live') {
+      void supabase.auth.signOut().catch(() => {});
+      void exitLive();
+      return;
+    }
+    setUserId(null);
+  }, [source, exitLive]);
 
   // ── Customers ─────────────────────────────────────────────────────────────
   const createCustomer = useCallback(
@@ -1467,6 +1498,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       role,
       isOnline,
       busy,
+      source,
+      enterLive,
+      exitLive,
       setIsOnline,
       signIn,
       signOut,
@@ -1515,6 +1549,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       role,
       isOnline,
       busy,
+      source,
+      enterLive,
+      exitLive,
       signIn,
       signOut,
       createCustomer,

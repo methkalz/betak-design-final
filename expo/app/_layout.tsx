@@ -13,6 +13,7 @@ import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { font, palette } from '@/constants/theme';
+import { AuthProvider } from '@/providers/auth';
 import { StoreProvider } from '@/providers/store';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -78,12 +79,14 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.ivory }}>
-          <StatusBar style="dark" />
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.ivory }}>
+            <StatusBar style="dark" />
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </StoreProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

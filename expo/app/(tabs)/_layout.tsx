@@ -10,17 +10,34 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/ui';
 import { font, palette } from '@/constants/theme';
 import { useStore } from '@/providers/store';
 
 export default function TabsLayout() {
-  const { role } = useStore();
+  const { role, source } = useStore();
+  const insets = useSafeAreaInsets();
   const isAdmin = role === 'admin' || role === 'sales';
   const isField = role === 'field';
   const isTailor = role === 'tailor';
 
   return (
+    <View style={{ flex: 1 }}>
+      {source === 'live' && (
+        <View
+          style={{
+            paddingTop: insets.top,
+            backgroundColor: palette.oliveDeepest,
+            alignItems: 'center',
+          }}
+        >
+          <AppText variant="caption" color={palette.sage} style={{ paddingVertical: 4 }}>
+            وضع حي (قراءة) — البيانات من خادم مؤسستك؛ الكتابة تُفعّل في الشريحة التالية
+          </AppText>
+        </View>
+      )}
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -94,6 +111,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
 

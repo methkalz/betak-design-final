@@ -1,27 +1,72 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Delete, ShieldCheck } from 'lucide-react-native';
+import { Delete, Globe, ShieldCheck, TestTube2 } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Banner, Row } from '@/components/ui';
 import { font, palette, radius, shadow, spacing } from '@/constants/theme';
 import { ROLE_LABELS } from '@/domain/permissions';
 import { initials } from '@/lib/format';
+import { fetchLiveDatabase } from '@/lib/live';
+import { useAuth } from '@/providers/auth';
 import { useStore } from '@/providers/store';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
 
 export default function LoginScreen() {
-  const { db, signIn } = useStore();
+  const { db, signIn, enterLive } = useStore();
+  const { liveConfigured, signInLive, signOutLive } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<'live' | 'demo'>(liveConfigured ? 'live' : 'demo');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveLoading, setLiveLoading] = useState<boolean>(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+
+  const submitLive = useCallback(async () => {
+    if (!email.trim() || !password) {
+      setLiveError('أدخل البريد وكلمة السر.');
+      return;
+    }
+    setLiveLoading(true);
+    setLiveError(null);
+    const res = await signInLive(email, password);
+    if (!res.ok) {
+      setLiveLoading(false);
+      setLiveError(res.error);
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      return;
+    }
+    try {
+      const { db: liveDb, me } = await fetchLiveDatabase();
+      enterLive(liveDb, me.userId);
+      if (Platform.OS !== 'web')
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.replace('/home');
+    } catch (e) {
+      await signOutLive();
+      setLiveError(e instanceof Error ? e.message : 'تعذر جلب البيانات من الخادم.');
+    } finally {
+      setLiveLoading(false);
+    }
+  }, [email, password, signInLive, signOutLive, enterLive, router]);
 
   const profiles = useMemo(() => db.profiles.filter((p) => p.isActive), [db.profiles]);
   const active = useMemo(() => profiles.find((p) => p.id === selected) ?? null, [profiles, selected]);
@@ -88,6 +133,93 @@ export default function LoginScreen() {
           </AppText>
         </View>
 
+        {liveConfigured && (
+          <Row gap={spacing.sm}>
+            {(
+              [
+                { key: 'live', label: 'دخول حي', icon: Globe },
+                { key: 'demo', label: 'عرض تجريبي', icon: TestTube2 },
+              ] as const
+            ).map((m) => {
+              const isActive = mode === m.key;
+              const Icon = m.icon;
+              return (
+                <Pressable
+                  key={m.key}
+                  onPress={() => setMode(m.key)}
+                  style={[styles.modePill, isActive && styles.modePillActive]}
+                >
+                  <Row gap={6} justify="center">
+                    <Icon size={16} color={isActive ? palette.oliveDeepest : palette.sage} />
+                    <AppText
+                      variant="label"
+                      color={isActive ? palette.oliveDeepest : palette.sage}
+                    >
+                      {m.label}
+                    </AppText>
+                  </Row>
+                </Pressable>
+              );
+            })}
+          </Row>
+        )}
+
+        {mode === 'live' && (
+          <View style={styles.pinPanel}>
+            <AppText variant="label" color={palette.muted}>
+              الدخول إلى نظام مؤسستك
+            </AppText>
+            <TextInput
+              value={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                setLiveError(null);
+              }}
+              placeholder="البريد الإلكتروني"
+              placeholderTextColor={palette.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="username"
+              style={styles.input}
+            />
+            <TextInput
+              value={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                setLiveError(null);
+              }}
+              placeholder="كلمة السر"
+              placeholderTextColor={palette.muted}
+              secureTextEntry
+              textContentType="password"
+              style={styles.input}
+              onSubmitEditing={submitLive}
+            />
+            {liveLoading ? (
+              <ActivityIndicator color={palette.olive} style={{ height: 52 }} />
+            ) : (
+              <Pressable onPress={submitLive} style={styles.liveButton}>
+                <AppText variant="heading" color={palette.ivory}>
+                  دخول
+                </AppText>
+              </Pressable>
+            )}
+            {!!liveError && (
+              <Banner
+                tone="danger"
+                title={liveError}
+                icon={<ShieldCheck size={16} color={palette.danger} />}
+              />
+            )}
+            <AppText variant="caption" color={palette.muted} align="center">
+              وضع حي (قراءة): البيانات من خادم مؤسستك، والكتابة تُفعّل في الشريحة التالية.
+            </AppText>
+          </View>
+        )}
+
+        {mode === 'demo' && (
+          <>
         <View style={{ gap: spacing.md }}>
           <AppText variant="label" color={palette.sage}>
             اختر المستخدم
@@ -182,12 +314,45 @@ export default function LoginScreen() {
             </AppText>
           </View>
         )}
+          </>
+        )}
       </ScrollView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  modePill: {
+    flex: 1,
+    borderRadius: radius.lg,
+    borderWidth: 1.4,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    paddingVertical: spacing.sm,
+  },
+  modePillActive: {
+    backgroundColor: palette.sage,
+    borderColor: palette.sage,
+  },
+  input: {
+    borderWidth: 1.4,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    backgroundColor: palette.white,
+    paddingHorizontal: spacing.md,
+    height: 52,
+    fontFamily: font.regular,
+    fontSize: 16,
+    color: palette.charcoal,
+    textAlign: 'right',
+  },
+  liveButton: {
+    height: 52,
+    borderRadius: radius.md,
+    backgroundColor: palette.olive,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   userCard: {
     borderRadius: radius.lg,
     borderWidth: 1.4,
