@@ -71,6 +71,8 @@ API_FILES = [
     ('api.send_quotation_version', '57_api_send_quotation_version.sql'),
     ('api.approve_quotation_version', '58_api_approve_quotation_version.sql'),
     ('api.reject_quotation_version', '59_api_reject_quotation_version.sql'),
+    ('api.request_discount', '59a_api_request_discount.sql'),
+    ('api.decide_discount_request', '59b_api_decide_discount_request.sql'),
 ]
 api_declared = {k for k, _ in API_FILES}
 api_live = {k for k in funcs if k.startswith('api.')}

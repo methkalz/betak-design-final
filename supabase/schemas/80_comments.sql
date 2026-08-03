@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (63)
+-- التعليقات (64)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -66,5 +66,6 @@ COMMENT ON COLUMN core.quotation_versions.pricing_context IS 'لقطة قواع�
 COMMENT ON TABLE core.tailor_assignments IS 'الخياط يرى المشاريع المسندة إليه فقط — سياسة RLS تعتمد على tailor_id.';
 COMMENT ON TABLE core.document_sequences IS 'عدادات ترقيم المستندات (عروض الأسعار وغيرها) لكل مؤسسة وسنة. تُقرأ وتُكتب عبر RPC حصرًا تحت قفل FOR UPDATE على صف (المؤسسة، النوع، السنة) — لا منح لـauthenticated إطلاقًا.';
 COMMENT ON TABLE core.user_devices IS 'رموز Expo Push. الربط المركب يضمن أن الجهاز مسجل ضمن المؤسسة نفسها.';
+COMMENT ON INDEX core.discount_requests_one_pending_idx IS 'طلب خصم معلّق واحد لكل نسخة — قيد لا عُرف (§10 ملحق عقد الخصم).';
 COMMENT ON CONSTRAINT stock_movements_type_effects_fk ON core.stock_movements IS 'قيمة enum جديدة بلا صف في movement_effects ترفض الإدراج بدل إسقاط الحركة صامتة من حسابات الأرصدة.';
 COMMENT ON CONSTRAINT stock_movements_usage_consistency_fk ON core.stock_movements IS 'إرجاع إلى رول أو حجز أو مشروع غير الذي استُهلك منه = خطأ FK من المحرّك، حتى من الأدوار مرتفعة الصلاحية.';
