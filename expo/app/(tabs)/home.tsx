@@ -132,6 +132,49 @@ function AuroraBloom({
   return <Animated.View pointerEvents="none" style={[style, drift]} />;
 }
 
+/**
+ * هالة خلفية ناعمة بلا حافة. React Native لا يدعم التدرّج الشعاعي، فتُركَّب
+ * دوائر متحدة المركز بشفافية ضئيلة متساوية: تتراكم في المنتصف وتتلاشى عند
+ * الأطراف، فينتج تلاشٍ شعاعيّ حقيقي بدل قرص له خط دائرة بارز.
+ */
+function SoftGlow({
+  color,
+  size,
+  layers = 8,
+  style,
+}: {
+  color: string;
+  size: number;
+  layers?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        { position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' },
+        style,
+      ]}
+    >
+      {Array.from({ length: layers }, (_, i) => {
+        const s = size * (1 - (i / layers) * 0.86);
+        return (
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              width: s,
+              height: s,
+              borderRadius: s / 2,
+              backgroundColor: color,
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 function Glass({
   children,
   style,
@@ -346,10 +389,9 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* توهجات محيطية — خافتة جدًا وواسعة عمدًا: الحواف الحادة كانت تومض
-          خلف الزجاج أثناء التمرير (ملاحظة المالك) */}
-      <View style={[styles.blob, { backgroundColor: 'rgba(139,92,246,0.07)', top: -160, right: -140 }]} />
-      <View style={[styles.blob, { backgroundColor: 'rgba(56,189,248,0.05)', top: 320, left: -180 }]} />
+      {/* هالات الخلفية: تلاشٍ شعاعيّ متعدد الطبقات — أخفّ وبلا خط دائرة */}
+      <SoftGlow color="rgba(139,92,246,0.012)" size={560} style={{ top: -220, right: -190 }} />
+      <SoftGlow color="rgba(56,189,248,0.009)" size={480} style={{ top: 300, left: -210 }} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
@@ -839,12 +881,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  blob: {
-    position: 'absolute',
-    width: 420,
-    height: 420,
-    borderRadius: 210,
   },
   glassWrap: {
     borderRadius: radius.lg,
