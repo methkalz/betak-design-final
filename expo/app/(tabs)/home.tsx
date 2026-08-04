@@ -392,15 +392,19 @@ function AdminDashboard() {
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
+          {/* أضواء مشبعة اللون لا بيضاء: الأبيض يرفع السطوع ويُزيل التشبّع
+              فيشحب التدرّج — أما الألوان المغايرة للقاعدة البنفسجية (سماوي،
+              وردي، ذهبي) فتُحدث تحوّلًا لونيًّا واضحًا تحت تمويه عالٍ يُبقي
+              الحواف ذائبة. */}
           <AuroraBloom
-            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(255,255,255,0.46)' }]}
+            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(56,189,248,0.55)' }]}
             duration={9000}
             dx={95}
             dy={52}
             grow={0.3}
           />
           <AuroraBloom
-            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(249,112,102,0.46)' }]}
+            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(251,113,133,0.52)' }]}
             duration={12500}
             dx={-84}
             dy={-58}
@@ -410,7 +414,7 @@ function AdminDashboard() {
           <AuroraBloom
             style={[
               styles.heroBloom,
-              { top: 10, right: -60, width: 190, height: 190, borderRadius: 95, backgroundColor: 'rgba(125,231,199,0.36)' },
+              { top: 0, right: -70, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(253,205,105,0.34)' },
             ]}
             duration={15000}
             dx={-70}
@@ -418,8 +422,20 @@ function AdminDashboard() {
             grow={0.26}
             delay={2000}
           />
+          {/* بريق زجاجي خافت يعبر ببطء — يمنح السطح لمعة المادة */}
+          <AuroraBloom
+            style={[
+              styles.heroBloom,
+              { top: -70, right: 40, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.20)' },
+            ]}
+            duration={18000}
+            dx={-120}
+            dy={40}
+            grow={0.18}
+            delay={3200}
+          />
           <BlurView
-            intensity={32}
+            intensity={42}
             tint="light"
             experimentalBlurMethod="dimezisBlurView"
             style={StyleSheet.absoluteFill}
@@ -776,7 +792,7 @@ const styles = StyleSheet.create({
   },
   heroScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(40,32,110,0.24)',
+    backgroundColor: 'rgba(40,32,110,0.30)',
   },
   heroChip: {
     flex: 1,
