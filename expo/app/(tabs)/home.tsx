@@ -2,7 +2,9 @@ import { useRouter } from 'expo-router';
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowUpRight,
   BadgePercent,
+  Bell,
   ChevronLeft,
   Clock3,
   Layers,
@@ -12,9 +14,10 @@ import {
 } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
-import { ProjectRow, StatTile, TailorCard, VisitCard } from '@/components/cards';
+import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
 import {
   AppText,
   Button,
@@ -28,8 +31,16 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { useRollViews } from '@/hooks/selectors';
-import { formatDate, isSameDay, money } from '@/lib/format';
+import { formatDate, initials, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
+
+/* تجربة «نمط المحفظة» — معزولة في هذه الشاشة حتى يُعتمد النمط:
+   خلفية ورقية أفتح، بطاقة داكنة برقم واحد كبير، بلاطات جريئة بمحتوى أبيض،
+   قوائم بيضاء هادئة بأيقونات دائرية ملوّنة. */
+const paper = '#FAFAF7';
+const inkCard = '#20261F';
+const heroGreen = '#A9CBB0';
+const heroAmber = '#E4BE84';
 
 export default function DashboardScreen() {
   const { role, hydrated } = useStore();
@@ -148,55 +159,108 @@ function AdminDashboard() {
       onPress: () => router.push('/inventory'),
     });
 
+  const insets = useSafeAreaInsets();
+  const { currentUser } = useStore();
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? 'صباح الخير' : hour < 17 ? 'نهارك سعيد' : 'مساء الخير';
+
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 48 }}
+      style={{ flex: 1, backgroundColor: paper }}
+      contentContainerStyle={{ paddingBottom: 48, paddingTop: insets.top + spacing.md }}
       showsVerticalScrollIndicator={false}
     >
-      <AppHeader subtitle={`${db.organization.name} • ${formatDate(new Date().toISOString())}`} />
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xl }}>
+        {/* التحية — على الصفحة مباشرة، لا شريط ملوّن */}
+        <Row justify="space-between">
+          <Row gap={spacing.md}>
+            <View style={styles.avatar}>
+              <AppText variant="label" color={palette.oliveDark}>
+                {initials(currentUser?.fullName ?? '')}
+              </AppText>
+            </View>
+            <View>
+              <AppText variant="caption" color={palette.muted}>
+                {hello} 👋
+              </AppText>
+              <AppText variant="heading">{currentUser?.fullName ?? ''}</AppText>
+            </View>
+          </Row>
+          <Pressable onPress={() => router.push('/notifications')} style={styles.bellBtn}>
+            <Bell size={19} color={palette.charcoal} />
+          </Pressable>
+        </Row>
 
-      <View style={{ padding: spacing.lg, gap: spacing.xxl }}>
-        {/* بطاقة المالك — رقم واحد كبير يفتتح اليوم */}
+        {/* بطاقة المحفظة الداكنة — رقم واحد كبير يفتتح اليوم */}
         <Pressable onPress={() => router.push('/projects')} style={styles.hero}>
-          <AppText variant="label" color={palette.sage}>
+          <View style={[styles.heroDot, { backgroundColor: palette.terracotta, top: 18, left: 22 }]} />
+          <View
+            style={[styles.heroDot, { backgroundColor: heroGreen, width: 9, height: 9, top: 34, left: 40 }]}
+          />
+          <AppText variant="caption" color="rgba(255,255,255,0.55)">
             اعتمادات هذا الشهر
           </AppText>
-          <AppText variant="numberLarge" color={palette.ivory} style={{ fontSize: 34, lineHeight: 46 }}>
+          <AppText variant="numberLarge" color={palette.white} style={{ fontSize: 38, lineHeight: 52 }}>
             {money(stats.approvedMonth, { compact: true })}
           </AppText>
-          <View style={styles.heroDivider} />
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.sage}>
-              بانتظار رد الزبون
-            </AppText>
-            <AppText variant="label" color={palette.ivory}>
-              {stats.awaiting.length > 0
-                ? `${stats.awaiting.length} عروض • ${money(stats.awaitingValue, { compact: true })}`
-                : 'لا عروض معلقة'}
-            </AppText>
+
+          <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
+            <View style={styles.heroChip}>
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(169,203,176,0.18)' }]}>
+                <ArrowUpRight size={14} color={heroGreen} />
+              </View>
+              <View>
+                <AppText variant="caption" color="rgba(255,255,255,0.5)" style={{ fontSize: 11 }}>
+                  عروض معتمدة
+                </AppText>
+                <AppText variant="label" color={heroGreen}>
+                  {db.quotationVersions.filter((v) => v.status === 'approved').length}
+                </AppText>
+              </View>
+            </View>
+            <View style={styles.heroChip}>
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(228,190,132,0.16)' }]}>
+                <Clock3 size={14} color={heroAmber} />
+              </View>
+              <View>
+                <AppText variant="caption" color="rgba(255,255,255,0.5)" style={{ fontSize: 11 }}>
+                  بانتظار الرد
+                </AppText>
+                <AppText variant="label" color={heroAmber}>
+                  {stats.awaiting.length > 0
+                    ? `${stats.awaiting.length} • ${money(stats.awaitingValue, { compact: true })}`
+                    : '—'}
+                </AppText>
+              </View>
+            </View>
           </Row>
         </Pressable>
 
-        {/* ثلاث إشارات هادئة */}
+        {/* بلاطات جريئة — لون مشبع ومحتوى أبيض (نمط المرجع) */}
         <Row gap={spacing.md}>
-          <StatTile
-            icon={<LayoutGrid size={16} color={palette.olive} />}
-            label="مشاريع نشطة"
+          <BoldTile
+            color={palette.olive}
+            icon={<LayoutGrid size={16} color={palette.white} />}
             value={`${stats.activeCount}`}
-            tint={palette.sageSoft}
+            label="مشاريع نشطة"
           />
-          <StatTile
-            icon={<Package size={16} color={palette.terracotta} />}
-            label="قماش محجوز"
+          <BoldTile
+            color={palette.terracotta}
+            icon={<Package size={16} color={palette.white} />}
             value={`${Math.round(stats.reservedM * 10) / 10} م`}
-            tint={palette.terracottaSoft}
+            label="قماش محجوز"
           />
-          <StatTile
-            icon={<Layers size={16} color={lowStock.length > 0 ? palette.danger : palette.info} />}
-            label="بكرات منخفضة"
+          <BoldTile
+            color={lowStock.length > 0 ? palette.danger : palette.info}
+            icon={
+              lowStock.length > 0 ? (
+                <AlertTriangle size={16} color={palette.white} />
+              ) : (
+                <Layers size={16} color={palette.white} />
+              )
+            }
             value={`${lowStock.length}`}
-            tint={lowStock.length > 0 ? palette.dangerSoft : palette.infoSoft}
+            label="بكرات منخفضة"
           />
         </Row>
 
@@ -252,6 +316,30 @@ function AdminDashboard() {
         </View>
       </View>
     </ScrollView>
+  );
+}
+
+function BoldTile({
+  color,
+  icon,
+  value,
+  label,
+}: {
+  color: string;
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+}) {
+  return (
+    <View style={[styles.boldTile, { backgroundColor: color }]}>
+      <View style={styles.boldTileIcon}>{icon}</View>
+      <AppText variant="number" color={palette.white}>
+        {value}
+      </AppText>
+      <AppText variant="caption" color="rgba(255,255,255,0.75)" numberOfLines={1} style={{ fontSize: 11 }}>
+        {label}
+      </AppText>
+    </View>
   );
 }
 
@@ -410,16 +498,71 @@ function TailorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: palette.oliveDark,
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: spacing.xs,
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: palette.sageSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  heroDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    marginVertical: spacing.md,
+  bellBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hero: {
+    backgroundColor: inkCard,
+    borderRadius: 28,
+    padding: spacing.xl,
+    gap: 2,
+    overflow: 'hidden',
+  },
+  heroDot: {
+    position: 'absolute',
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    opacity: 0.95,
+  },
+  heroChip: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  heroChipIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boldTile: {
+    flex: 1,
+    borderRadius: 22,
+    padding: spacing.md,
+    minHeight: 110,
+    justifyContent: 'flex-end',
+    gap: 1,
+  },
+  boldTileIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
   attentionRow: {
     flexDirection: 'row-reverse',
