@@ -39,6 +39,7 @@ export default function TabsLayout() {
         </View>
       )}
     <Tabs
+      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: palette.olive,
@@ -56,43 +57,13 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: palette.ivory },
       }}
     >
+      {/* عربي RTL: أول تصريح يُرسم أقصى اليسار — لذا الترتيب معكوس عمدًا
+          كي تكون «الرئيسية» أقصى اليمين و«المزيد» أقصى اليسار */}
       <Tabs.Screen
-        name="home"
+        name="more"
         options={{
-          title: 'الرئيسية',
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Home size={22} color={color} /></TabIcon>,
-        }}
-      />
-      <Tabs.Screen
-        name="projects"
-        options={{
-          title: 'المشاريع',
-          href: isTailor ? null : '/projects',
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><LayoutGrid size={22} color={color} /></TabIcon>,
-        }}
-      />
-      <Tabs.Screen
-        name="visits"
-        options={{
-          title: 'زياراتي',
-          href: isField ? '/visits' : null,
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><CalendarCheck size={22} color={color} /></TabIcon>,
-        }}
-      />
-      <Tabs.Screen
-        name="tasks"
-        options={{
-          title: 'أوامر الإنتاج',
-          href: isTailor ? '/tasks' : null,
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Scissors size={22} color={color} /></TabIcon>,
-        }}
-      />
-      <Tabs.Screen
-        name="customers"
-        options={{
-          title: 'الزبائن',
-          href: isAdmin ? '/customers' : null,
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Users size={22} color={color} /></TabIcon>,
+          title: 'المزيد',
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><MoreHorizontal size={22} color={color} /></TabIcon>,
         }}
       />
       <Tabs.Screen
@@ -104,10 +75,42 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="more"
+        name="customers"
         options={{
-          title: 'المزيد',
-          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><MoreHorizontal size={22} color={color} /></TabIcon>,
+          title: 'الزبائن',
+          href: isAdmin ? '/customers' : null,
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Users size={22} color={color} /></TabIcon>,
+        }}
+      />
+      <Tabs.Screen
+        name="tasks"
+        options={{
+          title: 'أوامر الإنتاج',
+          href: isTailor ? '/tasks' : null,
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Scissors size={22} color={color} /></TabIcon>,
+        }}
+      />
+      <Tabs.Screen
+        name="visits"
+        options={{
+          title: 'زياراتي',
+          href: isField ? '/visits' : null,
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><CalendarCheck size={22} color={color} /></TabIcon>,
+        }}
+      />
+      <Tabs.Screen
+        name="projects"
+        options={{
+          title: 'المشاريع',
+          href: isTailor ? null : '/projects',
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><LayoutGrid size={22} color={color} /></TabIcon>,
+        }}
+      />
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'الرئيسية',
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Home size={22} color={color} /></TabIcon>,
         }}
       />
     </Tabs>

@@ -61,11 +61,16 @@ export const spacing = {
   xxxl: 40,
 } as const;
 
+/**
+ * Alexandria — خط عربي هندسي حديث صُمم للواجهات: نظيف، أنيق، ممتاز القراءة
+ * بالأحجام الصغيرة، وبأوزانه الأربعة المطابقة لفتحات النظام (قرار جولة
+ * التصميم 2026-08-04؛ كان IBM Plex Sans Arabic).
+ */
 export const font = {
-  regular: 'IBMPlexSansArabic_400Regular',
-  medium: 'IBMPlexSansArabic_500Medium',
-  semibold: 'IBMPlexSansArabic_600SemiBold',
-  bold: 'IBMPlexSansArabic_700Bold',
+  regular: 'Alexandria_400Regular',
+  medium: 'Alexandria_500Medium',
+  semibold: 'Alexandria_600SemiBold',
+  bold: 'Alexandria_700Bold',
 } as const;
 
 export const shadow = {
