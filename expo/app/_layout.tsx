@@ -1,10 +1,10 @@
 import {
-  Alexandria_400Regular,
-  Alexandria_500Medium,
-  Alexandria_600SemiBold,
-  Alexandria_700Bold,
+  Cairo_400Regular,
+  Cairo_500Medium,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
   useFonts,
-} from '@expo-google-fonts/alexandria';
+} from '@expo-google-fonts/cairo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -65,10 +65,10 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [loaded] = useFonts({
-    Alexandria_400Regular,
-    Alexandria_500Medium,
-    Alexandria_600SemiBold,
-    Alexandria_700Bold,
+    Cairo_400Regular,
+    Cairo_500Medium,
+    Cairo_600SemiBold,
+    Cairo_700Bold,
   });
 
   useEffect(() => {

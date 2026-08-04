@@ -62,15 +62,16 @@ export const spacing = {
 } as const;
 
 /**
- * Alexandria — خط عربي هندسي حديث صُمم للواجهات: نظيف، أنيق، ممتاز القراءة
- * بالأحجام الصغيرة، وبأوزانه الأربعة المطابقة لفتحات النظام (قرار جولة
- * التصميم 2026-08-04؛ كان IBM Plex Sans Arabic).
+ * Cairo — المعيار الذهبي للنصوص العربية الرقمية في تطبيقات الموبايل
+ * (توصيات الممارسات 2026): تسعة أوزان تمنح تسلسلًا هرميًا كاملًا، مقروئية
+ * ممتازة على الشاشات، وأوسع اعتماد في التطبيقات العربية الإنتاجية.
+ * قرار مالك 2026-08-04 بعد رفض Alexandria؛ الأصل كان IBM Plex Sans Arabic.
  */
 export const font = {
-  regular: 'Alexandria_400Regular',
-  medium: 'Alexandria_500Medium',
-  semibold: 'Alexandria_600SemiBold',
-  bold: 'Alexandria_700Bold',
+  regular: 'Cairo_400Regular',
+  medium: 'Cairo_500Medium',
+  semibold: 'Cairo_600SemiBold',
+  bold: 'Cairo_700Bold',
 } as const;
 
 export const shadow = {
