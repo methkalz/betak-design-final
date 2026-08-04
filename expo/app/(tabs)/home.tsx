@@ -348,32 +348,10 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* شفق الصفحة — يعبر ببطء شديد خلف كل بطاقات الزجاج فتلتقط ألوانه
-          وتتبدّل بها. واسعة جدًا وبطيئة جدًا كي تبقى مسحةَ جوّ على الورق
-          العاري، وتتحول إلى لون حيّ حيث يعلوها الزجاج. */}
-      <AuroraBloom
-        style={[styles.blob, { top: -150, right: -140, backgroundColor: 'rgba(139,92,246,0.22)' }]}
-        duration={17000}
-        dx={80}
-        dy={60}
-        grow={0.16}
-      />
-      <AuroraBloom
-        style={[styles.blob, { top: 280, left: -190, backgroundColor: 'rgba(56,189,248,0.20)' }]}
-        duration={21000}
-        dx={90}
-        dy={-70}
-        grow={0.18}
-        delay={1600}
-      />
-      <AuroraBloom
-        style={[styles.blob, { bottom: -140, right: -170, backgroundColor: 'rgba(251,113,133,0.18)' }]}
-        duration={25000}
-        dx={-70}
-        dy={-80}
-        grow={0.2}
-        delay={3400}
-      />
+      {/* توهجات محيطية — خافتة جدًا وواسعة عمدًا: الحواف الحادة كانت تومض
+          خلف الزجاج أثناء التمرير (ملاحظة المالك) */}
+      <View style={[styles.blob, { backgroundColor: 'rgba(139,92,246,0.07)', top: -160, right: -140 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(56,189,248,0.05)', top: 320, left: -180 }]} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
@@ -384,7 +362,7 @@ function AdminDashboard() {
         <Row justify="space-between">
           <Row gap={spacing.md}>
             <View style={styles.avatar}>
-              <AppText variant="label" color={palette.olive}>
+              <AppText variant="label" color={palette.oliveDark}>
                 {initials(currentUser?.fullName ?? '')}
               </AppText>
             </View>
@@ -779,8 +757,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    // بلا حدّ: خط الدائرة كان يقطع الوجه بحافة بارزة — التمييز بالملء وحده
-    backgroundColor: palette.sageSoft,
+    backgroundColor: palette.sand,
+    borderWidth: 1.5,
+    borderColor: palette.sandDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -820,13 +799,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.sm,
-    // أكثر بياضًا: الشريحتان تُقرآن الآن كسطحين لا كطيفين
-    backgroundColor: 'rgba(255,255,255,0.34)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   quickTile: {
     width: '100%',
@@ -853,10 +831,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.85)',
-    // أرقّ قليلًا كي يمرّ شفق الصفحة من خلفها فيلوّنها وهي تتحرك —
-    // مع بقاء النص الداكن فوقها مقروءًا تمامًا
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderColor: 'rgba(255,255,255,0.8)',
+    // أكثف قليلًا بعد تخفيف التوهجات — الزجاج يبقى واضحًا بلا وميض خلفه
+    backgroundColor: 'rgba(255,255,255,0.72)',
   },
   glassInner: {
     padding: spacing.lg,
