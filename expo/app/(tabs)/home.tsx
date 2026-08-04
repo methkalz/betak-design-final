@@ -50,8 +50,6 @@ import { useStore } from '@/providers/store';
 /* لوحة 2026: خلفية لافندرية بتوهجات، بطاقة بطل متدرّجة بهالة ملوّنة،
    مربعات إجراءات متدرّجة، وزجاج جراحي لبقية البطاقات. */
 const paper = palette.ivory;
-const heroMint = '#7DE7C7';
-const heroAmber = '#FFD27D';
 
 /** مواقيت الدخول — مصدر واحد يشاركه الظهور وحركات الأرقام فتبدأ من الصفر معًا. */
 const ENTER = { hero: 60, quick: 160, tiles: 240, charts: 340, attention: 430, pipeline: 520, projects: 610 } as const;
@@ -455,42 +453,44 @@ function AdminDashboard() {
           />
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
+            {/* لوحان بمادة الفوتر نفسها: تمويه 44 + أبيض 0.62 — ولأن السطح
+                صار ساطعًا انقلب محتواه إلى ألوان داكنة كي يبقى مقروءًا */}
             <View style={styles.heroChip}>
               <BlurView
-                intensity={26}
+                intensity={44}
                 tint="light"
                 experimentalBlurMethod="dimezisBlurView"
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.heroChipFill} />
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                <ArrowUpRight size={14} color={heroMint} />
+              <View style={[styles.heroChipIcon, { backgroundColor: palette.success }]}>
+                <ArrowUpRight size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(255,255,255,0.7)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.6)" style={{ fontSize: 12 }}>
                   عروض معتمدة
                 </AppText>
-                <AppText variant="label" color={heroMint}>
+                <AppText variant="label" color={palette.charcoal}>
                   {db.quotationVersions.filter((v) => v.status === 'approved').length}
                 </AppText>
               </View>
             </View>
             <View style={styles.heroChip}>
               <BlurView
-                intensity={26}
+                intensity={44}
                 tint="light"
                 experimentalBlurMethod="dimezisBlurView"
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.heroChipFill} />
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
-                <Clock3 size={14} color={heroAmber} />
+              <View style={[styles.heroChipIcon, { backgroundColor: palette.warning }]}>
+                <Clock3 size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(255,255,255,0.7)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.6)" style={{ fontSize: 12 }}>
                   بانتظار الرد
                 </AppText>
-                <AppText variant="label" color={heroAmber}>
+                <AppText variant="label" color={palette.charcoal}>
                   {stats.awaiting.length > 0
                     ? `${stats.awaiting.length} • ${money(stats.awaitingValue, { compact: true })}`
                     : '—'}
@@ -818,12 +818,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: 'rgba(255,255,255,0.85)',
     overflow: 'hidden',
   },
   heroChipFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.30)',
+    backgroundColor: 'rgba(255,255,255,0.62)',
   },
   quickTile: {
     width: '100%',
