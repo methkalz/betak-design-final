@@ -28,6 +28,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppHeader } from '@/components/AppHeader';
 import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
@@ -133,44 +134,42 @@ function AuroraBloom({
 }
 
 /**
- * هالة خلفية ناعمة بلا حافة. React Native لا يدعم التدرّج الشعاعي، فتُركَّب
- * دوائر متحدة المركز بشفافية ضئيلة متساوية: تتراكم في المنتصف وتتلاشى عند
- * الأطراف، فينتج تلاشٍ شعاعيّ حقيقي بدل قرص له خط دائرة بارز.
+ * هالة خلفية بتدرّج شعاعيّ أملس (SVG RadialGradient) — لا دوائر متراكبة
+ * تُنتج حلقات مرئية، بل انحدار متصل من مركز مضيء إلى شفافية تامة عند
+ * المحيط. محطات الانحدار غير خطية عمدًا (كثيفة قرب المركز) فيبدو التلاشي
+ * طبيعيًا كضوء حقيقي لا كتدرّج حسابي.
  */
 function SoftGlow({
+  id,
   color,
   size,
-  layers = 8,
+  peak = 0.5,
   style,
 }: {
+  id: string;
   color: string;
   size: number;
-  layers?: number;
+  /** شفافية القلب المضيء. */
+  peak?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <View
       pointerEvents="none"
-      style={[
-        { position: 'absolute', width: size, height: size, alignItems: 'center', justifyContent: 'center' },
-        style,
-      ]}
+      style={[{ position: 'absolute', width: size, height: size }, style]}
     >
-      {Array.from({ length: layers }, (_, i) => {
-        const s = size * (1 - (i / layers) * 0.86);
-        return (
-          <View
-            key={i}
-            style={{
-              position: 'absolute',
-              width: s,
-              height: s,
-              borderRadius: s / 2,
-              backgroundColor: color,
-            }}
-          />
-        );
-      })}
+      <Svg width={size} height={size}>
+        <Defs>
+          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor={color} stopOpacity={peak} />
+            <Stop offset="30%" stopColor={color} stopOpacity={peak * 0.62} />
+            <Stop offset="55%" stopColor={color} stopOpacity={peak * 0.3} />
+            <Stop offset="78%" stopColor={color} stopOpacity={peak * 0.1} />
+            <Stop offset="100%" stopColor={color} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width={size} height={size} fill={`url(#${id})`} />
+      </Svg>
     </View>
   );
 }
@@ -389,9 +388,9 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* هالات الخلفية: تلاشٍ شعاعيّ متعدد الطبقات — أخفّ وبلا خط دائرة */}
-      <SoftGlow color="rgba(139,92,246,0.012)" size={560} style={{ top: -220, right: -190 }} />
-      <SoftGlow color="rgba(56,189,248,0.009)" size={480} style={{ top: 300, left: -210 }} />
+      {/* هالات الخلفية: تدرّج شعاعيّ أملس يذوب في الورق بلا حافة */}
+      <SoftGlow id="glowViolet" color="#8B5CF6" peak={0.16} size={620} style={{ top: -230, right: -200 }} />
+      <SoftGlow id="glowSky" color="#38BDF8" peak={0.12} size={520} style={{ top: 300, left: -220 }} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
