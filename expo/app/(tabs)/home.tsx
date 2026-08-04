@@ -1,4 +1,5 @@
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
   AlertTriangle,
@@ -8,13 +9,16 @@ import {
   Bell,
   ChevronLeft,
   Clock3,
+  FolderPlus,
   Layers,
   LayoutGrid,
   Package,
   Scissors,
+  UserPlus,
 } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -29,19 +33,52 @@ import {
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { useRollViews } from '@/hooks/selectors';
 import { formatDate, initials, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-/* «نمط المحفظة الزجاجي» — تجربة معزولة في هذه الشاشة:
-   خلفية محيطية بتوهجات لونية ناعمة، بطاقة داكنة برقم واحد كبير،
-   وبطاقات زجاجية (blur) لكل ما عداها. حرية عن الهوية بقرار المالك. */
-const paper = '#F3F4F0';
-const inkCard = '#1C221B';
-const heroGreen = '#A9CBB0';
-const heroAmber = '#E4BE84';
+/* لوحة 2026: خلفية لافندرية بتوهجات، بطاقة بطل متدرّجة بهالة ملوّنة،
+   مربعات إجراءات متدرّجة، وزجاج جراحي لبقية البطاقات. */
+const paper = palette.ivory;
+const heroMint = '#7DE7C7';
+const heroAmber = '#FFD27D';
+
+const QUICK_ACTIONS = [
+  { key: 'project', label: 'مشروع جديد', icon: FolderPlus, grad: gradients.indigo, href: '/project/new' },
+  { key: 'customer', label: 'زبون جديد', icon: UserPlus, grad: gradients.sky, href: '/customer/new' },
+  { key: 'inventory', label: 'المخزون', icon: Layers, grad: gradients.emerald, href: '/inventory' },
+  { key: 'discounts', label: 'الخصومات', icon: BadgePercent, grad: gradients.amber, href: '/discounts' },
+] as const;
+
+function QuickActions() {
+  const router = useRouter();
+  return (
+    <Row gap={spacing.md}>
+      {QUICK_ACTIONS.map((a, i) => {
+        const Icon = a.icon;
+        return (
+          <Animated.View key={a.key} entering={FadeInDown.delay(160 + i * 60).duration(430)} style={{ flex: 1 }}>
+            <Pressable onPress={() => router.push(a.href)} style={{ alignItems: 'center', gap: 6 }}>
+              <LinearGradient
+                colors={a.grad as unknown as [string, string]}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.quickTile}
+              >
+                <Icon size={22} color={palette.white} />
+              </LinearGradient>
+              <AppText variant="caption" color={palette.charcoal} numberOfLines={1} style={{ fontSize: 12 }}>
+                {a.label}
+              </AppText>
+            </Pressable>
+          </Animated.View>
+        );
+      })}
+    </Row>
+  );
+}
 
 function Glass({
   children,
@@ -258,9 +295,9 @@ function AdminDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
       {/* توهجات محيطية خلف الزجاج */}
-      <View style={[styles.blob, { backgroundColor: 'rgba(168,185,165,0.4)', top: -70, right: -60 }]} />
-      <View style={[styles.blob, { backgroundColor: 'rgba(228,190,132,0.3)', top: 260, left: -90, width: 220, height: 220, borderRadius: 110 }]} />
-      <View style={[styles.blob, { backgroundColor: 'rgba(200,121,91,0.18)', bottom: 60, right: -70, width: 190, height: 190, borderRadius: 95 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(139,92,246,0.20)', top: -80, right: -60 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(56,189,248,0.16)', top: 300, left: -90, width: 220, height: 220, borderRadius: 110 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(249,112,102,0.14)', bottom: 60, right: -70, width: 190, height: 190, borderRadius: 95 }]} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
@@ -287,43 +324,48 @@ function AdminDashboard() {
           </Pressable>
         </Row>
 
-        {/* بطاقة المحفظة الداكنة — رقم واحد كبير يفتتح اليوم */}
+        {/* بطاقة البطل المتدرّجة — رقم واحد كبير يفتتح اليوم */}
         <Enter delay={60}>
-        <Pressable onPress={() => router.push('/projects')} style={styles.hero}>
-          <View style={[styles.heroDot, { backgroundColor: palette.terracotta, top: 18, left: 22 }]} />
-          <View
-            style={[styles.heroDot, { backgroundColor: heroGreen, width: 9, height: 9, top: 34, left: 40 }]}
-          />
-          <AppText variant="caption" color="rgba(255,255,255,0.55)">
+        <Pressable onPress={() => router.push('/projects')} style={shadow.glow}>
+        <LinearGradient
+          colors={gradients.hero as unknown as [string, string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          {/* هالات داخلية تمنح البطاقة عمقًا زجاجيًا */}
+          <View style={[styles.heroGlow, { top: -60, left: -30 }]} />
+          <View style={[styles.heroGlow, { bottom: -70, right: -40, width: 170, height: 170, borderRadius: 85 }]} />
+          <AppText variant="caption" color="rgba(255,255,255,0.72)">
             اعتمادات هذا الشهر
           </AppText>
           <CountUpText
             value={stats.approvedMonth}
             format={(v) => money(v, { compact: true })}
             color={palette.white}
-            style={{ fontSize: 38, lineHeight: 52 }}
+            style={{ fontSize: 40, lineHeight: 56 }}
           />
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
             <View style={styles.heroChip}>
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(169,203,176,0.18)' }]}>
-                <ArrowUpRight size={14} color={heroGreen} />
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <ArrowUpRight size={14} color={heroMint} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(255,255,255,0.5)" style={{ fontSize: 11 }}>
+                <AppText variant="caption" color="rgba(255,255,255,0.7)" style={{ fontSize: 12 }}>
                   عروض معتمدة
                 </AppText>
-                <AppText variant="label" color={heroGreen}>
+                <AppText variant="label" color={heroMint}>
                   {db.quotationVersions.filter((v) => v.status === 'approved').length}
                 </AppText>
               </View>
             </View>
             <View style={styles.heroChip}>
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(228,190,132,0.16)' }]}>
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
                 <Clock3 size={14} color={heroAmber} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(255,255,255,0.5)" style={{ fontSize: 11 }}>
+                <AppText variant="caption" color="rgba(255,255,255,0.7)" style={{ fontSize: 12 }}>
                   بانتظار الرد
                 </AppText>
                 <AppText variant="label" color={heroAmber}>
@@ -334,8 +376,12 @@ function AdminDashboard() {
               </View>
             </View>
           </Row>
+        </LinearGradient>
         </Pressable>
         </Enter>
+
+        {/* مربعات الإجراءات السريعة — نمط 2026 */}
+        <QuickActions />
 
         {/* بلاطات زجاجية — اللون في دائرة الأيقونة فقط */}
         <Enter delay={140}>
@@ -594,7 +640,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: palette.sageSoft,
+    backgroundColor: palette.sand,
+    borderWidth: 1.5,
+    borderColor: palette.sandDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -609,28 +657,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hero: {
-    backgroundColor: inkCard,
-    borderRadius: 28,
+    borderRadius: radius.xl,
     padding: spacing.xl,
     gap: 2,
     overflow: 'hidden',
   },
-  heroDot: {
+  heroGlow: {
     position: 'absolute',
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    opacity: 0.95,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255,255,255,0.10)',
   },
   heroChip: {
     flex: 1,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.055)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  quickTile: {
+    width: '100%',
+    aspectRatio: 1,
+    maxHeight: 66,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroChipIcon: {
     width: 28,
@@ -646,11 +701,11 @@ const styles = StyleSheet.create({
     borderRadius: 130,
   },
   glassWrap: {
-    borderRadius: 24,
+    borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.65)',
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    borderColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(255,255,255,0.55)',
   },
   glassInner: {
     padding: spacing.lg,

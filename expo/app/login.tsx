@@ -114,7 +114,7 @@ export default function LoginScreen() {
 
   return (
     <LinearGradient
-      colors={[palette.oliveDeepest, palette.olive, '#4E6553']}
+      colors={[palette.oliveDeepest, palette.olive, '#8B5CF6']}
       start={{ x: 0.1, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}

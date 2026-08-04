@@ -1,34 +1,62 @@
 /**
- * Baytak Design — design tokens.
- * Warm interior-design language: ivory paper, olive ink, terracotta accents.
- * Shared with the web dashboard (packages/ui-tokens equivalent).
+ * Baytak Design — design tokens (اتجاه 2026).
+ *
+ * تحوّل مقصود بقرار المالك: من اللغة الترابية الهادئة إلى لغة نابضة حديثة —
+ * نيلي/بنفسجي أساسًا، خلفية ورقية مائلة للّافندر، تدرّجات حيّة للأبطال
+ * والإجراءات، وزجاج جراحي فوقها. أسماء المفاتيح القديمة بقيت كما هي عمدًا
+ * (ivory/olive/sand/…) لتسري القيم الجديدة على كل الشاشات بلا لمس واحدة
+ * منها — تُقرأ الآن كأدوار لا كألوان: olive = اللون الأساسي، ivory = الخلفية،
+ * sand = سطح ثانوي، sage = فاتح فوق الداكن، terracotta = لهجة دافئة.
  */
 
 export const palette = {
-  ivory: '#F8F5EF',
-  ivoryDeep: '#F1EBE1',
-  sand: '#EDE4D7',
-  sandDeep: '#E2D5C3',
-  olive: '#42584A',
-  oliveDark: '#2F4136',
-  oliveDeepest: '#22302A',
-  sage: '#A8B9A5',
-  sageSoft: '#D6E0D2',
-  terracotta: '#C8795B',
-  terracottaSoft: '#F3DED2',
-  charcoal: '#282B29',
-  ink: '#1B1F1C',
-  muted: '#7C8479',
-  line: '#E4DCCE',
+  // الخلفيات والأسطح
+  ivory: '#F6F6FB',
+  ivoryDeep: '#EFEFF8',
+  sand: '#EEEFFE',
+  sandDeep: '#DEE0FA',
   white: '#FFFFFF',
-  danger: '#B4462F',
-  dangerSoft: '#F7DED6',
-  success: '#3E7A54',
-  successSoft: '#DCEBE0',
-  warning: '#B8862F',
-  warningSoft: '#F7EBD2',
-  info: '#3C6079',
-  infoSoft: '#DCE7EE',
+
+  // اللون الأساسي — نيلي نابض
+  olive: '#4F46E5',
+  oliveDark: '#3B32C4',
+  oliveDeepest: '#211D63',
+
+  // فاتح فوق الداكن + هالات
+  sage: '#A5B4FC',
+  sageSoft: '#EBEDFE',
+
+  // لهجة دافئة مقابلة للنيلي
+  terracotta: '#F97066',
+  terracottaSoft: '#FFE9E6',
+
+  // النص
+  charcoal: '#1B1F32',
+  ink: '#0F1222',
+  muted: '#787E9B',
+  line: '#EAEAF5',
+
+  // دلالية
+  danger: '#F43F5E',
+  dangerSoft: '#FFE4EA',
+  success: '#10B981',
+  successSoft: '#DFF7EE',
+  warning: '#F59E0B',
+  warningSoft: '#FEF1D6',
+  info: '#3B82F6',
+  infoSoft: '#E3EDFF',
+} as const;
+
+/** أزواج التدرّج — الأبطال ومربعات الإجراءات (نمط 2026). */
+export const gradients = {
+  hero: ['#5B54EA', '#7C5CF5', '#9D6FF0'],
+  heroDeep: ['#2A2478', '#4F46E5'],
+  indigo: ['#6366F1', '#8B5CF6'],
+  sky: ['#38BDF8', '#3B82F6'],
+  amber: ['#FBBF24', '#F59E0B'],
+  emerald: ['#34D399', '#10B981'],
+  rose: ['#FB7185', '#F43F5E'],
+  coral: ['#FDA4A0', '#F97066'],
 } as const;
 
 export const colors = {
@@ -39,15 +67,15 @@ export const colors = {
   text: palette.charcoal,
   textSoft: palette.muted,
   primary: palette.olive,
-  onPrimary: palette.ivory,
+  onPrimary: palette.white,
   accent: palette.terracotta,
 } as const;
 
 export const radius = {
-  sm: 10,
-  md: 14,
-  lg: 20,
-  xl: 26,
+  sm: 12,
+  md: 16,
+  lg: 22,
+  xl: 28,
   pill: 999,
 } as const;
 
@@ -75,20 +103,28 @@ export const font = {
 } as const;
 
 export const shadow = {
-  // أنعم وأخف — حداثة مسطّحة: العمق يوحي به الهواء لا العتمة
+  // ظل بارد مائل للنيلي — يذوب في الخلفية بدل أن يتسخ فوقها
   card: {
-    shadowColor: '#3B3226',
-    shadowOpacity: 0.04,
+    shadowColor: '#3F3D8F',
+    shadowOpacity: 0.06,
     shadowRadius: 24,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 8 },
     elevation: 2,
   },
   raised: {
-    shadowColor: '#2A2418',
-    shadowOpacity: 0.14,
+    shadowColor: '#2E2B75',
+    shadowOpacity: 0.16,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 10,
+  },
+  /** توهج ملوّن تحت العناصر البطلة والمتدرجة. */
+  glow: {
+    shadowColor: '#5B54EA',
+    shadowOpacity: 0.32,
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 14 },
-    elevation: 8,
+    elevation: 12,
   },
 } as const;
 

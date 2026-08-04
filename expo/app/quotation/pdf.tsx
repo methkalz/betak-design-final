@@ -1,4 +1,4 @@
-import * as Print from 'expo-print';
+﻿import * as Print from 'expo-print';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
@@ -59,29 +59,29 @@ function buildHtml(params: {
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
-    direction: rtl; text-align: right; color: #282B29; margin: 0; padding: 32px;
-    background: #F8F5EF;
+    direction: rtl; text-align: right; color: #1B1F32; margin: 0; padding: 32px;
+    background: #F6F6FB;
   }
   .head { display: flex; justify-content: space-between; align-items: flex-start;
-    border-bottom: 3px solid #42584A; padding-bottom: 18px; margin-bottom: 22px; }
-  .brand { font-size: 26px; font-weight: 700; color: #42584A; }
-  .muted { color: #7C8479; font-size: 12px; line-height: 1.7; }
-  .badge { background: #EDE4D7; color: #42584A; padding: 6px 14px; border-radius: 999px;
+    border-bottom: 3px solid #4F46E5; padding-bottom: 18px; margin-bottom: 22px; }
+  .brand { font-size: 26px; font-weight: 700; color: #4F46E5; }
+  .muted { color: #787E9B; font-size: 12px; line-height: 1.7; }
+  .badge { background: #EEEFFE; color: #4F46E5; padding: 6px 14px; border-radius: 999px;
     font-size: 12px; display: inline-block; }
   .grid { display: flex; gap: 16px; margin-bottom: 22px; }
-  .box { flex: 1; background: #fff; border: 1px solid #E4DCCE; border-radius: 14px; padding: 14px; }
-  .box h3 { margin: 0 0 8px; font-size: 13px; color: #7C8479; font-weight: 600; }
+  .box { flex: 1; background: #fff; border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
+  .box h3 { margin: 0 0 8px; font-size: 13px; color: #787E9B; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; background: #fff;
-    border: 1px solid #E4DCCE; border-radius: 14px; overflow: hidden; }
-  th { background: #42584A; color: #F8F5EF; font-size: 12px; padding: 10px 8px; text-align: right; }
-  td { padding: 10px 8px; font-size: 12px; border-bottom: 1px solid #F1EBE1; }
+    border: 1px solid #EAEAF5; border-radius: 14px; overflow: hidden; }
+  th { background: #4F46E5; color: #F6F6FB; font-size: 12px; padding: 10px 8px; text-align: right; }
+  td { padding: 10px 8px; font-size: 12px; border-bottom: 1px solid #EFEFF8; }
   .strong { font-weight: 700; }
   .totals { margin-top: 20px; margin-right: auto; width: 300px; background: #fff;
-    border: 1px solid #E4DCCE; border-radius: 14px; padding: 14px; }
+    border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
   .totals div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
-  .grand { border-top: 2px solid #42584A; margin-top: 8px; padding-top: 10px !important;
-    font-size: 17px; font-weight: 700; color: #42584A; }
-  .foot { margin-top: 26px; font-size: 11px; color: #7C8479; border-top: 1px solid #E4DCCE; padding-top: 12px; }
+  .grand { border-top: 2px solid #4F46E5; margin-top: 8px; padding-top: 10px !important;
+    font-size: 17px; font-weight: 700; color: #4F46E5; }
+  .foot { margin-top: 26px; font-size: 11px; color: #787E9B; border-top: 1px solid #EAEAF5; padding-top: 12px; }
 </style>
 </head>
 <body>
