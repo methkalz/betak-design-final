@@ -60,7 +60,13 @@ function QuickActions() {
         const Icon = a.icon;
         return (
           <Animated.View key={a.key} entering={FadeInDown.delay(160 + i * 60).duration(430)} style={{ flex: 1 }}>
-            <Pressable onPress={() => router.push(a.href)} style={{ alignItems: 'center', gap: 6 }}>
+            <Pressable
+              onPress={() => router.push(a.href)}
+              style={({ pressed }) => [
+                { alignItems: 'center', gap: 6 },
+                pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
+              ]}
+            >
               <LinearGradient
                 colors={a.grad as unknown as [string, string]}
                 start={{ x: 0.1, y: 0 }}
@@ -324,19 +330,32 @@ function AdminDashboard() {
           </Pressable>
         </Row>
 
-        {/* بطاقة البطل المتدرّجة — رقم واحد كبير يفتتح اليوم */}
+        {/* بطاقة البطل — زجاج حقيقي فوق ضوء ملوّن (نفس مبدأ الشريط السفلي) */}
         <Enter delay={60}>
-        <Pressable onPress={() => router.push('/projects')} style={shadow.glow}>
-        <LinearGradient
-          colors={gradients.hero as unknown as [string, string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
+        <Pressable
+          onPress={() => router.push('/projects')}
+          style={({ pressed }) => [shadow.glow, { transform: [{ scale: pressed ? 0.985 : 1 }] }]}
         >
-          {/* هالات داخلية تمنح البطاقة عمقًا زجاجيًا */}
-          <View style={[styles.heroGlow, { top: -60, left: -30 }]} />
-          <View style={[styles.heroGlow, { bottom: -70, right: -40, width: 170, height: 170, borderRadius: 85 }]} />
-          <AppText variant="caption" color="rgba(255,255,255,0.72)">
+        <View style={styles.hero}>
+          {/* ما تحت الزجاج: تدرّج + ضوءان منتشران — الزجاج يذيب حوافهما */}
+          <LinearGradient
+            colors={gradients.hero as unknown as [string, string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[styles.heroBloom, { top: -90, left: -60, backgroundColor: 'rgba(255,255,255,0.30)' }]} />
+          <View style={[styles.heroBloom, { bottom: -110, right: -70, backgroundColor: 'rgba(249,112,102,0.28)' }]} />
+          <BlurView
+            intensity={38}
+            tint="light"
+            experimentalBlurMethod="dimezisBlurView"
+            style={StyleSheet.absoluteFill}
+          />
+          {/* ستارة خفيفة تعيد العمق وتضمن وضوح النص فوق الزجاج */}
+          <View style={styles.heroScrim} />
+          <View style={styles.heroContent}>
+          <AppText variant="caption" color="rgba(255,255,255,0.78)">
             اعتمادات هذا الشهر
           </AppText>
           <CountUpText
@@ -376,7 +395,8 @@ function AdminDashboard() {
               </View>
             </View>
           </Row>
-        </LinearGradient>
+          </View>
+        </View>
         </Pressable>
         </Enter>
 
@@ -439,7 +459,13 @@ function AdminDashboard() {
             <Glass inner={{ padding: 0 }}>
               {attention.map((a, i) => (
                 <View key={a.key}>
-                  <Pressable onPress={a.onPress} style={styles.attentionRow}>
+                  <Pressable
+                    onPress={a.onPress}
+                    style={({ pressed }) => [
+                      styles.attentionRow,
+                      pressed && { backgroundColor: 'rgba(79,70,229,0.06)' },
+                    ]}
+                  >
                     <View style={[styles.attentionIcon, { backgroundColor: a.tint }]}>{a.icon}</View>
                     <View style={{ flex: 1, gap: 1 }}>
                       <AppText variant="label">{a.title}</AppText>
@@ -658,26 +684,36 @@ const styles = StyleSheet.create({
   },
   hero: {
     borderRadius: radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  heroContent: {
     padding: spacing.xl,
     gap: 2,
-    overflow: 'hidden',
   },
-  heroGlow: {
+  /** أضواء واسعة تحت الزجاج — الحواف تذوب فلا تومض مع الحركة. */
+  heroBloom: {
     position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.10)',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+  },
+  heroScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(40,32,110,0.30)',
   },
   heroChip: {
     flex: 1,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
   quickTile: {
     width: '100%',
