@@ -58,19 +58,19 @@ export default function InventoryScreen() {
             label="متاح للحجز"
             value={totals.available}
             tone={palette.success}
-            tint={['rgba(16,185,129,0.16)', 'rgba(16,185,129,0.04)']}
+            tint={['rgba(16,185,129,0.09)', 'rgba(255,255,255,0)']}
           />
           <TotalTile
             label="محجوز لمشاريع"
             value={totals.reserved}
             tone={palette.warning}
-            tint={['rgba(245,158,11,0.16)', 'rgba(245,158,11,0.04)']}
+            tint={['rgba(245,158,11,0.09)', 'rgba(255,255,255,0)']}
           />
           <TotalTile
             label="مستهلك"
             value={totals.consumed}
             tone={palette.muted}
-            tint={['rgba(120,126,155,0.14)', 'rgba(120,126,155,0.03)']}
+            tint={['rgba(120,126,155,0.08)', 'rgba(255,255,255,0)']}
           />
         </Row>
         <SegmentedControl
@@ -107,7 +107,7 @@ export default function InventoryScreen() {
                     {/* اسم القماش هو ما يبحث عنه الخيّاط، والكود معرّف
                         يُقرأ بعده - فالاسم فوق وبالخط العريض */}
                     <View style={{ flex: 1 }}>
-                      <AppText variant="heading" numberOfLines={1}>
+                      <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
                         {item.product?.name} {item.variant?.colorName}
                       </AppText>
                       <Row gap={spacing.sm}>
@@ -247,7 +247,7 @@ function TotalTile({
   tint: [string, string];
 }) {
   return (
-    <View style={[styles.totalTile, { borderColor: tint[0] }]}>
+    <View style={[styles.totalTile, { borderColor: palette.line }]}>
       <LinearGradient
         colors={tint}
         start={{ x: 0.2, y: 0 }}
