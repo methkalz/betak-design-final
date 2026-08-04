@@ -47,6 +47,15 @@ function divRoundHalfAway(numer: number, denom: number): number {
   return sign * (r * 2 >= denom ? q + 1 : q);
 }
 
+/**
+ * قاعدة المالك: لا أغوروت في أي مبلغ. الكسر يُسقَط لا يُقرَّب، فلا يدفع
+ * الزبون أبدًا أكثر مما تُظهره الحسبة. تُطبَّق على كل مرحلة لا على الإجمالي
+ * وحده، وإلا لم يعد مجموع البنود المعروضة مساويًا للإجمالي المعروض.
+ */
+function floorToShekel(agorot: number): number {
+  return Math.floor(agorot / 100) * 100;
+}
+
 /** Running meters as integer thousandths: round3(widthCm/100 × quantity). */
 function runningMetersThousandths(widthCm: number, quantity: number): number {
   const widthHundredthsCm = Math.round(widthCm * 100); // width has ≤2dp by contract
@@ -108,14 +117,16 @@ export function lineArithmetic(i: LineArithmeticInput): LineArithmeticResult {
   const fabricTh = divRoundHalfAway(rmTh * fullnessTh, 1000);
   const liningTh = i.hasLining ? fabricTh : 0;
 
-  const lineTotalAgorot = divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000);
+  const lineTotalAgorot = floorToShekel(divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000));
 
   const costPerRunningMeterMilli =
     i.fabricCostAgorot * fullnessTh +
     (i.hasLining ? i.liningCostAgorot * fullnessTh : 0) +
     (i.tailorCostAgorot + i.trackCostAgorot + i.deliveryCostAgorot + i.measureInstallCostAgorot) * 1000;
 
-  const internalCostAgorot = divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000);
+  const internalCostAgorot = floorToShekel(
+    divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000),
+  );
 
   return {
     runningMeters: rmTh / 1000,
@@ -150,9 +161,11 @@ export function totalsArithmetic(
   const pctHundredths = Math.round(discountPercent * 100);
   const vatHundredths = Math.round(vatPercent * 100);
 
-  const discountAgorot = divRoundHalfAway(subtotalAgorot * pctHundredths, 10_000);
+  const discountAgorot = floorToShekel(divRoundHalfAway(subtotalAgorot * pctHundredths, 10_000));
   const net = subtotalAgorot - discountAgorot;
-  const revenueExVatAgorot = divRoundHalfAway(net * 10_000, 10_000 + vatHundredths);
+  const revenueExVatAgorot = floorToShekel(
+    divRoundHalfAway(net * 10_000, 10_000 + vatHundredths),
+  );
   const vatAgorot = net - revenueExVatAgorot;
   const marginPercent =
     revenueExVatAgorot > 0

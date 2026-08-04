@@ -1,5 +1,5 @@
 {
-  "_doc": "Golden pricing vectors — §10 point-5 contract. Tested from BOTH sides: SQL (supabase/tests/golden_pricing_vectors.py) and TS (expo/domain/pricing.vectors.test.ts). Any single-agora difference fails the CI gate. Amounts in agorot; meters with 3 decimals; percents with 2. Rounding: half away from zero at every stage.",
+  "_doc": "Golden pricing vectors - §10 point-5 contract, calculation_version 2 (whole-shekel rule). Tested from BOTH sides: SQL through the real engine (supabase/tests/golden_pricing_vectors.py) and TS (expo/domain/pricing.vectors.test.ts). Any single-agora difference fails the CI gate. Amounts in agorot and ALWAYS multiples of 100 - the owner's rule drops agorot at every stage by flooring, never rounding, so the customer is never charged more than the arithmetic shows. Meters with 3 decimals; percents with 2.",
   "settings": {
     "trackCostPerMeterAgorot": 1000,
     "deliveryCostPerMeterAgorot": 1000,
@@ -15,7 +15,7 @@
       "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 6.0,
                     "lineTotalAgorot": 58000, "internalCostAgorot": 31800,
                     "subtotalAgorot": 58000, "discountAgorot": 0, "totalAgorot": 58000,
-                    "vatAgorot": 8847, "revenueExVatAgorot": 49153, "marginPercent": 35.30 }
+                    "vatAgorot": 8900, "revenueExVatAgorot": 49100, "marginPercent": 35.23 }
     },
     {
       "name": "no-lining",
@@ -25,37 +25,37 @@
       "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 0,
                     "lineTotalAgorot": 54000, "internalCostAgorot": 26400,
                     "subtotalAgorot": 54000, "discountAgorot": 0, "totalAgorot": 54000,
-                    "vatAgorot": 8237, "revenueExVatAgorot": 45763, "marginPercent": 42.31 }
+                    "vatAgorot": 8300, "revenueExVatAgorot": 45700, "marginPercent": 42.23 }
     },
     {
-      "name": "tall-qty2-fractional-width",
+      "name": "tall-qty2-fractional-width-drops-agorot",
       "input": { "widthCm": 233.33, "quantity": 2, "fullness": 3, "hasLining": true,
                  "unitPriceAgorot": 45000, "tailorCostAgorot": 7000,
                  "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
       "expected": { "runningMeters": 4.667, "fabricMeters": 14.001, "liningMeters": 14.001,
-                    "lineTotalAgorot": 210015, "internalCostAgorot": 88206,
-                    "subtotalAgorot": 210015, "discountAgorot": 0, "totalAgorot": 210015,
-                    "vatAgorot": 32036, "revenueExVatAgorot": 177979, "marginPercent": 50.44 }
+                    "lineTotalAgorot": 210000, "internalCostAgorot": 88200,
+                    "subtotalAgorot": 210000, "discountAgorot": 0, "totalAgorot": 210000,
+                    "vatAgorot": 32100, "revenueExVatAgorot": 177900, "marginPercent": 50.42 }
     },
     {
-      "name": "discount-exact-half-agora-rounds-away-from-zero",
+      "name": "sub-shekel-discount-vanishes",
       "input": { "widthCm": 150, "quantity": 1, "fullness": 3, "hasLining": true,
                  "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
                  "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0.10 },
       "expected": { "runningMeters": 1.5, "fabricMeters": 4.5, "liningMeters": 4.5,
-                    "lineTotalAgorot": 43500, "internalCostAgorot": 23850,
-                    "subtotalAgorot": 43500, "discountAgorot": 44, "totalAgorot": 43456,
-                    "vatAgorot": 6629, "revenueExVatAgorot": 36827, "marginPercent": 35.24 }
+                    "lineTotalAgorot": 43500, "internalCostAgorot": 23800,
+                    "subtotalAgorot": 43500, "discountAgorot": 0, "totalAgorot": 43500,
+                    "vatAgorot": 6700, "revenueExVatAgorot": 36800, "marginPercent": 35.33 }
     },
     {
-      "name": "lining-variant-own-cost",
+      "name": "seven-percent-discount-floors",
       "input": { "widthCm": 200, "quantity": 1, "fullness": 3, "hasLining": true,
                  "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 1100, "discountPercent": 0 },
+                 "fabricCostAgorot": 1400, "liningCostAgorot": 1100, "discountPercent": 7 },
       "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 6.0,
                     "lineTotalAgorot": 58000, "internalCostAgorot": 33000,
-                    "subtotalAgorot": 58000, "discountAgorot": 0, "totalAgorot": 58000,
-                    "vatAgorot": 8847, "revenueExVatAgorot": 49153, "marginPercent": 32.86 }
+                    "subtotalAgorot": 58000, "discountAgorot": 4000, "totalAgorot": 54000,
+                    "vatAgorot": 8300, "revenueExVatAgorot": 45700, "marginPercent": 27.79 }
     },
     {
       "name": "other-fabric-tall-with-lining",
@@ -65,7 +65,7 @@
       "expected": { "runningMeters": 3.0, "fabricMeters": 9.0, "liningMeters": 9.0,
                     "lineTotalAgorot": 153000, "internalCostAgorot": 62100,
                     "subtotalAgorot": 153000, "discountAgorot": 0, "totalAgorot": 153000,
-                    "vatAgorot": 23339, "revenueExVatAgorot": 129661, "marginPercent": 52.11 }
+                    "vatAgorot": 23400, "revenueExVatAgorot": 129600, "marginPercent": 52.08 }
     },
     {
       "name": "fullness-2p5",
@@ -75,17 +75,17 @@
       "expected": { "runningMeters": 2.0, "fabricMeters": 5.0, "liningMeters": 5.0,
                     "lineTotalAgorot": 58000, "internalCostAgorot": 29500,
                     "subtotalAgorot": 58000, "discountAgorot": 0, "totalAgorot": 58000,
-                    "vatAgorot": 8847, "revenueExVatAgorot": 49153, "marginPercent": 39.98 }
+                    "vatAgorot": 8900, "revenueExVatAgorot": 49100, "marginPercent": 39.92 }
     },
     {
-      "name": "tiny-amounts-vat-extraction",
+      "name": "tiny-amount-floors-to-two-shekels",
       "input": { "widthCm": 1, "quantity": 1, "fullness": 3, "hasLining": true,
                  "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
                  "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
       "expected": { "runningMeters": 0.01, "fabricMeters": 0.03, "liningMeters": 0.03,
-                    "lineTotalAgorot": 290, "internalCostAgorot": 159,
-                    "subtotalAgorot": 290, "discountAgorot": 0, "totalAgorot": 290,
-                    "vatAgorot": 44, "revenueExVatAgorot": 246, "marginPercent": 35.37 }
+                    "lineTotalAgorot": 200, "internalCostAgorot": 100,
+                    "subtotalAgorot": 200, "discountAgorot": 0, "totalAgorot": 200,
+                    "vatAgorot": 100, "revenueExVatAgorot": 100, "marginPercent": 0.0 }
     }
   ]
 }

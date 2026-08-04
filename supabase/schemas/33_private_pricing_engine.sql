@@ -26,11 +26,11 @@ declare
   v_lm numeric(12,3);
   v_fab_cost bigint;
   v_lin_cost bigint;
-  v_cost_per_rm numeric;  -- دقة كاملة عمدًا — التقريب مرة واحدة على البند
+  v_cost_per_rm numeric;
   v_sort integer := 0;
 begin
   if p_ctx is null or p_ctx->'settings' is null or p_ctx->'rules' is null then
-    raise exception 'سياق تسعير ناقص — المحرك يقرأ من اللقطة الملتقطة حصرًا.'
+    raise exception 'سياق تسعير ناقص - المحرك يقرأ من اللقطة الملتقطة حصرًا.'
       using errcode = 'BD400';
   end if;
 
@@ -57,13 +57,12 @@ begin
   loop
     v_sort := v_sort + 1;
 
-    -- فوق 500 سم: لا تسعير تلقائي (§10 هـ)
     if w.height_cm > 500 then
-      raise exception 'الشباك "%" ارتفاعه % سم — فوق 500 سم يلزم تسعيرة خاصة من الأدمن، لا تسعير تلقائي.',
+      raise exception 'الشباك "%" ارتفاعه % سم - فوق 500 سم يلزم تسعيرة خاصة من الأدمن، لا تسعير تلقائي.',
         w.name, w.height_cm using errcode = 'BD422';
     end if;
     if w.fabric_variant_id is null or w.fabric_cost is null then
-      raise exception 'الشباك "%" بلا قماش محدد — اختر القماش قبل إنشاء العرض.',
+      raise exception 'الشباك "%" بلا قماش محدد - اختر القماش قبل إنشاء العرض.',
         w.name using errcode = 'BD422';
     end if;
 
@@ -75,18 +74,16 @@ begin
                 else 'other_without_lining'
               end::core.pricing_category;
 
-    -- القاعدة من اللقطة الملتقطة — لا من الجدول الحي
     select (r->>'customer_price_per_meter_agorot')::bigint,
            (r->>'tailor_cost_per_meter_agorot')::bigint
       into v_price, v_tailor
     from jsonb_array_elements(p_ctx->'rules') r
     where r->>'band' = v_band::text and r->>'category' = v_cat::text;
     if v_price is null then
-      raise exception 'لا قاعدة تسعير للفئة % والارتفاع % — راجع إعدادات التسعير.',
+      raise exception 'لا قاعدة تسعير للفئة % والارتفاع % - راجع إعدادات التسعير.',
         v_cat, v_band using errcode = 'BD422';
     end if;
 
-    -- الفصل الثلاثي (§10 هـ): أساس الفوترة ← معامل الاستهلاك ← التكلفة
     v_rm := pg_catalog.round(w.width_cm / 100 * w.quantity, 3);
     v_fm := pg_catalog.round(v_rm * w.fullness, 3);
     v_lm := case when w.has_lining then v_fm else 0 end;
@@ -110,8 +107,9 @@ begin
     category             := v_cat;
     band                 := v_band;
     unit_price_agorot    := v_price;
-    line_total_agorot    := pg_catalog.round(v_price * v_rm)::bigint;
-    internal_cost_agorot := pg_catalog.round(v_cost_per_rm * v_rm)::bigint;
+    -- ★ إسقاط الأغوروت: شيكل صحيح لكل بند (القاعدة الجديدة)
+    line_total_agorot    := (pg_catalog.floor(v_price * v_rm / 100) * 100)::bigint;
+    internal_cost_agorot := (pg_catalog.floor(v_cost_per_rm * v_rm / 100) * 100)::bigint;
     fabric_meters        := v_fm;
     lining_meters        := v_lm;
     sort_order           := v_sort;

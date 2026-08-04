@@ -164,10 +164,11 @@ v1 = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
 ok = (v1 is not None
       and '"quotation_number": "Q-2026-0001"' in out
       and '"subtotal_agorot": 58000' in out
-      and '"vat_agorot": 8847' in out
+      and '"vat_agorot": 8900' in out
       and '"total_agorot": 58000' in out
-      and '"margin_percent": 35.30' in out)
-check('01 إنشاء v1: أرقام الدليل حرفيًا (58000 / ضريبة مستخرجة 8847 / هامش 35.30)', ok, out)
+      and '"margin_percent": 35.23' in out)
+check('01 إنشاء v1: أرقام الدليل بقاعدة الشيكل الصحيح (58000 / ضريبة 8900 / هامش 35.23)',
+      ok, out)
 
 probe = sql(f"""select running_meters || '|' || fabric_meters || '|' || lining_meters
  || '|' || unit_price_agorot || '|' || line_total_agorot || '|' || internal_cost_agorot
@@ -356,8 +357,8 @@ probe = sql(f"""select (private.version_content_fingerprint('{v3}')
         = private.version_content_fingerprint('{v3}'))::text
  || '|' || length(private.version_content_fingerprint('{v3}'))
  || '|' || left(private.quotation_content_canonical('{v3}'), 24);""", quiet=False)
-check('32 بصمة حتمية 64-hex وبادئة fp1|ILS|1|inclusive',
-      'true|64|fp1|ILS|1|inclusive' in probe, probe)
+check('32 بصمة حتمية 64-hex وبادئة fp1|ILS|2|inclusive (نسخة الحساب 2)',
+      'true|64|fp1|ILS|2|inclusive' in probe, probe)
 
 # ── اللقطة الذرية: المحرك يقرأ من السياق لا من الجداول الحية ─────────────────
 # سياق مُفتعل بسعر 99999 بينما القاعدة الحية 29000 — إن خرج 199998 فالمحرك
@@ -372,8 +373,9 @@ from private.price_project_windows('{ORG}'::uuid, '{pid('PA')}'::uuid,
       'band','standard','category','crepe_with_lining',
       'customer_price_per_meter_agorot', 99999,
       'tailor_cost_per_meter_agorot', 0))));""", quiet=False)
+# 99999 × 2 م = 199998 أغورة، وبقاعدة الشيكل الصحيح تُسقَط الكسور ← 199900
 check('33 المحرك يسعّر من اللقطة المفتعلة (99999) لا من القاعدة الحية (29000)',
-      '199998|' in probe, probe)
+      '199900|' in probe, probe)
 
 probe = sql(f"""select (i.unit_price_agorot = (r->>'customer_price_per_meter_agorot')::bigint)::text
 from core.quotation_items i
