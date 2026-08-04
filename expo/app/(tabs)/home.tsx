@@ -456,7 +456,7 @@ function AdminDashboard() {
         peak={0.3}
         size={560}
         style={{ top: 240, left: -230 }}
-        duration={12000}
+        duration={8000}
         dx={300}
         dy={-70}
         grow={0.16}
@@ -467,7 +467,7 @@ function AdminDashboard() {
         peak={0.24}
         size={520}
         style={{ top: 430, right: -220 }}
-        duration={15500}
+        duration={10300}
         dx={-280}
         dy={-90}
         grow={0.18}
