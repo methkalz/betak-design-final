@@ -276,9 +276,9 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         </View>
         {showMoney && (
           <View style={[styles.metric, { backgroundColor: palette.terracottaSoft }]}>
-            <AppText variant="numberLarge">{money(finance.dueAgorot, { compact: true })}</AppText>
+            <AppText variant="numberLarge">{money(finance.dueAgorot)}</AppText>
             <AppText variant="caption" color={palette.muted}>
-              متبقٍ من {money(finance.totalAgorot, { compact: true })}
+              متبقٍ من {money(finance.totalAgorot)}
             </AppText>
           </View>
         )}

@@ -93,10 +93,10 @@ export default function CustomersScreen() {
                   </AppText>
                 </View>
                 <View style={{ alignItems: 'flex-start', gap: 4 }}>
-                  <AppText variant="label">{money(value, { compact: true })}</AppText>
+                  <AppText variant="label">{money(value)}</AppText>
                   {due > 0 ? (
                     <Pill
-                      label={`متبقٍ ${money(due, { compact: true })}`}
+                      label={`متبقٍ ${money(due)}`}
                       bg={palette.terracottaSoft}
                       fg={palette.terracotta}
                       small

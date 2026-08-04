@@ -572,7 +572,7 @@ function AdminDashboard() {
           </AppText>
           <CountUpText
             value={stats.approvedMonth}
-            format={(v) => money(v, { compact: true })}
+            format={(v) => money(v)}
             color={palette.white}
             style={{ fontSize: 40, lineHeight: 56 }}
             delay={ENTER.hero}

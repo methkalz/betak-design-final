@@ -94,13 +94,13 @@ export default function CustomerScreen() {
       {showMoney && (
         <Row gap={spacing.md}>
           <View style={[styles.tile, { backgroundColor: palette.sageSoft }]}>
-            <AppText variant="number">{money(total, { compact: true })}</AppText>
+            <AppText variant="number">{money(total)}</AppText>
             <AppText variant="caption" color={palette.muted}>
               إجمالي التعامل
             </AppText>
           </View>
           <View style={[styles.tile, { backgroundColor: palette.terracottaSoft }]}>
-            <AppText variant="number">{money(due, { compact: true })}</AppText>
+            <AppText variant="number">{money(due)}</AppText>
             <AppText variant="caption" color={palette.muted}>
               متبقٍ للتحصيل
             </AppText>
