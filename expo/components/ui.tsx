@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { memo, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,6 +15,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, { SlideInDown } from 'react-native-reanimated';
 
 import { font, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
 
@@ -594,6 +596,71 @@ export function Banner({
   );
 }
 
+/**
+ * ورقة تأكيد سفلية بأسلوب التطبيق — بديل Alert الأصلي الذي يفرض ألوان
+ * النظام وخطوطه فيقطع الهوية البصرية. الممارسة المعتمدة للإجراءات المرتبطة
+ * بالشاشة الحالية: ورقة سفلية غير قاطعة، لا حوار مركزي.
+ */
+export function ConfirmSheet({
+  visible,
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = 'إلغاء',
+  tone = 'primary',
+  icon,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  body?: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  tone?: 'primary' | 'danger';
+  icon?: React.ReactNode;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.sheetBackdrop} onPress={onCancel} />
+      <View style={styles.sheetWrap} pointerEvents="box-none">
+        <Animated.View entering={SlideInDown.duration(320)} style={styles.sheet}>
+          <View style={styles.sheetGrip} />
+          {!!icon && (
+            <View
+              style={[
+                styles.sheetIcon,
+                { backgroundColor: tone === 'danger' ? palette.dangerSoft : palette.sand },
+              ]}
+            >
+              {icon}
+            </View>
+          )}
+          <AppText variant="title" align="center">
+            {title}
+          </AppText>
+          {!!body && (
+            <AppText variant="body" color={palette.muted} align="center">
+              {body}
+            </AppText>
+          )}
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <Button
+              label={confirmLabel}
+              variant={tone === 'danger' ? 'danger' : 'primary'}
+              full
+              onPress={onConfirm}
+            />
+            <Button label={cancelLabel} variant="ghost" full onPress={onCancel} />
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 export function SectionHeader({
   title,
   action,
@@ -746,5 +813,41 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.sm,
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,18,34,0.45)',
+  },
+  sheetWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: palette.white,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.sm,
+    alignItems: 'stretch',
+    ...shadow.raised,
+  },
+  sheetGrip: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.sandDeep,
+    marginBottom: spacing.lg,
+  },
+  sheetIcon: {
+    alignSelf: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
 });

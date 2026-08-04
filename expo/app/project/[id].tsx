@@ -6,6 +6,7 @@ import {
   Banknote,
   Camera,
   ChevronLeft,
+  ChevronRight,
   FileText,
   Layers,
   Plus,
@@ -14,8 +15,15 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react-native';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing as REasing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -23,6 +31,7 @@ import {
   Banner,
   Button,
   Card,
+  ConfirmSheet,
   Divider,
   EmptyState,
   Field,
@@ -32,7 +41,7 @@ import {
   SectionHeader,
   Swatch,
 } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
   CURTAIN_MODEL_LABELS,
@@ -49,6 +58,7 @@ import { round3 } from '@/domain/pricing';
 import { currentVersion, projectFabricPlan, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
+import type { ProjectStatus } from '@/types/domain';
 
 type Tab = 'overview' | 'rooms' | 'quote' | 'production' | 'money' | 'media';
 
@@ -186,10 +196,59 @@ export default function ProjectStudioScreen() {
 
 /* ───────────────────────── Overview ───────────────────────── */
 
+/**
+ * زر التقدّم — الممارسة المعتمدة (2024-2026): إجراء أساسي بارز وواضح
+ * الوجهة، لا نقر على عنصر صغير داخل قائمة. السهم يتحرك بلطف لا زخرفةً بل
+ * ليقول «اضغط هنا للانتقال»، وهي إشارة الإمكانية (affordance) التي كانت
+ * غائبة حين كان النقل مخبوءًا في نقطة ملوّنة.
+ */
+function AdvanceButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const x = useSharedValue(0);
+  useEffect(() => {
+    x.value = withRepeat(
+      withTiming(-7, { duration: 900, easing: REasing.inOut(REasing.quad) }),
+      -1,
+      true,
+    );
+  }, [x]);
+  const nudge = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.advanceBtn, pressed && { transform: [{ scale: 0.98 }] }]}
+    >
+      <LinearGradient
+        colors={gradients.indigo as unknown as [string, string]}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Row justify="space-between" style={{ flex: 1 }}>
+        <View>
+          <AppText variant="caption" color="rgba(255,255,255,0.75)">
+            المرحلة التالية
+          </AppText>
+          <AppText variant="heading" color={palette.white}>
+            {label}
+          </AppText>
+        </View>
+        <Animated.View style={[styles.advanceArrow, nudge]}>
+          <ChevronLeft size={22} color={palette.white} />
+        </Animated.View>
+      </Row>
+    </Pressable>
+  );
+}
+
 function OverviewTab({ projectId, statusColor }: { projectId: string; statusColor: string }) {
   const { db, role, setProjectStatus } = useStore();
   const router = useRouter();
   const project = db.projects.find((p) => p.id === projectId)!;
+  const [pending, setPending] = useState<{ to: ProjectStatus; back: boolean } | null>(null);
+  const stageIndex = PROJECT_STATUS_ORDER.indexOf(project.status);
+  const nextStatus = PROJECT_STATUS_ORDER[stageIndex + 1];
+  const prevStatus = PROJECT_STATUS_ORDER[stageIndex - 1];
   const finance = projectFinance(db, projectId);
   const rooms = db.rooms.filter((r) => r.projectId === projectId);
   const windows = db.windows.filter((w) => w.projectId === projectId);
@@ -217,25 +276,14 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
       </Row>
 
       <Card>
-        <SectionHeader title="دورة حياة المشروع" subtitle="اضغط على المرحلة لنقل المشروع" />
+        <SectionHeader title="تقدّم المشروع" subtitle="المرحلة الحالية وما قبلها وما بعدها" />
         <View style={{ gap: 2 }}>
           {PROJECT_STATUS_ORDER.map((s, i) => {
             const currentIndex = PROJECT_STATUS_ORDER.indexOf(project.status);
             const done = i < currentIndex;
             const active = i === currentIndex;
-            const canMove = role === 'admin' && Math.abs(i - currentIndex) === 1;
             return (
-              <Pressable
-                key={s}
-                disabled={!canMove}
-                onPress={() =>
-                  Alert.alert('تغيير الحالة', `نقل المشروع إلى: ${PROJECT_STATUS_LABELS[s]}؟`, [
-                    { text: 'إلغاء', style: 'cancel' },
-                    { text: 'تأكيد', onPress: () => setProjectStatus(projectId, s) },
-                  ])
-                }
-                style={{ opacity: done || active ? 1 : 0.45 }}
-              >
+              <View key={s} style={{ opacity: done || active ? 1 : 0.45 }}>
                 <Row gap={spacing.md} align="flex-start">
                   <View style={{ alignItems: 'center', width: 20 }}>
                     <View
@@ -266,13 +314,53 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
                       </AppText>
                     )}
                   </View>
-                  {canMove && <ChevronLeft size={16} color={palette.olive} />}
                 </Row>
-              </Pressable>
+              </View>
             );
           })}
         </View>
+
+        {role === 'admin' && (
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            {!!nextStatus && (
+              <AdvanceButton
+                label={PROJECT_STATUS_LABELS[nextStatus]}
+                onPress={() => setPending({ to: nextStatus, back: false })}
+              />
+            )}
+            {!!prevStatus && (
+              <Pressable onPress={() => setPending({ to: prevStatus, back: true })} style={styles.backStep}>
+                <AppText variant="caption" color={palette.muted} align="center">
+                  رجوع إلى: {PROJECT_STATUS_LABELS[prevStatus]}
+                </AppText>
+              </Pressable>
+            )}
+          </View>
+        )}
       </Card>
+
+      <ConfirmSheet
+        visible={!!pending}
+        icon={
+          pending?.back ? (
+            <ChevronRight size={24} color={palette.muted} />
+          ) : (
+            <ChevronLeft size={24} color={palette.olive} />
+          )
+        }
+        title={pending?.back ? 'رجوع بالمشروع خطوة' : 'نقل المشروع للمرحلة التالية'}
+        body={
+          pending
+            ? `سيصبح المشروع في مرحلة "${PROJECT_STATUS_LABELS[pending.to]}"، ويظهر بها لكل الفريق.`
+            : undefined
+        }
+        confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل المشروع'}
+        onConfirm={() => {
+          if (pending) setProjectStatus(projectId, pending.to);
+          setPending(null);
+        }}
+        onCancel={() => setPending(null)}
+      />
 
       <Card>
         <AppText variant="heading">الفريق والمواعيد</AppText>
@@ -865,6 +953,22 @@ const styles = StyleSheet.create({
   },
   tabBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.sm, minHeight: 48 },
   metric: { flex: 1, borderRadius: radius.lg, padding: spacing.lg },
+  advanceBtn: {
+    minHeight: 68,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+  },
+  advanceArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backStep: { paddingVertical: spacing.sm },
   windowRow: {
     borderRadius: radius.md,
     padding: spacing.sm,
