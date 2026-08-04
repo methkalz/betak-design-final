@@ -25,6 +25,7 @@ import {
   ScrollScreen,
   SectionHeader,
 } from '@/components/ui';
+import { DiscountSlider } from '@/components/DiscountSlider';
 import { palette, radius, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
@@ -32,7 +33,6 @@ import { checkDiscount, computeTotals } from '@/domain/pricing';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-const DISCOUNT_STEPS = [0, 2, 4, 5, 8, 12];
 
 export default function QuotationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -240,30 +240,16 @@ export default function QuotationScreen() {
             title="الخصم"
             subtitle={`حتى ${db.settings.employeeDiscountLimitPercent}% ضمن صلاحية الموظف • حتى ${db.settings.adminDiscountLimitPercent}% بموافقة الأدمن`}
           />
-          <Row gap={spacing.sm} wrap>
-            {DISCOUNT_STEPS.map((d) => (
-              <Pressable
-                key={d}
-                onPress={() => setDiscount(d)}
-                style={[
-                  {
-                    paddingHorizontal: spacing.lg,
-                    minHeight: 44,
-                    justifyContent: 'center',
-                    borderRadius: radius.pill,
-                    borderWidth: 1,
-                    borderColor: palette.line,
-                    backgroundColor: palette.white,
-                  },
-                  activeDiscount === d && { backgroundColor: palette.olive, borderColor: palette.olive },
-                ]}
-              >
-                <AppText variant="label" color={activeDiscount === d ? palette.ivory : palette.charcoal}>
-                  {d}%
-                </AppText>
-              </Pressable>
-            ))}
-          </Row>
+          <DiscountSlider
+            value={activeDiscount}
+            onChange={setDiscount}
+            max={Math.max(db.settings.adminDiscountLimitPercent * 2, 20)}
+            employeeLimit={db.settings.employeeDiscountLimitPercent}
+            adminLimit={db.settings.adminDiscountLimitPercent}
+            subtotalAgorot={preview.subtotalAgorot}
+            discountAgorot={preview.discountAgorot}
+            totalAgorot={preview.totalAgorot}
+          />
 
           <View style={{ marginTop: spacing.md }}>
             <Banner
