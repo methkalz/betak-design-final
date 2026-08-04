@@ -294,10 +294,10 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* توهجات محيطية خلف الزجاج */}
-      <View style={[styles.blob, { backgroundColor: 'rgba(139,92,246,0.20)', top: -80, right: -60 }]} />
-      <View style={[styles.blob, { backgroundColor: 'rgba(56,189,248,0.16)', top: 300, left: -90, width: 220, height: 220, borderRadius: 110 }]} />
-      <View style={[styles.blob, { backgroundColor: 'rgba(249,112,102,0.14)', bottom: 60, right: -70, width: 190, height: 190, borderRadius: 95 }]} />
+      {/* توهجات محيطية — خافتة جدًا وواسعة عمدًا: الحواف الحادة كانت تومض
+          خلف الزجاج أثناء التمرير (ملاحظة المالك) */}
+      <View style={[styles.blob, { backgroundColor: 'rgba(139,92,246,0.07)', top: -160, right: -140 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(56,189,248,0.05)', top: 320, left: -180 }]} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
@@ -696,16 +696,17 @@ const styles = StyleSheet.create({
   },
   blob: {
     position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
+    width: 420,
+    height: 420,
+    borderRadius: 210,
   },
   glassWrap: {
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderColor: 'rgba(255,255,255,0.8)',
+    // أكثف قليلًا بعد تخفيف التوهجات — الزجاج يبقى واضحًا بلا وميض خلفه
+    backgroundColor: 'rgba(255,255,255,0.72)',
   },
   glassInner: {
     padding: spacing.lg,
