@@ -1,4 +1,4 @@
-import { BlurView } from 'expo-blur';
+﻿import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -45,6 +45,9 @@ const paper = palette.ivory;
 const heroMint = '#7DE7C7';
 const heroAmber = '#FFD27D';
 
+/** مواقيت الدخول — مصدر واحد يشاركه الظهور وحركات الأرقام فتبدأ من الصفر معًا. */
+const ENTER = { hero: 60, quick: 160, tiles: 240, charts: 340, attention: 430, pipeline: 520, projects: 610 } as const;
+
 const QUICK_ACTIONS = [
   { key: 'project', label: 'مشروع جديد', icon: FolderPlus, grad: gradients.indigo, href: '/project/new' },
   { key: 'customer', label: 'زبون جديد', icon: UserPlus, grad: gradients.sky, href: '/customer/new' },
@@ -59,7 +62,7 @@ function QuickActions() {
       {QUICK_ACTIONS.map((a, i) => {
         const Icon = a.icon;
         return (
-          <Animated.View key={a.key} entering={FadeInDown.delay(160 + i * 60).duration(430)} style={{ flex: 1 }}>
+          <Animated.View key={a.key} entering={FadeInDown.delay(ENTER.quick + i * 60).duration(430)} style={{ flex: 1 }}>
             <Pressable
               onPress={() => router.push(a.href)}
               style={({ pressed }) => [
@@ -331,7 +334,7 @@ function AdminDashboard() {
         </Row>
 
         {/* بطاقة البطل — زجاج حقيقي فوق ضوء ملوّن (نفس مبدأ الشريط السفلي) */}
-        <Enter delay={60}>
+        <Enter delay={ENTER.hero}>
         <Pressable
           onPress={() => router.push('/projects')}
           style={({ pressed }) => [shadow.glow, { transform: [{ scale: pressed ? 0.985 : 1 }] }]}
@@ -363,6 +366,7 @@ function AdminDashboard() {
             format={(v) => money(v, { compact: true })}
             color={palette.white}
             style={{ fontSize: 40, lineHeight: 56 }}
+            delay={ENTER.hero}
           />
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
@@ -404,7 +408,7 @@ function AdminDashboard() {
         <QuickActions />
 
         {/* بلاطات زجاجية — اللون في دائرة الأيقونة فقط */}
-        <Enter delay={140}>
+        <Enter delay={ENTER.tiles}>
         <Row gap={spacing.md}>
           <GlassTile
             color={palette.olive}
@@ -435,26 +439,27 @@ function AdminDashboard() {
         </Enter>
 
         {/* كسر الروتين: حلقة الهامش + اتجاه 6 أشهر */}
-        <Enter delay={220}>
+        <Enter delay={ENTER.charts}>
           <Row gap={spacing.md} align="stretch">
             <Glass style={{ flex: 1 }} inner={{ padding: spacing.md, alignItems: 'center', justifyContent: 'center' }}>
               <RingStat
                 percent={stats.marginAvg}
                 color={stats.marginAvg >= db.settings.minMarginPercent ? palette.olive : palette.danger}
                 label="متوسط هامش المعتمد"
+                delay={ENTER.charts}
               />
             </Glass>
             <Glass style={{ flex: 1.5 }} inner={{ padding: spacing.md, justifyContent: 'flex-end', gap: spacing.sm }}>
               <AppText variant="caption" color={palette.muted}>
                 اعتمادات آخر 6 أشهر
               </AppText>
-              <MiniBars data={stats.sixMonths} />
+              <MiniBars data={stats.sixMonths} delay={ENTER.charts} />
             </Glass>
           </Row>
         </Enter>
 
         {attention.length > 0 && (
-          <Enter delay={300}>
+          <Enter delay={ENTER.attention}>
             <SectionHeader title="يحتاج انتباهك" />
             <Glass inner={{ padding: 0 }}>
               {attention.map((a, i) => (
@@ -484,14 +489,14 @@ function AdminDashboard() {
           </Enter>
         )}
 
-        <Enter delay={380}>
+        <Enter delay={ENTER.pipeline}>
           <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
           <Glass>
             <PipelineChart />
           </Glass>
         </Enter>
 
-        <Enter delay={460}>
+        <Enter delay={ENTER.projects}>
           <SectionHeader
             title="مشاريع تحتاج متابعة"
             action={
@@ -541,6 +546,7 @@ function PipelineChart() {
   return (
     <StackedBar
       segments={groups.map((g) => ({ label: g.label, count: g.count, color: g.color }))}
+      delay={ENTER.pipeline}
     />
   );
 }

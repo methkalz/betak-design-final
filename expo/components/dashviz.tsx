@@ -41,21 +41,33 @@ export function Enter({
 /**
  * عدّاد متأنٍّ (قرار المالك: أبطأ ليُستمتع بمشاهدته) — انطلاقة سريعة
  * ثم استقرار طويل هادئ بمنحنى quart-out، لا حشو زمني في الوسط.
+ *
+ * `delay` يجب أن يساوي تأخير ظهور البطاقة الحاضنة: بدونه تبدأ الحركة
+ * والعنصر ما زال شفافًا، فيرى المستخدم العدّ وقد قطع شوطًا (ملاحظة المالك).
  */
-export function useCountUp(target: number, duration = 1900): number {
+export function useCountUp(target: number, duration = 1900, delay = 0): number {
   const [value, setValue] = useState(0);
   useEffect(() => {
     let raf = 0;
-    const start = Date.now();
-    const tick = () => {
-      const p = Math.min(1, (Date.now() - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 4);
-      setValue(target * eased);
-      if (p < 1) raf = requestAnimationFrame(tick);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const run = () => {
+      const start = Date.now();
+      const tick = () => {
+        const p = Math.min(1, (Date.now() - start) / duration);
+        const eased = 1 - Math.pow(1 - p, 4);
+        setValue(target * eased);
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
+    setValue(0);
+    if (delay > 0) timer = setTimeout(run, delay);
+    else run();
+    return () => {
+      if (timer) clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [target, duration, delay]);
   return value;
 }
 
@@ -65,14 +77,17 @@ export function CountUpText({
   variant = 'numberLarge',
   color,
   style,
+  delay = 0,
 }: {
   value: number;
   format: (v: number) => string;
   variant?: 'number' | 'numberLarge' | 'label';
   color?: string;
   style?: StyleProp<TextStyle>;
+  /** يساوي تأخير ظهور البطاقة الحاضنة. */
+  delay?: number;
 }) {
-  const v = useCountUp(value);
+  const v = useCountUp(value, 1900, delay);
   return (
     <AppText variant={variant} color={color} style={style}>
       {format(v)}
@@ -92,6 +107,7 @@ export function RingStat({
   track = 'rgba(0,0,0,0.07)',
   label,
   centerSuffix = '%',
+  delay = 0,
 }: {
   /** 0..100 */
   percent: number;
@@ -101,21 +117,27 @@ export function RingStat({
   track?: string;
   label: string;
   centerSuffix?: string;
+  /** يساوي تأخير ظهور البطاقة الحاضنة — القوس والرقم يبدآن من الصفر معًا. */
+  delay?: number;
 }) {
   const clamped = Math.max(0, Math.min(100, percent));
   const r = (size - strokeWidth) / 2;
   const c = 2 * Math.PI * r;
   const dash = useRef(new RNAnimated.Value(c)).current;
-  const shown = useCountUp(clamped);
+  const shown = useCountUp(clamped, 1900, delay);
 
   useEffect(() => {
-    RNAnimated.timing(dash, {
+    dash.setValue(c); // القوس يعود للصفر قبل كل انطلاقة
+    const anim = RNAnimated.timing(dash, {
       toValue: c - (c * clamped) / 100,
       duration: 1900,
+      delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
-    }).start();
-  }, [clamped, c, dash]);
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [clamped, c, dash, delay]);
 
   return (
     <View style={{ alignItems: 'center', gap: spacing.sm }}>
@@ -160,17 +182,27 @@ export interface StackedSegment {
   color: string;
 }
 
-export function StackedBar({ segments }: { segments: StackedSegment[] }) {
+export function StackedBar({
+  segments,
+  delay = 0,
+}: {
+  segments: StackedSegment[];
+  /** يساوي تأخير ظهور البطاقة الحاضنة. */
+  delay?: number;
+}) {
   const total = segments.reduce((s, x) => s + x.count, 0);
   const scale = useRef(new RNAnimated.Value(0)).current;
   useEffect(() => {
-    RNAnimated.timing(scale, {
+    const anim = RNAnimated.timing(scale, {
       toValue: 1,
       duration: 1100,
+      delay,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, [scale]);
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [scale, delay]);
 
   return (
     <View style={{ gap: spacing.md }}>
@@ -221,11 +253,14 @@ export function MiniBars({
   height = 64,
   color = palette.olive,
   highlightLast = true,
+  delay = 0,
 }: {
   data: { label: string; value: number }[];
   height?: number;
   color?: string;
   highlightLast?: boolean;
+  /** يساوي تأخير ظهور البطاقة الحاضنة. */
+  delay?: number;
 }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
@@ -236,7 +271,7 @@ export function MiniBars({
         return (
           <Animated.View
             key={`${d.label}-${i}`}
-            entering={FadeInDown.delay(200 + i * 110).duration(620)}
+            entering={FadeInDown.delay(delay + 120 + i * 110).duration(620)}
             style={{ flex: 1, alignItems: 'center', gap: 5 }}
           >
             <View
