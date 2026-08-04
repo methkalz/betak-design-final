@@ -220,6 +220,7 @@ function GlassChip({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** بطاقة زجاجية بنفس وصفة GlassChip — مادة واحدة على الشاشة كلها. */
 function Glass({
   children,
   style,
@@ -232,11 +233,21 @@ function Glass({
   return (
     <View style={[styles.glassWrap, style]}>
       <BlurView
-        intensity={30}
+        intensity={36}
         tint="light"
         experimentalBlurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
+      <View style={styles.glassFill} />
+      <LinearGradient
+        colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.05)', 'rgba(255,255,255,0)']}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View style={styles.heroChipSheen} />
       <View style={[styles.glassInner, inner]}>{children}</View>
     </View>
   );
@@ -434,11 +445,34 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* هالات الخلفية: تدرّج شعاعيّ أملس يذوب في الورق بلا حافة.
-          الذروة عالية عمدًا لأن الانحدار يلتهم معظمها بسرعة — القيمة
-          المرئية على المساحة هي نحو ثلث الذروة. */}
+      {/* هالات الصفحة — تنجرف الآن ببطء شديد عبر منطقة البطاقات الزجاجية
+          أسفل البطاقة الرئيسية، فيتحرك اللون خلف زجاجها كما يتحرك خلف
+          شريحتَي البطاقة. دورات طويلة ومتباينة كي لا تتزامن ولا تُلاحَظ
+          كأشكال على الورق العاري. */}
       <SoftGlow id="glowSkyTop" color="#38BDF8" peak={0.2} size={600} style={{ top: -200, right: -170 }} />
-      <SoftGlow id="glowSky" color="#38BDF8" peak={0.14} size={520} style={{ top: 300, left: -190 }} />
+      <AuroraBloom
+        id="pageSky"
+        color="#38BDF8"
+        peak={0.3}
+        size={560}
+        style={{ top: 240, left: -230 }}
+        duration={20000}
+        dx={300}
+        dy={-70}
+        grow={0.16}
+      />
+      <AuroraBloom
+        id="pageIndigo"
+        color="#8B5CF6"
+        peak={0.24}
+        size={520}
+        style={{ top: 430, right: -220 }}
+        duration={26000}
+        dx={-280}
+        dy={-90}
+        grow={0.18}
+        delay={2600}
+      />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
@@ -923,9 +957,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    // أكثف قليلًا بعد تخفيف التوهجات — الزجاج يبقى واضحًا بلا وميض خلفه
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderColor: 'rgba(255,255,255,0.9)',
+  },
+  glassFill: {
+    ...StyleSheet.absoluteFillObject,
+    // خفيف كي يمرّ الشفق المتحرك من خلفه — الصلابة من البريق والحافة
+    backgroundColor: 'rgba(255,255,255,0.46)',
   },
   glassInner: {
     padding: spacing.lg,
