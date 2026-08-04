@@ -13,9 +13,10 @@ import {
   ScrollScreen,
   SegmentedControl,
 } from '@/components/ui';
+import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { palette, radius, spacing } from '@/constants/theme';
 import { PRIORITY_LABELS } from '@/domain/labels';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatTime } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { Priority } from '@/types/domain';
 
@@ -40,7 +41,13 @@ export default function NewProjectScreen() {
     db.profiles.find((p) => p.role === 'field')?.id ?? null,
   );
   const [tailorId, setTailorId] = useState<string | null>(null);
-  const [dayOffset, setDayOffset] = useState<number>(1);
+  const [measurementAt, setMeasurementAt] = useState<string>(inDays(1));
+  const [pickerOpen, setPickerOpen] = useState<boolean>(false);
+  // 09:00 هو الافتراضي حين لا يُحدَّد توقيت — فوجوده يعني ساعةً مقصودة
+  const hasTime = useMemo(() => {
+    const d = new Date(measurementAt);
+    return d.getHours() !== 9 || d.getMinutes() !== 0;
+  }, [measurementAt]);
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +64,7 @@ export default function NewProjectScreen() {
       priority,
       fieldWorkerId,
       tailorId,
-      measurementDate: inDays(dayOffset),
+      measurementDate: measurementAt,
       notes,
     });
     if (!res.ok) return setError(res.error);
@@ -200,20 +207,29 @@ export default function NewProjectScreen() {
         <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.lg }}>
           موعد القياس
         </AppText>
-        <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
-          {[0, 1, 2, 3, 7].map((d) => (
-            <Pressable
-              key={d}
-              onPress={() => setDayOffset(d)}
-              style={[styles.chip, dayOffset === d && styles.chipActive]}
-            >
-              <AppText variant="label" color={dayOffset === d ? palette.ivory : palette.charcoal}>
-                {d === 0 ? 'اليوم' : d === 1 ? 'غدًا' : formatDate(inDays(d))}
-              </AppText>
-            </Pressable>
-          ))}
-        </Row>
+        <Pressable onPress={() => setPickerOpen(true)} style={styles.dateBtn}>
+          <Row justify="space-between">
+            <Row gap={spacing.sm}>
+              <CalendarPlus size={18} color={palette.olive} />
+              <AppText variant="label">{formatDate(measurementAt)}</AppText>
+            </Row>
+            <AppText variant="caption" color={palette.muted}>
+              {hasTime ? formatTime(measurementAt) : 'بلا توقيت محدد'}
+            </AppText>
+          </Row>
+        </Pressable>
       </Card>
+
+      <DateTimeSheet
+        visible={pickerOpen}
+        value={measurementAt}
+        title="موعد القياس"
+        onConfirm={(iso) => {
+          setMeasurementAt(iso);
+          setPickerOpen(false);
+        }}
+        onCancel={() => setPickerOpen(false)}
+      />
 
       {!!error && <Banner tone="danger" title="تعذر إنشاء المشروع" body={error} />}
 
@@ -247,4 +263,14 @@ const styles = {
     backgroundColor: palette.white,
   },
   chipActive: { backgroundColor: palette.olive, borderColor: palette.olive },
+  dateBtn: {
+    marginTop: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1.4,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
+    paddingHorizontal: spacing.md,
+    minHeight: 52,
+    justifyContent: 'center' as const,
+  },
 };
