@@ -27,8 +27,11 @@ function RootLayoutNav() {
     <Stack
       screenOptions={{
         headerBackTitle: 'رجوع',
+        // كان يرث خط النظام وحده بينما العنوان بخط التطبيق - فيظهر السطر
+        // العلوي بخطين مختلفين
+        headerBackTitleStyle: { fontFamily: font.medium, fontSize: 16 },
         headerStyle: { backgroundColor: palette.ivory },
-        headerTitleStyle: { fontFamily: font.semibold, fontSize: 17, color: palette.charcoal },
+        headerTitleStyle: { fontFamily: font.semibold, fontSize: 18, color: palette.charcoal },
         headerTintColor: palette.olive,
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.ivory },
