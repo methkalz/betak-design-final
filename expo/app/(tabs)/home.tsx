@@ -16,9 +16,17 @@ import {
   Scissors,
   UserPlus,
 } from 'lucide-react-native';
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import React, { useEffect, useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, {
+  Easing as REasing,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -87,6 +95,43 @@ function QuickActions() {
       })}
     </Row>
   );
+}
+
+/**
+ * ضوء شفقي ينجرف ببطء تحت زجاج البطاقة. تحريك transform حصرًا فيعمل على
+ * الخيط الرسومي (60 إطارًا) بلا أي كلفة على الواجهة؛ الـblur فوقه يذيب
+ * الحواف فيبدو كأن التدرّج نفسه يتنفّس ويتموّج.
+ */
+function AuroraBloom({
+  style,
+  duration,
+  dx,
+  dy,
+  grow = 0.2,
+  delay = 0,
+}: {
+  style: StyleProp<ViewStyle>;
+  duration: number;
+  dx: number;
+  dy: number;
+  grow?: number;
+  delay?: number;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: REasing.inOut(REasing.sin) }), -1, true),
+    );
+  }, [p, duration, delay]);
+  const drift = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: p.value * dx },
+      { translateY: p.value * dy },
+      { scale: 1 + p.value * grow },
+    ],
+  }));
+  return <Animated.View pointerEvents="none" style={[style, drift]} />;
 }
 
 function Glass({
@@ -347,8 +392,32 @@ function AdminDashboard() {
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          <View style={[styles.heroBloom, { top: -90, left: -60, backgroundColor: 'rgba(255,255,255,0.30)' }]} />
-          <View style={[styles.heroBloom, { bottom: -110, right: -70, backgroundColor: 'rgba(249,112,102,0.28)' }]} />
+          <AuroraBloom
+            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(255,255,255,0.32)' }]}
+            duration={9000}
+            dx={80}
+            dy={44}
+            grow={0.26}
+          />
+          <AuroraBloom
+            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(249,112,102,0.30)' }]}
+            duration={12500}
+            dx={-70}
+            dy={-50}
+            grow={0.3}
+            delay={900}
+          />
+          <AuroraBloom
+            style={[
+              styles.heroBloom,
+              { top: 10, right: -60, width: 190, height: 190, borderRadius: 95, backgroundColor: 'rgba(125,231,199,0.22)' },
+            ]}
+            duration={15000}
+            dx={-58}
+            dy={70}
+            grow={0.22}
+            delay={2000}
+          />
           <BlurView
             intensity={38}
             tint="light"
