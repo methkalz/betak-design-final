@@ -35,7 +35,7 @@ export default function TabsLayout() {
           }}
         >
           <AppText variant="caption" color={palette.sage} style={{ paddingVertical: 4 }}>
-            وضع حي (قراءة) — البيانات من خادم مؤسستك؛ الكتابة تُفعّل في الشريحة التالية
+            العرض الحي — بياناتك من الخادم مباشرة، والتعديل من التطبيق يصلك في تحديث قريب
           </AppText>
         </View>
       )}

@@ -205,7 +205,7 @@ function AdminDashboard() {
       key: 'stock',
       icon: <AlertTriangle size={17} color={palette.danger} />,
       tint: palette.dangerSoft,
-      title: `${lowStock.length} بكرة تحت حد المخزون`,
+      title: `${lowStock.length} ${lowStock.length === 1 ? 'رول' : 'رولات'} تحت حد المخزون`,
       sub: lowStock
         .slice(0, 3)
         .map((r) => `${r.roll.code}: ${r.balance.availableM} م`)
@@ -320,7 +320,7 @@ function AdminDashboard() {
               )
             }
             value={`${lowStock.length}`}
-            label="بكرات منخفضة"
+            label="رولات تحت الحد"
           />
         </Row>
 

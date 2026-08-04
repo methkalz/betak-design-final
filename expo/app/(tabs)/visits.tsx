@@ -83,7 +83,7 @@ export default function VisitsScreen() {
           <EmptyState
             icon={<CalendarCheck size={28} color={palette.olive} />}
             title="لا توجد زيارات"
-            body={tab === 'today' ? 'لا توجد زيارات مجدولة اليوم.' : 'لا شيء هنا حاليًا.'}
+            body={tab === 'today' ? 'لا توجد زيارات مجدولة اليوم.' : 'لا زيارات قادمة مجدولة بعد.'}
           />
         }
       />

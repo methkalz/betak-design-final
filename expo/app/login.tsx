@@ -62,7 +62,11 @@ export default function LoginScreen() {
       router.replace('/home');
     } catch (e) {
       await signOutLive();
-      setLiveError(e instanceof Error ? e.message : 'تعذر جلب البيانات من الخادم.');
+      setLiveError(
+        e instanceof Error
+          ? e.message
+          : 'تعذر الوصول إلى الخادم. تأكد من اتصالك بالإنترنت ثم حاول مجددًا.',
+      );
     } finally {
       setLiveLoading(false);
     }
@@ -213,7 +217,7 @@ export default function LoginScreen() {
               />
             )}
             <AppText variant="caption" color={palette.muted} align="center">
-              وضع حي (قراءة): البيانات من خادم مؤسستك، والكتابة تُفعّل في الشريحة التالية.
+              تدخل إلى بيانات مؤسستك الحية للاطلاع — التعديل من التطبيق يصلك في تحديث قريب.
             </AppText>
           </View>
         )}
