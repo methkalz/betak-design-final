@@ -25,11 +25,11 @@ export function money(agorot: number, opts?: { compact?: boolean }): string {
   })}`;
 }
 
-/** Meters with up to 3 decimals, trimmed. */
+/** Meters with up to 3 decimals, trimmed. قرار مالك: «متر» كاملة لا «م». */
 export function meters(value: number, unit = true): string {
   const rounded = Math.round(value * 1000) / 1000;
   const text = rounded.toLocaleString('en-US', { maximumFractionDigits: 3 });
-  return unit ? `${text} م` : text;
+  return unit ? `${text} متر` : text;
 }
 
 export function cm(value: number): string {

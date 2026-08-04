@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import {
   CalendarCheck,
@@ -44,19 +45,25 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: palette.olive,
         tabBarInactiveTintColor: palette.muted,
-        tabBarLabelStyle: { fontFamily: font.medium, fontSize: 11, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: font.medium, fontSize: 12, marginTop: 2 },
+        // شريط زجاجي عائم: خلفية blur حقيقية على iOS وشفافية بيضاء على أندرويد
         tabBarStyle: {
-          backgroundColor: palette.white,
+          position: 'absolute',
+          backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.92)',
           borderTopWidth: 0,
           height: Platform.OS === 'ios' ? 86 : 68,
           paddingTop: 8,
           paddingBottom: Platform.OS === 'ios' ? 28 : 10,
           shadowColor: '#3B3226',
-          shadowOpacity: 0.06,
-          shadowRadius: 16,
+          shadowOpacity: 0.08,
+          shadowRadius: 20,
           shadowOffset: { width: 0, height: -6 },
-          elevation: 12,
+          elevation: 14,
         },
+        tabBarBackground: () =>
+          Platform.OS === 'ios' ? (
+            <BlurView intensity={44} tint="light" style={{ flex: 1 }} />
+          ) : null,
         tabBarItemStyle: { minHeight: 48 },
         sceneStyle: { backgroundColor: palette.ivory },
       }}

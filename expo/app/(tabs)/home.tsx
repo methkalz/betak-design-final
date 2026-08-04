@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import {
   AlertTriangle,
@@ -34,13 +35,66 @@ import { useRollViews } from '@/hooks/selectors';
 import { formatDate, initials, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-/* تجربة «نمط المحفظة» — معزولة في هذه الشاشة حتى يُعتمد النمط:
-   خلفية ورقية أفتح، بطاقة داكنة برقم واحد كبير، بلاطات جريئة بمحتوى أبيض،
-   قوائم بيضاء هادئة بأيقونات دائرية ملوّنة. */
-const paper = '#FAFAF7';
-const inkCard = '#20261F';
+/* «نمط المحفظة الزجاجي» — تجربة معزولة في هذه الشاشة:
+   خلفية محيطية بتوهجات لونية ناعمة، بطاقة داكنة برقم واحد كبير،
+   وبطاقات زجاجية (blur) لكل ما عداها. حرية عن الهوية بقرار المالك. */
+const paper = '#F3F4F0';
+const inkCard = '#1C221B';
 const heroGreen = '#A9CBB0';
 const heroAmber = '#E4BE84';
+
+function Glass({
+  children,
+  style,
+  inner,
+}: {
+  children: React.ReactNode;
+  style?: object;
+  inner?: object;
+}) {
+  return (
+    <View style={[styles.glassWrap, style]}>
+      <BlurView
+        intensity={30}
+        tint="light"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[styles.glassInner, inner]}>{children}</View>
+    </View>
+  );
+}
+
+function GlassTile({
+  color,
+  icon,
+  value,
+  unit,
+  label,
+}: {
+  color: string;
+  icon: React.ReactNode;
+  value: string;
+  unit?: string;
+  label: string;
+}) {
+  return (
+    <Glass style={{ flex: 1 }} inner={styles.glassTileInner}>
+      <View style={[styles.glassTileIcon, { backgroundColor: color }]}>{icon}</View>
+      <Row gap={4} align="baseline">
+        <AppText variant="number">{value}</AppText>
+        {!!unit && (
+          <AppText variant="caption" color={palette.muted} style={{ fontSize: 12 }}>
+            {unit}
+          </AppText>
+        )}
+      </Row>
+      <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12 }}>
+        {label}
+      </AppText>
+    </Glass>
+  );
+}
 
 export default function DashboardScreen() {
   const { role, hydrated } = useStore();
@@ -142,7 +196,7 @@ function AdminDashboard() {
       key: 'expiring',
       icon: <Clock3 size={17} color={palette.info} />,
       tint: palette.infoSoft,
-      title: `${expiringSoon.length} عرض تنتهي صلاحيته خلال ٣ أيام`,
+      title: `${expiringSoon.length} عرض تنتهي صلاحيته خلال 3 أيام`,
       sub: 'تواصل مع الزبون قبل الانقضاء',
       onPress: () => router.push('/projects'),
     });
@@ -165,9 +219,14 @@ function AdminDashboard() {
   const hello = hour < 12 ? 'صباح الخير' : hour < 17 ? 'نهارك سعيد' : 'مساء الخير';
 
   return (
+    <View style={{ flex: 1, backgroundColor: paper }}>
+      {/* توهجات محيطية خلف الزجاج */}
+      <View style={[styles.blob, { backgroundColor: 'rgba(168,185,165,0.4)', top: -70, right: -60 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(228,190,132,0.3)', top: 260, left: -90, width: 220, height: 220, borderRadius: 110 }]} />
+      <View style={[styles.blob, { backgroundColor: 'rgba(200,121,91,0.18)', bottom: 60, right: -70, width: 190, height: 190, borderRadius: 95 }]} />
     <ScrollView
-      style={{ flex: 1, backgroundColor: paper }}
-      contentContainerStyle={{ paddingBottom: 48, paddingTop: insets.top + spacing.md }}
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
       showsVerticalScrollIndicator={false}
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xl }}>
@@ -236,27 +295,28 @@ function AdminDashboard() {
           </Row>
         </Pressable>
 
-        {/* بلاطات جريئة — لون مشبع ومحتوى أبيض (نمط المرجع) */}
+        {/* بلاطات زجاجية — اللون في دائرة الأيقونة فقط */}
         <Row gap={spacing.md}>
-          <BoldTile
+          <GlassTile
             color={palette.olive}
-            icon={<LayoutGrid size={16} color={palette.white} />}
+            icon={<LayoutGrid size={15} color={palette.white} />}
             value={`${stats.activeCount}`}
             label="مشاريع نشطة"
           />
-          <BoldTile
+          <GlassTile
             color={palette.terracotta}
-            icon={<Package size={16} color={palette.white} />}
-            value={`${Math.round(stats.reservedM * 10) / 10} م`}
+            icon={<Package size={15} color={palette.white} />}
+            value={`${Math.round(stats.reservedM * 10) / 10}`}
+            unit="متر"
             label="قماش محجوز"
           />
-          <BoldTile
+          <GlassTile
             color={lowStock.length > 0 ? palette.danger : palette.info}
             icon={
               lowStock.length > 0 ? (
-                <AlertTriangle size={16} color={palette.white} />
+                <AlertTriangle size={15} color={palette.white} />
               ) : (
-                <Layers size={16} color={palette.white} />
+                <Layers size={15} color={palette.white} />
               )
             }
             value={`${lowStock.length}`}
@@ -267,7 +327,7 @@ function AdminDashboard() {
         {attention.length > 0 && (
           <View>
             <SectionHeader title="يحتاج انتباهك" />
-            <Card padded={false}>
+            <Glass inner={{ padding: 0 }}>
               {attention.map((a, i) => (
                 <View key={a.key}>
                   <Pressable onPress={a.onPress} style={styles.attentionRow}>
@@ -280,18 +340,20 @@ function AdminDashboard() {
                     </View>
                     <ChevronLeft size={17} color={palette.muted} />
                   </Pressable>
-                  {i < attention.length - 1 && <Divider style={{ marginVertical: 0, marginHorizontal: spacing.lg }} />}
+                  {i < attention.length - 1 && (
+                    <Divider style={{ marginVertical: 0, marginHorizontal: spacing.lg, backgroundColor: 'rgba(0,0,0,0.05)' }} />
+                  )}
                 </View>
               ))}
-            </Card>
+            </Glass>
           </View>
         )}
 
         <View>
           <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
-          <Card>
+          <Glass>
             <PipelineChart />
-          </Card>
+          </Glass>
         </View>
 
         <View>
@@ -316,29 +378,6 @@ function AdminDashboard() {
         </View>
       </View>
     </ScrollView>
-  );
-}
-
-function BoldTile({
-  color,
-  icon,
-  value,
-  label,
-}: {
-  color: string;
-  icon: React.ReactNode;
-  value: string;
-  label: string;
-}) {
-  return (
-    <View style={[styles.boldTile, { backgroundColor: color }]}>
-      <View style={styles.boldTileIcon}>{icon}</View>
-      <AppText variant="number" color={palette.white}>
-        {value}
-      </AppText>
-      <AppText variant="caption" color="rgba(255,255,255,0.75)" numberOfLines={1} style={{ fontSize: 11 }}>
-        {label}
-      </AppText>
     </View>
   );
 }
@@ -547,19 +586,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  boldTile: {
-    flex: 1,
-    borderRadius: 22,
+  blob: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+  },
+  glassWrap: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.65)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  glassInner: {
+    padding: spacing.lg,
+  },
+  glassTileInner: {
     padding: spacing.md,
-    minHeight: 110,
+    minHeight: 108,
     justifyContent: 'flex-end',
     gap: 1,
   },
-  boldTileIcon: {
+  glassTileIcon: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,

@@ -40,15 +40,19 @@ interface AppTextProps {
   numberOfLines?: number;
 }
 
+/**
+ * مقياس قراءة مريح (توصيات iOS HIG وMaterial + خصوصية العربية):
+ * الأساسي ≥16، لا شيء تحت 13، وأسطر ≈1.65 لأن العربية تحتاج تنفسًا رأسيًا.
+ */
 const TEXT_STYLES: Record<TextVariant, TextStyle> = {
-  display: { fontFamily: font.bold, fontSize: 30, lineHeight: 42 },
-  title: { fontFamily: font.bold, fontSize: 22, lineHeight: 34 },
-  heading: { fontFamily: font.semibold, fontSize: 17, lineHeight: 27 },
-  body: { fontFamily: font.regular, fontSize: 15, lineHeight: 25 },
-  label: { fontFamily: font.medium, fontSize: 13.5, lineHeight: 22 },
-  caption: { fontFamily: font.regular, fontSize: 12, lineHeight: 20 },
-  number: { fontFamily: font.semibold, fontSize: 18, lineHeight: 26 },
-  numberLarge: { fontFamily: font.bold, fontSize: 28, lineHeight: 36 },
+  display: { fontFamily: font.bold, fontSize: 32, lineHeight: 46 },
+  title: { fontFamily: font.bold, fontSize: 24, lineHeight: 38 },
+  heading: { fontFamily: font.semibold, fontSize: 18.5, lineHeight: 29 },
+  body: { fontFamily: font.regular, fontSize: 16, lineHeight: 27 },
+  label: { fontFamily: font.medium, fontSize: 14.5, lineHeight: 24 },
+  caption: { fontFamily: font.regular, fontSize: 13, lineHeight: 21 },
+  number: { fontFamily: font.semibold, fontSize: 20, lineHeight: 28 },
+  numberLarge: { fontFamily: font.bold, fontSize: 30, lineHeight: 42 },
 };
 
 export const AppText = memo(function AppText({
@@ -217,7 +221,7 @@ export function Button({
           <Text
             style={{
               fontFamily: font.semibold,
-              fontSize: small ? 13.5 : 15,
+              fontSize: small ? 14 : 16,
               color: fg[variant],
             }}
           >
@@ -291,7 +295,7 @@ export function Pill({
       }}
     >
       {icon}
-      <Text style={{ fontFamily: font.medium, fontSize: small ? 11 : 12.5, color: fg }}>
+      <Text style={{ fontFamily: font.medium, fontSize: small ? 12 : 13.5, color: fg }}>
         {label}
       </Text>
     </View>
@@ -331,7 +335,7 @@ export function Chip({
       <Text
         style={{
           fontFamily: font.medium,
-          fontSize: 13.5,
+          fontSize: 14.5,
           color: active ? palette.ivory : palette.charcoal,
         }}
       >
@@ -386,7 +390,7 @@ export function SegmentedControl<T extends string>({
             <Text
               style={{
                 fontFamily: active ? font.semibold : font.regular,
-                fontSize: 13.5,
+                fontSize: 14.5,
                 color: active ? palette.oliveDark : palette.muted,
               }}
             >
@@ -449,7 +453,7 @@ export function Field({
           style={{
             flex: 1,
             fontFamily: font.regular,
-            fontSize: 15,
+            fontSize: 16,
             color: palette.charcoal,
             textAlign: 'right',
             writingDirection: 'rtl',
