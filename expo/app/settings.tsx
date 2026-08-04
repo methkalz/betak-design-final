@@ -12,7 +12,7 @@ import {
   levelOf,
   type Capability,
 } from '@/domain/permissions';
-import { money, percent } from '@/lib/format';
+import { money, percent, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { Role } from '@/types/domain';
 
@@ -31,7 +31,7 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <AppText variant="heading">{db.organization.name}</AppText>
             <AppText variant="caption" color={palette.muted}>
-              {db.organization.address} • {db.organization.phone}
+              {db.organization.address} • {phone(db.organization.phone)}
             </AppText>
           </View>
         </Row>
@@ -120,7 +120,7 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <AppText variant="label">{p.fullName}</AppText>
               <AppText variant="caption" color={palette.muted}>
-                {p.title} • {p.phone}
+                {p.title} • {phone(p.phone)}
               </AppText>
             </View>
             <Pill

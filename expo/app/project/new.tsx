@@ -16,7 +16,7 @@ import {
 import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { palette, radius, spacing } from '@/constants/theme';
 import { PRIORITY_LABELS } from '@/domain/labels';
-import { formatDate, formatTime } from '@/lib/format';
+import { formatDate, formatTime, initials, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { Priority } from '@/types/domain';
 
@@ -84,8 +84,31 @@ export default function NewProjectScreen() {
     );
   }, [customers, search]);
 
+  const preset = params.customerId ? customers.find((c) => c.id === params.customerId) : null;
+
   return (
     <ScrollScreen>
+      {/* قادمًا من صفحة زبون: صاحب المشروع معروف، فعرض القائمة كلها بعلامة
+          اختيار أمام اسمه تكرارٌ لما يعرفه المستخدم. سطرٌ يؤكد السياق يكفي. */}
+      {preset ? (
+        <Card>
+          <Row gap={spacing.md} align="center">
+            <View style={styles.presetAvatar}>
+              <AppText variant="label" color={palette.olive}>
+                {initials(preset.fullName)}
+              </AppText>
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText variant="caption" color={palette.muted}>
+                مشروع جديد للزبون
+              </AppText>
+              <AppText variant="heading" numberOfLines={1}>
+                {preset.fullName}
+              </AppText>
+            </View>
+          </Row>
+        </Card>
+      ) : (
       <Card>
         <Row justify="space-between" gap={spacing.md}>
           <AppText variant="heading">الزبون</AppText>
@@ -118,7 +141,7 @@ export default function NewProjectScreen() {
                 <View>
                   <AppText variant="label">{c.fullName}</AppText>
                   <AppText variant="caption" color={palette.muted}>
-                    {c.city} • {c.phone}
+                    {c.city} • {phone(c.phone)}
                   </AppText>
                 </View>
                 {customerId === c.id && <Check size={18} color={palette.olive} />}
@@ -141,6 +164,7 @@ export default function NewProjectScreen() {
           )}
         </View>
       </Card>
+      )}
 
       <Card>
         <View style={{ gap: spacing.lg }}>
@@ -263,6 +287,14 @@ const styles = {
     backgroundColor: palette.white,
   },
   chipActive: { backgroundColor: palette.olive, borderColor: palette.olive },
+  presetAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: palette.sand,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
   dateBtn: {
     marginTop: spacing.sm,
     borderRadius: radius.md,

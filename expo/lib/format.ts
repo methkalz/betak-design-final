@@ -14,6 +14,16 @@ const AR = 'ar-EG';
  */
 const isolate = (s: string): string => `⁦${s}⁩`;
 
+/**
+ * رقم هاتف كوحدة واحدة: الشرطات والأرقام محايدة في خوارزمية الاتجاه، فرقم
+ * مثل 052-644-4414 داخل نص عربي تنقلب مقاطعه فيُقرأ خطأً. العزل الاتجاهي
+ * يثبّت ترتيبه كما كُتب - وهو الفرق بين رقم يُتصل به ورقم يضلّل.
+ */
+export function phone(value: string | null | undefined): string {
+  if (!value) return '-';
+  return isolate(value);
+}
+
 export function agorotToShekel(agorot: number): number {
   return agorot / 100;
 }

@@ -17,7 +17,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { can } from '@/domain/permissions';
 import { projectFinance, useCustomer } from '@/hooks/selectors';
-import { formatDate, initials, money } from '@/lib/format';
+import { formatDate, initials, money, phone } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
@@ -113,7 +113,7 @@ export default function CustomerScreen() {
       <Card>
         <AppText variant="heading">تفاصيل التواصل</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-          <DetailRow label="الهاتف" value={customer.phone} />
+          <DetailRow label="الهاتف" value={phone(customer.phone)} />
           <DetailRow label="العنوان" value={`${customer.address}، ${customer.city}`} />
           <DetailRow label="ملاحظات" value={customer.notes || '-'} />
         </View>

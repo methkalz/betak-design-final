@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Banner, Row } from '@/components/ui';
 import { font, palette, radius, shadow, spacing } from '@/constants/theme';
 import { ROLE_LABELS } from '@/domain/permissions';
-import { initials } from '@/lib/format';
+import { initials, phone } from '@/lib/format';
 import { fetchLiveDatabase } from '@/lib/live';
 import { useAuth } from '@/providers/auth';
 import { useStore } from '@/providers/store';
@@ -255,7 +255,7 @@ export default function LoginScreen() {
                       {p.fullName}
                     </AppText>
                     <AppText variant="caption" color={palette.sage}>
-                      {ROLE_LABELS[p.role]} • {p.phone}
+                      {ROLE_LABELS[p.role]} • {phone(p.phone)}
                     </AppText>
                   </View>
                   {isActive && <ShieldCheck size={20} color={palette.sage} />}

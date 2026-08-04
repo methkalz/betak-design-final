@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Card, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
 import { projectFinance } from '@/hooks/selectors';
-import { initials, money } from '@/lib/format';
+import { initials, money, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function CustomersScreen() {
@@ -86,7 +86,7 @@ export default function CustomersScreen() {
                     {item.fullName}
                   </AppText>
                   <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                    {item.city} • {item.phone}
+                    {item.city} • {phone(item.phone)}
                   </AppText>
                 </View>
                 <View style={{ alignItems: 'flex-start' }}>
