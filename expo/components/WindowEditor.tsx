@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { Calculator, Check, Save, Trash2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
@@ -21,6 +20,7 @@ import { palette, radius, spacing } from '@/constants/theme';
 import { CURTAIN_MODEL_LABELS, TRACK_LABELS } from '@/domain/labels';
 import { priceWindow, resolveBand } from '@/domain/pricing';
 import { meters, money, percent } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
 
@@ -32,7 +32,7 @@ interface Props {
 
 export function WindowEditor({ projectId, roomId, existing }: Props) {
   const { db, role, saveWindow, deleteWindow } = useStore();
-  const router = useRouter();
+  const goBack = useGoBack('/projects');
 
   const [name, setName] = useState<string>(existing?.name ?? '');
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
@@ -129,7 +129,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       notes,
     });
     if (!res.ok) return setError(res.error);
-    router.back();
+    goBack();
   };
 
   return (
@@ -340,7 +340,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
                 style: 'destructive',
                 onPress: () => {
                   deleteWindow(existing.id);
-                  router.back();
+                  goBack();
                 },
               },
             ])

@@ -18,12 +18,14 @@ import { palette, radius, spacing } from '@/constants/theme';
 import { can } from '@/domain/permissions';
 import { projectFinance, useCustomer } from '@/hooks/selectors';
 import { formatDate, initials, money } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
 export default function CustomerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { db, role, archiveCustomer } = useStore();
   const router = useRouter();
+  const goBack = useGoBack('/customers');
   const customer = useCustomer(id);
 
   if (!customer) {
@@ -168,7 +170,7 @@ export default function CustomerScreen() {
                 style: 'destructive',
                 onPress: () => {
                   archiveCustomer(customer.id);
-                  router.back();
+                  goBack();
                 },
               },
             ])

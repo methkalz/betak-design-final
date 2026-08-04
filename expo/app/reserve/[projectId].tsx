@@ -21,11 +21,12 @@ import { palette, radius, spacing } from '@/constants/theme';
 import { dyeLotWarning } from '@/domain/inventory';
 import { projectFabricPlan, useRollViews } from '@/hooks/selectors';
 import { meters } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
 export default function ReserveScreen() {
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const router = useRouter();
+  const goBack = useGoBack('/projects');
   const { db, busy, isOnline, reserveFabric } = useStore();
   const rolls = useRollViews();
 
@@ -216,7 +217,7 @@ export default function ReserveScreen() {
         icon={<Layers size={18} color={palette.ivory} />}
         onPress={submit}
       />
-      <Button label="إغلاق" variant="ghost" full onPress={() => router.back()} />
+      <Button label="إغلاق" variant="ghost" full onPress={() => goBack()} />
     </ScrollScreen>
   );
 }

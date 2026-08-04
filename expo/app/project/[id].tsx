@@ -58,6 +58,7 @@ import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
 import { currentVersion, projectFabricPlan, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 import type { ProjectStatus } from '@/types/domain';
 
@@ -78,6 +79,7 @@ export default function ProjectStudioScreen() {
   const router = useRouter();
   const { db, role } = useStore();
   const project = useProject(id);
+  const goBack = useGoBack('/projects');
   const [tab, setTab] = useState<Tab>('overview');
   const tabsRef = useRef<ScrollView>(null);
   const tabsPinned = useRef(false);
@@ -112,7 +114,7 @@ export default function ProjectStudioScreen() {
         style={{ paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}
       >
         <Row justify="space-between">
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={goBack} hitSlop={8} style={styles.backBtn}>
             <ArrowRight size={20} color={palette.ivory} />
           </Pressable>
           <Pill label={PROJECT_STATUS_LABELS[project.status]} bg="rgba(255,255,255,0.15)" fg={palette.ivory} />
