@@ -1376,6 +1376,22 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline;
       if (!(input.amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
+      // لا دفعة بلا عرض معتمد: بدونه لا مبلغ متفق عليه تُقاس عليه الدفعة،
+      // فتظهر مستحقات وأرصدة لا أصل لها. القاعدة تُفرض في المحرك أيضًا حين
+      // تُبنى دالة record_payment (انظر DECISIONS §11).
+      {
+        const approved = db.quotationVersions.some(
+          (v) =>
+            v.status === 'approved' &&
+            db.quotations.some((q) => q.id === v.quotationId && q.projectId === input.projectId),
+        );
+        if (!approved) {
+          return failWith(
+            'لا يمكن تسجيل دفعة قبل اعتماد الزبون لعرض السعر - لا يوجد مبلغ متفق عليه بعد.',
+            'conflict',
+          );
+        }
+      }
       setBusy('payment');
       await serverLatency();
       setBusy(null);

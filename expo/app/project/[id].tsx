@@ -800,6 +800,15 @@ function MoneyTab({ projectId }: { projectId: string }) {
   const { db, role, recordPayment, reversePayment, busy } = useStore();
   const finance = projectFinance(db, projectId);
   const payments = db.payments.filter((p) => p.projectId === projectId);
+  const hasApprovedQuote = useMemo(
+    () =>
+      db.quotationVersions.some(
+        (v) =>
+          v.status === 'approved' &&
+          db.quotations.some((q) => q.id === v.quotationId && q.projectId === projectId),
+      ),
+    [db.quotationVersions, db.quotations, projectId],
+  );
   const [amount, setAmount] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -848,30 +857,39 @@ function MoneyTab({ projectId }: { projectId: string }) {
         </View>
       </Card>
 
-      {can(role, 'record_payment') && (
-        <Card>
-          <AppText variant="heading">تسجيل دفعة</AppText>
-          <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-            <Field
-              label="المبلغ"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              suffix="₪"
-              placeholder="0"
-            />
-            <Button
-              label="تسجيل الدفعة"
-              full
-              loading={busy === 'payment'}
-              icon={<Banknote size={18} color={palette.ivory} />}
-              onPress={submit}
-            />
-            {!!error && <Banner tone="danger" title="تعذر تسجيل الدفعة" body={error} />}
-            {!!success && <Banner tone="success" title={success} />}
-          </View>
-        </Card>
-      )}
+      {can(role, 'record_payment') &&
+        (hasApprovedQuote ? (
+          <Card>
+            <AppText variant="heading">تسجيل دفعة</AppText>
+            <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+              <Field
+                label="المبلغ"
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                suffix="₪"
+                placeholder="0"
+              />
+              <Button
+                label="تسجيل الدفعة"
+                full
+                loading={busy === 'payment'}
+                icon={<Banknote size={18} color={palette.ivory} />}
+                onPress={submit}
+              />
+              {!!error && <Banner tone="danger" title="تعذر تسجيل الدفعة" body={error} />}
+              {!!success && <Banner tone="success" title={success} />}
+            </View>
+          </Card>
+        ) : (
+          /* لا نموذج دفع أصلًا قبل الاعتماد: منع الفعل خيرٌ من رفضه بعد كتابته */
+          <Banner
+            tone="info"
+            title="التحصيل يبدأ بعد اعتماد العرض"
+            body="لا يمكن تسجيل دفعة قبل موافقة الزبون على عرض السعر، إذ لا يوجد مبلغ متفق عليه تُحسب عليه الدفعة والمتبقي."
+            icon={<Wallet size={16} color={palette.info} />}
+          />
+        ))}
 
       <Card>
         <SectionHeader title="سجل الدفعات" />
