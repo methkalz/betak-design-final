@@ -489,7 +489,7 @@ function AdminDashboard() {
             </View>
             <View>
               <AppText variant="caption" color={palette.muted}>
-                {hello} 👋
+                {hello}
               </AppText>
               <AppText variant="heading">{currentUser?.fullName ?? ''}</AppText>
             </View>
@@ -568,7 +568,7 @@ function AdminDashboard() {
           <View style={styles.heroScrim} />
           <View style={styles.heroContent}>
           <AppText variant="caption" color="rgba(255,255,255,0.78)">
-            اعتمادات هذا الشهر
+            مبيعات هذا الشهر
           </AppText>
           <CountUpText
             value={stats.approvedMonth}
@@ -585,7 +585,7 @@ function AdminDashboard() {
               </View>
               <View>
                 <AppText variant="caption" color="rgba(27,31,50,0.66)" style={{ fontSize: 13.5 }}>
-                  عروض معتمدة
+                  عروض متفق عليها
                 </AppText>
                 <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
                   {db.quotationVersions.filter((v) => v.status === 'approved').length}
@@ -654,13 +654,13 @@ function AdminDashboard() {
               <RingStat
                 percent={stats.marginAvg}
                 color={stats.marginAvg >= db.settings.minMarginPercent ? palette.olive : palette.danger}
-                label="متوسط هامش المعتمد"
+                label="متوسط نسبة الربح"
                 delay={ENTER.charts}
               />
             </Glass>
             <Glass style={{ flex: 1.5 }} inner={{ padding: spacing.md, justifyContent: 'flex-end', gap: spacing.sm }}>
               <AppText variant="caption" color={palette.muted}>
-                اعتمادات آخر 6 أشهر
+                مبيعات آخر 6 أشهر
               </AppText>
               <MiniBars data={stats.sixMonths} delay={ENTER.charts} />
             </Glass>
