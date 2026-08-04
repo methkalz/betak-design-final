@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import { AlertTriangle, Layers, Package, Scissors } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -9,7 +9,6 @@ import {
   Card,
   EmptyState,
   Pill,
-  ProgressBar,
   Row,
   SegmentedControl,
   Swatch,
@@ -33,38 +32,30 @@ export default function InventoryScreen() {
   const totals = useMemo(() => {
     const available = rolls.reduce((s, r) => s + r.balance.availableM, 0);
     const reserved = rolls.reduce((s, r) => s + r.balance.reservedM, 0);
+    const consumed = rolls.reduce((s, r) => s + r.balance.consumedM, 0);
     const value = rolls.reduce(
       (s, r) => s + r.balance.onHandM * (r.variant?.costPerMeterAgorot ?? 0),
       0,
     );
-    return { available, reserved, value };
+    return { available, reserved, consumed, value };
   }, [rolls]);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
-        <AppText variant="title">المخزون ومكتبة الأقمشة</AppText>
-        <Row gap={spacing.md}>
-          <View style={{ flex: 1, backgroundColor: palette.sageSoft, borderRadius: radius.lg, padding: spacing.md }}>
-            <AppText variant="number">{meters(totals.available)}</AppText>
-            <AppText variant="caption" color={palette.muted}>
-              متاح للحجز
-            </AppText>
-          </View>
-          <View style={{ flex: 1, backgroundColor: palette.terracottaSoft, borderRadius: radius.lg, padding: spacing.md }}>
-            <AppText variant="number">{meters(totals.reserved)}</AppText>
-            <AppText variant="caption" color={palette.muted}>
-              محجوز لمشاريع
-            </AppText>
-          </View>
+        <Row justify="space-between" align="flex-end">
+          <AppText variant="title">مخزون الأقمشة</AppText>
           {showCost && (
-            <View style={{ flex: 1, backgroundColor: palette.ivoryDeep, borderRadius: radius.lg, padding: spacing.md }}>
-              <AppText variant="number">{money(totals.value, { compact: true })}</AppText>
-              <AppText variant="caption" color={palette.muted}>
-                قيمة المخزون
-              </AppText>
-            </View>
+            <AppText variant="caption" color={palette.muted}>
+              قيمة المخزون {money(totals.value, { compact: true })}
+            </AppText>
           )}
+        </Row>
+        {/* الأرقام الثلاثة التي تُدار بها الورشة، بلا زخرفة حولها */}
+        <Row gap={spacing.md}>
+          <TotalTile label="متاح للحجز" value={meters(totals.available)} tone={palette.success} />
+          <TotalTile label="محجوز لمشاريع" value={meters(totals.reserved)} tone={palette.warning} />
+          <TotalTile label="مستهلك" value={meters(totals.consumed)} tone={palette.muted} />
         </Row>
         <SegmentedControl
           value={tab}
@@ -84,48 +75,85 @@ export default function InventoryScreen() {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const low = item.balance.availableM < LOW_STOCK_THRESHOLD_M;
-            const ratio =
-              item.balance.onHandM > 0 ? item.balance.availableM / item.balance.onHandM : 0;
+            const availTone = low ? palette.danger : palette.success;
+            // عمر الرول كاملًا: ما بقي (متاح + محجوز) وما خرج (مستهلك)
+            const lifetime =
+              item.balance.availableM + item.balance.reservedM + item.balance.consumedM;
+            const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
-              <Card onPress={() => router.push(`/roll/${item.roll.id}`)}>
-                <Row justify="space-between" align="flex-start">
+              <Card onPress={() => router.push(`/roll/${item.roll.id}`)} style={{ padding: spacing.xl }}>
+                <Row justify="space-between" align="flex-start" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
-                    <Swatch color={item.variant?.colorHex ?? palette.sand} size={46} />
+                    <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                     <View style={{ flex: 1 }}>
-                      <Row gap={spacing.sm}>
-                        <AppText variant="heading">{item.roll.code}</AppText>
-                        {item.roll.isMiniRoll && (
-                          <Pill label="Mini Roll" bg={palette.sand} fg={palette.muted} small />
-                        )}
-                      </Row>
-                      <AppText variant="caption" color={palette.muted}>
-                        {item.product?.name} {item.variant?.colorName} • موقع {item.roll.location}
+                      <AppText variant="heading" numberOfLines={1}>
+                        {item.roll.code}
+                      </AppText>
+                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                        {item.product?.name} • {item.variant?.colorName}
                       </AppText>
                     </View>
                   </Row>
-                  {low && <AlertTriangle size={18} color={palette.danger} />}
+                  {low ? (
+                    <Pill
+                      label="منخفض"
+                      bg={palette.dangerSoft}
+                      fg={palette.danger}
+                      icon={<AlertTriangle size={12} color={palette.danger} />}
+                      small
+                    />
+                  ) : (
+                    item.roll.isMiniRoll && (
+                      <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
+                    )
+                  )}
                 </Row>
 
-                <View style={{ marginTop: spacing.md, gap: 8 }}>
-                  <ProgressBar
-                    value={ratio}
-                    color={low ? palette.danger : palette.olive}
-                    track={palette.terracottaSoft}
-                  />
-                  <Row justify="space-between">
-                    <Row gap={spacing.md}>
-                      <AppText variant="label" color={low ? palette.danger : palette.olive}>
-                        متاح {meters(item.balance.availableM)}
-                      </AppText>
+                {/* الأرقام الثلاثة أولًا - المتاح هو القرار، فهو الأكبر */}
+                <Row gap={spacing.md} align="flex-end" style={{ marginTop: spacing.lg }}>
+                  <View style={{ flex: 1 }}>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: availTone }]} />
                       <AppText variant="caption" color={palette.muted}>
-                        محجوز {meters(item.balance.reservedM)}
+                        متاح
                       </AppText>
                     </Row>
-                    <AppText variant="caption" color={palette.muted}>
-                      Dye lot {item.roll.dyeLot}
+                    <AppText variant="number" color={availTone}>
+                      {meters(item.balance.availableM)}
                     </AppText>
-                  </Row>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.warning }]} />
+                      <AppText variant="caption" color={palette.muted}>
+                        محجوز
+                      </AppText>
+                    </Row>
+                    <AppText variant="label">{meters(item.balance.reservedM)}</AppText>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
+                      <AppText variant="caption" color={palette.muted}>
+                        مستهلك
+                      </AppText>
+                    </Row>
+                    <AppText variant="label" color={palette.muted}>
+                      {meters(item.balance.consumedM)}
+                    </AppText>
+                  </View>
+                </Row>
+
+                {/* شريط واحد يروي عمر الرول بدل ثلاثة أرقام معلّقة */}
+                <View style={styles.bar}>
+                  <View style={{ width: `${seg(item.balance.availableM)}%`, backgroundColor: availTone }} />
+                  <View style={{ width: `${seg(item.balance.reservedM)}%`, backgroundColor: palette.warning }} />
+                  <View style={{ width: `${seg(item.balance.consumedM)}%`, backgroundColor: palette.sandDeep }} />
                 </View>
+
+                <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ marginTop: spacing.sm }}>
+                  رف {item.roll.location} • صبغة {item.roll.dyeLot}
+                </AppText>
               </Card>
             );
           }}
@@ -189,3 +217,41 @@ export default function InventoryScreen() {
     </View>
   );
 }
+
+/** بلاطة إجمالي علوية: رقم كبير ونقطة لون تربطه بشريط البطاقات. */
+function TotalTile({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <View style={styles.totalTile}>
+      <Row gap={5}>
+        <View style={[styles.dot, { backgroundColor: tone }]} />
+        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12 }}>
+          {label}
+        </AppText>
+      </Row>
+      <AppText variant="number" numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  totalTile: {
+    flex: 1,
+    gap: 2,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  bar: {
+    flexDirection: 'row-reverse',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: palette.ivoryDeep,
+    marginTop: spacing.md,
+  },
+});
