@@ -50,33 +50,50 @@ export function ProjectRow({ projectId }: { projectId: string }) {
   const showMoney = role === 'admin' || role === 'sales';
 
   return (
-    <Card onPress={() => router.push(`/project/${project.id}`)}>
-      <Row justify="space-between" align="flex-start">
-        <View style={{ flex: 1, gap: 4 }}>
-          <Row gap={spacing.sm}>
-            <AppText variant="heading">{customer?.fullName ?? ''}</AppText>
-            {project.priority === 'high' && (
-              <Pill label="عاجل" bg={palette.dangerSoft} fg={palette.danger} small />
-            )}
-          </Row>
-          <AppText variant="caption" color={palette.muted}>
-            {project.code} • {project.title}
+    <Card onPress={() => router.push(`/project/${project.id}`)} style={{ padding: spacing.xl }}>
+      {/* سطر واحد للهوية: الاسم وحالته — والأولوية نقطةٌ لا شارة ثانية،
+          فشارتان في بطاقة واحدة أول أسباب الاكتظاظ */}
+      <Row justify="space-between" gap={spacing.md}>
+        <Row gap={spacing.sm} style={{ flex: 1 }}>
+          {project.priority === 'high' && <View style={styles.urgentDot} />}
+          <AppText variant="heading" numberOfLines={1} style={{ flex: 1 }}>
+            {customer?.fullName ?? ''}
           </AppText>
-        </View>
+        </Row>
         <Pill label={PROJECT_STATUS_LABELS[project.status]} bg={c.bg} fg={c.fg} />
       </Row>
 
-      <View style={{ marginTop: spacing.md, gap: 6 }}>
-        <ProgressBar value={statusProgress(project.status)} color={c.fg} />
-        <Row justify="space-between">
-          <AppText variant="caption" color={palette.muted}>
+      <AppText
+        variant="caption"
+        color={palette.muted}
+        numberOfLines={1}
+        style={{ marginTop: 2 }}
+      >
+        {project.code} • {project.title}
+      </AppText>
+
+      {/* كتلة القياس — بمسافة تنفّس واضحة عن الهوية، وشريط رفيع لا يثقل */}
+      <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
+        <ProgressBar
+          value={statusProgress(project.status)}
+          color={c.fg}
+          height={5}
+          track={palette.ivoryDeep}
+        />
+        <Row justify="space-between" gap={spacing.sm}>
+          <AppText variant="caption" color={palette.muted} numberOfLines={1}>
             {db.windows.filter((w) => w.projectId === project.id).length} شباك •{' '}
             {db.rooms.filter((r) => r.projectId === project.id).length} غرفة
           </AppText>
           {showMoney && finance.totalAgorot > 0 && (
-            <AppText variant="caption" color={palette.muted}>
-              {money(finance.paidAgorot)} / {money(finance.totalAgorot)}
-            </AppText>
+            <Row gap={4}>
+              <AppText variant="caption" color={palette.charcoal}>
+                {money(finance.paidAgorot)}
+              </AppText>
+              <AppText variant="caption" color={palette.muted}>
+                / {money(finance.totalAgorot)}
+              </AppText>
+            </Row>
           )}
         </Row>
       </View>
@@ -212,6 +229,13 @@ export function TailorCard({ assignmentId }: { assignmentId: string }) {
 }
 
 const styles = StyleSheet.create({
+  /** نقطة الأولوية العاجلة — إشارة بحجم حرف بدل شارة كاملة. */
+  urgentDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.danger,
+  },
   tile: {
     flex: 1,
     borderRadius: radius.lg,
