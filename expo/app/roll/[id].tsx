@@ -150,7 +150,7 @@ export default function RollScreen() {
             const project = db.projects.find((p) => p.id === r.projectId);
             return (
               <Row key={r.id} justify="space-between" style={{ paddingVertical: 6 }}>
-                <AppText variant="label">{project?.title ?? '—'}</AppText>
+                <AppText variant="label">{project?.title ?? '-'}</AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {meters(r.quantityM - r.consumedM)} متبقٍ
                 </AppText>

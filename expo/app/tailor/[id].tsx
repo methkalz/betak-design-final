@@ -149,7 +149,7 @@ export default function TailorAssignmentScreen() {
                 <Swatch color={variant?.colorHex ?? palette.sand} size={34} />
                 <View style={{ flex: 1 }}>
                   <AppText variant="label">
-                    {room?.name} — {w.name}
+                    {room?.name} - {w.name}
                   </AppText>
                   <AppText variant="caption" color={palette.muted}>
                     {cm(w.widthCm)} × {cm(w.heightCm)} • {CURTAIN_MODEL_LABELS[w.model]} •{' '}

@@ -133,7 +133,7 @@ export default function LoginScreen() {
             بيتك ديزاين
           </AppText>
           <AppText variant="body" color={palette.sage}>
-            من أول قياس في منزل الزبون إلى آخر دفعة وتركيب — كل شيء في مكان واحد.
+            من أول قياس في منزل الزبون إلى آخر دفعة وتركيب - كل شيء في مكان واحد.
           </AppText>
         </View>
 
@@ -217,7 +217,7 @@ export default function LoginScreen() {
               />
             )}
             <AppText variant="caption" color={palette.muted} align="center">
-              تدخل إلى بيانات مؤسستك الحية للاطلاع — التعديل من التطبيق يصلك في تحديث قريب.
+              تدخل إلى بيانات مؤسستك الحية للاطلاع - التعديل من التطبيق يصلك في تحديث قريب.
             </AppText>
           </View>
         )}

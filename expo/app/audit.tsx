@@ -27,7 +27,7 @@ export default function AuditScreen() {
       <Card>
         <AppText variant="heading">سجل التدقيق</AppText>
         <AppText variant="caption" color={palette.muted}>
-          كل عملية حساسة تُسجَّل باسم المستخدم والوقت — لا يمكن تعديلها أو حذفها.
+          كل عملية حساسة تُسجَّل باسم المستخدم والوقت - لا يمكن تعديلها أو حذفها.
         </AppText>
       </Card>
 

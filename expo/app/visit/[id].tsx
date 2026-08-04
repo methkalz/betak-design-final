@@ -212,7 +212,7 @@ export default function VisitScreen() {
                     style={{ paddingVertical: 6 }}
                   >
                     <AppText variant="caption" color={palette.muted}>
-                      {w.name} — {cm(w.widthCm)} × {cm(w.heightCm)}
+                      {w.name} - {cm(w.widthCm)} × {cm(w.heightCm)}
                     </AppText>
                   </Pressable>
                 ))}

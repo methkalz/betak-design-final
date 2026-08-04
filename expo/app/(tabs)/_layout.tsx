@@ -35,7 +35,7 @@ export default function TabsLayout() {
           }}
         >
           <AppText variant="caption" color={palette.sage} style={{ paddingVertical: 4 }}>
-            العرض الحي — بياناتك من الخادم مباشرة، والتعديل من التطبيق يصلك في تحديث قريب
+            العرض الحي - بياناتك من الخادم مباشرة، والتعديل من التطبيق يصلك في تحديث قريب
           </AppText>
         </View>
       )}
@@ -68,7 +68,7 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: palette.ivory },
       }}
     >
-      {/* عربي RTL: أول تصريح يُرسم أقصى اليسار — لذا الترتيب معكوس عمدًا
+      {/* عربي RTL: أول تصريح يُرسم أقصى اليسار - لذا الترتيب معكوس عمدًا
           كي تكون «الرئيسية» أقصى اليمين و«المزيد» أقصى اليسار */}
       <Tabs.Screen
         name="more"

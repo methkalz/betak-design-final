@@ -185,7 +185,7 @@ export default function QuotationScreen() {
             <Row justify="space-between" align="flex-start">
               <View style={{ flex: 1 }}>
                 <AppText variant="label">
-                  {item.roomName} — {item.windowName}
+                  {item.roomName} - {item.windowName}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {item.description}

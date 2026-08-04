@@ -62,7 +62,7 @@ export default function ReserveScreen() {
       <Card>
         <AppText variant="heading">{project?.title}</AppText>
         <AppText variant="caption" color={palette.muted}>
-          الحجز عملية خادمية داخل Transaction — لا يمكن أن يصبح الرصيد سالبًا.
+          الحجز عملية خادمية داخل Transaction - لا يمكن أن يصبح الرصيد سالبًا.
         </AppText>
         <Divider />
         <SectionHeader title="المطلوب حسب القياسات" />
@@ -198,7 +198,7 @@ export default function ReserveScreen() {
               <Banner
                 tone="danger"
                 title="الكمية أكبر من المتاح"
-                body={`المتاح ${meters(roll.balance.availableM)} فقط — لا يمكن أن يصبح الرصيد سالبًا.`}
+                body={`المتاح ${meters(roll.balance.availableM)} فقط - لا يمكن أن يصبح الرصيد سالبًا.`}
               />
             </View>
           )}

@@ -244,12 +244,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
       marginAgorot: 0,
       marginPercent: 0,
       requiresAdminPricing: true,
-      warnings: ['الارتفاع يتجاوز 500 سم — لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
+      warnings: ['الارتفاع يتجاوز 500 سم - لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
     };
   }
 
   if (!rule) {
-    warnings.push('لا توجد قاعدة تسعير مطابقة — راجع إعدادات التسعير.');
+    warnings.push('لا توجد قاعدة تسعير مطابقة - راجع إعدادات التسعير.');
   }
 
   const unitPriceAgorot = rule?.customerPricePerMeterAgorot ?? 0;

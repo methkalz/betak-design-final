@@ -220,7 +220,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   const guard = useCallback(
     (capability: Capability): Result<void> | null => {
-      if (!currentUser) return failWith('الجلسة منتهية — يرجى تسجيل الدخول.', 'permission');
+      if (!currentUser) return failWith('الجلسة منتهية - يرجى تسجيل الدخول.', 'permission');
       if (!can(currentUser.role, capability))
         return failWith('لا تملك صلاحية تنفيذ هذه العملية.', 'permission');
       return null;
@@ -392,7 +392,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             input.fieldWorkerId,
             'visit_assigned',
             'زيارة قياس جديدة',
-            `${project.title} — ${project.code}`,
+            `${project.title} - ${project.code}`,
             `/visit/${visitId}`,
           );
         }
@@ -439,7 +439,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             project.fieldWorkerId,
             'ready_for_install',
             'جاهز للتركيب',
-            `${project.title} جاهز — حدد الموعد.`,
+            `${project.title} جاهز - حدد الموعد.`,
             `/project/${id}`,
           );
         }
@@ -509,7 +509,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (!(input.widthCm > 0) || !(input.heightCm > 0))
         return failWith('العرض والارتفاع يجب أن يكونا أكبر من صفر.', 'validation');
       if (input.heightCm > 500)
-        return failWith('الارتفاع أكبر من 500 سم — يحتاج تسعيرة خاصة من الأدمن.', 'validation');
+        return failWith('الارتفاع أكبر من 500 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
       if (input.fullness < 1.5 || input.fullness > 4)
         return failWith('المضاعف يجب أن يكون بين 1.5 و 4.', 'validation');
       const id = input.id ?? uid('win');
@@ -634,7 +634,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           assigneeId,
           'visit_assigned',
           type === 'measurement' ? 'زيارة قياس جديدة' : 'زيارة تركيب جديدة',
-          project ? `${project.title} — ${project.code}` : '',
+          project ? `${project.title} - ${project.code}` : '',
           `/visit/${id}`,
         );
         audit(draft, 'visit.schedule', 'field_visit', id, 'جدولة زيارة ميدانية');
@@ -763,7 +763,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied as Result<string>;
       const items = buildItems(projectId);
       if (items.length === 0)
-        return failWith('لا توجد شبابيك مقاسة — لا يمكن إنشاء عرض سعر.', 'validation');
+        return failWith('لا توجد شبابيك مقاسة - لا يمكن إنشاء عرض سعر.', 'validation');
       const existing = db.quotations.find((q) => q.projectId === projectId);
       if (existing) return { ok: true, data: existing.id };
       const qid = uid('qt');
@@ -1000,7 +1000,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
               vatAgorot: totals.vatAgorot,
               totalAgorot: totals.totalAgorot,
               marginPercent: totals.marginPercent,
-              note: `نسخة معتمدة بخصم استثنائي ${req.requestedPercent}% — ${req.reason}`,
+              note: `نسخة معتمدة بخصم استثنائي ${req.requestedPercent}% - ${req.reason}`,
               createdAt: new Date().toISOString(),
               sentAt: null,
               approvedAt: null,
@@ -1147,7 +1147,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const planned = round3(res.quantityM - res.consumedM);
       const over = quantityM > planned + 0.0001;
       if (over && !reason.trim())
-        return failWith('الاستهلاك أعلى من المخطط — السبب إلزامي.', 'validation');
+        return failWith('الاستهلاك أعلى من المخطط - السبب إلزامي.', 'validation');
       if (!over) {
         const check = canConsume(round3(quantityM), res);
         if (!check.ok) return failWith(check.error ?? 'تعذر تسجيل الاستهلاك.', 'validation');
@@ -1194,7 +1194,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
                 admin.id,
                 'low_stock',
                 'استهلاك أعلى من المخطط',
-                `${round3(quantityM)} م بدل ${planned} م — ${reason}`,
+                `${round3(quantityM)} م بدل ${planned} م - ${reason}`,
                 `/project/${r.projectId}`,
               ),
             );
@@ -1303,7 +1303,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
                 project.fieldWorkerId,
                 'ready_for_install',
                 'جاهز للتركيب',
-                `${project.title} — حدد موعد التركيب.`,
+                `${project.title} - حدد موعد التركيب.`,
                 `/project/${project.id}`,
               );
             }
@@ -1351,7 +1351,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           tailorId,
           'tailor_assignment',
           'مشروع جديد للخياطة',
-          project ? `${project.title} — ${project.code}` : '',
+          project ? `${project.title} - ${project.code}` : '',
           `/tailor/${id}`,
         );
         audit(draft, 'tailor.assign', 'tailor_assignment', id, 'إسناد مشروع للخياط');
@@ -1435,7 +1435,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           createdBy: userId ?? 'system',
           createdAt: new Date().toISOString(),
         });
-        audit(draft, 'payment.reverse', 'payment', id, `عكس دفعة — ${reason.trim()}`);
+        audit(draft, 'payment.reverse', 'payment', id, `عكس دفعة - ${reason.trim()}`);
       });
       return okVoid;
     },

@@ -1,4 +1,4 @@
-﻿import * as Print from 'expo-print';
+import * as Print from 'expo-print';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
@@ -41,7 +41,7 @@ function buildHtml(params: {
       (i, idx) => `
       <tr>
         <td>${idx + 1}</td>
-        <td>${i.roomName} — ${i.windowName}</td>
+        <td>${i.roomName} - ${i.windowName}</td>
         <td>${i.description}</td>
         <td>${i.widthCm} × ${i.heightCm} سم</td>
         <td>${i.runningMeters} م</td>
@@ -129,7 +129,7 @@ function buildHtml(params: {
   <div class="foot">
     ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
     الأسعار شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
-    <br/>${orgName} — شكرًا لثقتكم.
+    <br/>${orgName} - شكرًا لثقتكم.
   </div>
 </body>
 </html>`;
@@ -186,7 +186,7 @@ export default function QuotationPdfScreen() {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `${quotation.number} — ${customer?.fullName ?? ''}`,
+          dialogTitle: `${quotation.number} - ${customer?.fullName ?? ''}`,
           UTI: 'com.adobe.pdf',
         });
         setInfo('تم إنشاء ملف PDF ومشاركته.');
@@ -277,7 +277,7 @@ export default function QuotationPdfScreen() {
             <Row key={i.id} justify="space-between" align="flex-start" style={{ paddingVertical: 6 }}>
               <View style={{ flex: 1 }}>
                 <AppText variant="label">
-                  {idx + 1}. {i.roomName} — {i.windowName}
+                  {idx + 1}. {i.roomName} - {i.windowName}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {i.description} • {cm(i.widthCm)} × {cm(i.heightCm)} • {meters(i.runningMeters)}
@@ -322,7 +322,7 @@ export default function QuotationPdfScreen() {
         {!!info && <Banner tone="success" title={info} />}
 
         <AppText variant="caption" color={palette.muted} align="center">
-          يُنشأ ملف PDF عربي حقيقي من نفس بيانات النسخة المحفوظة — لا يمكن تعديل نسخة مرسلة.
+          يُنشأ ملف PDF عربي حقيقي من نفس بيانات النسخة المحفوظة - لا يمكن تعديل نسخة مرسلة.
         </AppText>
       </ScrollView>
 

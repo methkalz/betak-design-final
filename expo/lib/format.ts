@@ -45,9 +45,9 @@ const DAYS_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأرب
 
 /** صيغة التاريخ المعتمدة (قرار مالك): يوم.شهر.سنة بالأرقام — `4.8.2026`. */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '-';
   return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 }
 
@@ -57,7 +57,7 @@ export function formatDayName(iso: string): string {
 }
 
 export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, '0');
@@ -67,7 +67,7 @@ export function formatTime(iso: string | null | undefined): string {
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return `${formatDate(iso)} • ${formatTime(iso)}`;
 }
 

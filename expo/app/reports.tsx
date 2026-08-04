@@ -90,7 +90,7 @@ export default function ReportsScreen() {
 
       {showCost && (
         <Card>
-          <SectionHeader title="الربحية" subtitle="بيانات داخلية — للأدمن فقط" />
+          <SectionHeader title="الربحية" subtitle="بيانات داخلية - للأدمن فقط" />
           <Row justify="space-between" style={{ paddingVertical: 4 }}>
             <AppText variant="caption" color={palette.muted}>
               التكلفة الداخلية

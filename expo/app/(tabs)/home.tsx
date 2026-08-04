@@ -1,4 +1,4 @@
-﻿import { BlurView } from 'expo-blur';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import {
@@ -445,7 +445,7 @@ function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: paper }}>
-      {/* هالات الصفحة — تنجرف الآن ببطء شديد عبر منطقة البطاقات الزجاجية
+      {/* هالات الصفحة - تنجرف الآن ببطء شديد عبر منطقة البطاقات الزجاجية
           أسفل البطاقة الرئيسية، فيتحرك اللون خلف زجاجها كما يتحرك خلف
           شريحتَي البطاقة. دورات طويلة ومتباينة كي لا تتزامن ولا تُلاحَظ
           كأشكال على الورق العاري. */}
@@ -479,7 +479,7 @@ function AdminDashboard() {
       showsVerticalScrollIndicator={false}
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xl }}>
-        {/* التحية — على الصفحة مباشرة، لا شريط ملوّن */}
+        {/* التحية - على الصفحة مباشرة، لا شريط ملوّن */}
         <Row justify="space-between">
           <Row gap={spacing.md}>
             <View style={styles.avatar}>
@@ -499,21 +499,21 @@ function AdminDashboard() {
           </Pressable>
         </Row>
 
-        {/* بطاقة البطل — زجاج حقيقي فوق ضوء ملوّن (نفس مبدأ الشريط السفلي) */}
+        {/* بطاقة البطل - زجاج حقيقي فوق ضوء ملوّن (نفس مبدأ الشريط السفلي) */}
         <Enter delay={ENTER.hero}>
         <Pressable
           onPress={() => router.push('/projects')}
           style={({ pressed }) => [shadow.glow, { transform: [{ scale: pressed ? 0.985 : 1 }] }]}
         >
         <View style={styles.hero}>
-          {/* ما تحت الزجاج: تدرّج + ضوءان منتشران — الزجاج يذيب حوافهما */}
+          {/* ما تحت الزجاج: تدرّج + ضوءان منتشران - الزجاج يذيب حوافهما */}
           <LinearGradient
             colors={gradients.hero as unknown as [string, string, string]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          {/* أضواء شعاعية مشبعة — حادة عمدًا (بلا تمويه فوقها) كي تمنح
+          {/* أضواء شعاعية مشبعة - حادة عمدًا (بلا تمويه فوقها) كي تمنح
               زجاج الشريحتين ما يطمسه. مساراتها مضبوطة على النطاق الأوسط
               والسفلي من البطاقة (حيث تجلس الشريحتان) فتعبر خلفهما فعلًا. */}
           <AuroraBloom
@@ -551,7 +551,7 @@ function AdminDashboard() {
             grow={0.26}
             delay={2000}
           />
-          {/* بريق يعبر ببطء خلف الشريحتين — لمعة المادة */}
+          {/* بريق يعبر ببطء خلف الشريحتين - لمعة المادة */}
           <AuroraBloom
             id="hb4"
             color="#FFFFFF"
@@ -603,7 +603,7 @@ function AdminDashboard() {
                 <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
                   {stats.awaiting.length > 0
                     ? `${stats.awaiting.length} • ${money(stats.awaitingValue, { compact: true })}`
-                    : '—'}
+                    : '-'}
                 </AppText>
               </View>
             </GlassChip>
@@ -613,10 +613,10 @@ function AdminDashboard() {
         </Pressable>
         </Enter>
 
-        {/* مربعات الإجراءات السريعة — نمط 2026 */}
+        {/* مربعات الإجراءات السريعة - نمط 2026 */}
         <QuickActions />
 
-        {/* بلاطات زجاجية — اللون في دائرة الأيقونة فقط */}
+        {/* بلاطات زجاجية - اللون في دائرة الأيقونة فقط */}
         <Enter delay={ENTER.tiles}>
         <Row gap={spacing.md}>
           <GlassTile
@@ -784,7 +784,7 @@ function FieldDashboard() {
           {todays.length === 0 ? (
             <Card>
               <AppText variant="body" color={palette.muted} align="center">
-                لا توجد زيارات اليوم — استمتع بيومك.
+                لا توجد زيارات اليوم - استمتع بيومك.
               </AppText>
             </Card>
           ) : (

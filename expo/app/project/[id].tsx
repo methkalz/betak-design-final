@@ -14,7 +14,7 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,6 +68,8 @@ export default function ProjectStudioScreen() {
   const { db, role } = useStore();
   const project = useProject(id);
   const [tab, setTab] = useState<Tab>('overview');
+  const tabsRef = useRef<ScrollView>(null);
+  const tabsPinned = useRef(false);
 
   if (!project) {
     return (
@@ -133,9 +135,19 @@ export default function ProjectStudioScreen() {
       </LinearGradient>
 
       <View style={{ backgroundColor: palette.white, borderBottomWidth: 1, borderBottomColor: palette.line }}>
+        {/* شريط التبويبات عربي (row-reverse) فأول تبويب يقع أقصى يمين
+            المحتوى، بينما التمرير الأفقي يبدأ من اليسار دائمًا - فيُفتح
+            المشروع على آخر التبويبات. القفز لنهاية المحتوى مرة واحدة عند
+            القياس يضع «نظرة عامة» أمام المستخدم كما يجب. */}
         <ScrollView
+          ref={tabsRef}
           horizontal
           showsHorizontalScrollIndicator={false}
+          onContentSizeChange={() => {
+            if (tabsPinned.current) return;
+            tabsPinned.current = true;
+            tabsRef.current?.scrollToEnd({ animated: false });
+          }}
           contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, flexDirection: 'row-reverse' }}
         >
           {visibleTabs.map((t) => (
@@ -269,7 +281,7 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
           <InfoRow label="الخياط" value={tailor?.fullName ?? 'غير معيّن'} />
           <InfoRow label="موعد القياس" value={formatDate(project.measurementDate)} />
           <InfoRow label="موعد التركيب" value={formatDate(project.installationDate)} />
-          <InfoRow label="ملاحظات" value={project.notes || '—'} />
+          <InfoRow label="ملاحظات" value={project.notes || '-'} />
         </View>
       </Card>
 
@@ -440,7 +452,7 @@ function QuoteTab({ projectId }: { projectId: string }) {
           body={
             windows.length === 0
               ? 'سجّل القياسات أولًا، ثم أنشئ العرض بضغطة واحدة.'
-              : 'التسعير جاهز — أنشئ العرض من القياسات المسجلة.'
+              : 'التسعير جاهز - أنشئ العرض من القياسات المسجلة.'
           }
           action={
             can(role, 'create_quotation') && windows.length > 0 ? (
@@ -490,7 +502,7 @@ function QuoteTab({ projectId }: { projectId: string }) {
           <Row justify="space-between" align="flex-start">
             <View style={{ flex: 1 }}>
               <AppText variant="label">
-                {item.roomName} — {item.windowName}
+                {item.roomName} - {item.windowName}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
                 {item.description}

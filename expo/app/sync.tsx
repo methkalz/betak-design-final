@@ -94,7 +94,7 @@ export default function SyncScreen() {
           <Row gap={spacing.sm}>
             <CheckCircle2 size={16} color={palette.success} />
             <AppText variant="caption" color={palette.muted}>
-              كل شيء متزامن — لا توجد عمليات معلّقة.
+              كل شيء متزامن - لا توجد عمليات معلّقة.
             </AppText>
           </Row>
         )}

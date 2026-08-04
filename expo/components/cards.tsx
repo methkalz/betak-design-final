@@ -51,7 +51,7 @@ export function ProjectRow({ projectId }: { projectId: string }) {
 
   return (
     <Card onPress={() => router.push(`/project/${project.id}`)} style={{ padding: spacing.xl }}>
-      {/* سطر واحد للهوية: الاسم وحالته — والأولوية نقطةٌ لا شارة ثانية،
+      {/* سطر واحد للهوية: الاسم وحالته - والأولوية نقطةٌ لا شارة ثانية،
           فشارتان في بطاقة واحدة أول أسباب الاكتظاظ */}
       <Row justify="space-between" gap={spacing.md}>
         <Row gap={spacing.sm} style={{ flex: 1 }}>
@@ -73,7 +73,7 @@ export function ProjectRow({ projectId }: { projectId: string }) {
         </AppText>
       )}
 
-      {/* كتلة القياس — بمسافة تنفّس واضحة عن الهوية، وشريط رفيع لا يثقل */}
+      {/* كتلة القياس - بمسافة تنفّس واضحة عن الهوية، وشريط رفيع لا يثقل */}
       <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
         <ProgressBar
           value={statusProgress(project.status)}

@@ -113,7 +113,7 @@ export default function CustomerScreen() {
         <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
           <DetailRow label="الهاتف" value={customer.phone} />
           <DetailRow label="العنوان" value={`${customer.address}، ${customer.city}`} />
-          <DetailRow label="ملاحظات" value={customer.notes || '—'} />
+          <DetailRow label="ملاحظات" value={customer.notes || '-'} />
         </View>
         {customer.preferences.length > 0 && (
           <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
@@ -161,7 +161,7 @@ export default function CustomerScreen() {
           full
           icon={<Archive size={16} color={palette.olive} />}
           onPress={() =>
-            Alert.alert('أرشفة الزبون', 'لا يتم الحذف الفعلي — يمكن استرجاعه لاحقًا.', [
+            Alert.alert('أرشفة الزبون', 'لا يتم الحذف الفعلي - يمكن استرجاعه لاحقًا.', [
               { text: 'إلغاء', style: 'cancel' },
               {
                 text: 'أرشفة',
