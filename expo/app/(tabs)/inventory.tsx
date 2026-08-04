@@ -82,78 +82,72 @@ export default function InventoryScreen() {
             const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
               <Card onPress={() => router.push(`/roll/${item.roll.id}`)} style={{ padding: spacing.xl }}>
-                <Row justify="space-between" align="flex-start" gap={spacing.md}>
+                {/* نقطة تركيز واحدة: المتاح بأكبر خط وفي عمود ثابت على يسار
+                    كل بطاقة، فتنزل العين عمودًا واحدًا عند التصفح بدل أن
+                    تتنقل بين ثلاثة أرقام متساوية الوزن في كل بطاقة. */}
+                <Row justify="space-between" align="center" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                     <View style={{ flex: 1 }}>
-                      <AppText variant="heading" numberOfLines={1}>
-                        {item.roll.code}
-                      </AppText>
+                      <Row gap={spacing.sm}>
+                        <AppText variant="heading" numberOfLines={1}>
+                          {item.roll.code}
+                        </AppText>
+                        {item.roll.isMiniRoll && (
+                          <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
+                        )}
+                      </Row>
                       <AppText variant="caption" color={palette.muted} numberOfLines={1}>
                         {item.product?.name} • {item.variant?.colorName}
                       </AppText>
                     </View>
                   </Row>
-                  {low ? (
-                    <Pill
-                      label="منخفض"
-                      bg={palette.dangerSoft}
-                      fg={palette.danger}
-                      icon={<AlertTriangle size={12} color={palette.danger} />}
-                      small
-                    />
-                  ) : (
-                    item.roll.isMiniRoll && (
-                      <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
-                    )
-                  )}
-                </Row>
 
-                {/* الأرقام الثلاثة أولًا - المتاح هو القرار، فهو الأكبر */}
-                <Row gap={spacing.md} align="flex-end" style={{ marginTop: spacing.lg }}>
-                  <View style={{ flex: 1 }}>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: availTone }]} />
+                  <View style={{ alignItems: 'flex-start' }}>
+                    <Row gap={4} align="baseline">
+                      <AppText variant="numberLarge" color={availTone}>
+                        {meters(item.balance.availableM, false)}
+                      </AppText>
                       <AppText variant="caption" color={palette.muted}>
-                        متاح
+                        متر
                       </AppText>
                     </Row>
-                    <AppText variant="number" color={availTone}>
-                      {meters(item.balance.availableM)}
-                    </AppText>
-                  </View>
-                  <View style={{ flex: 1 }}>
                     <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.warning }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        محجوز
+                      {low && <AlertTriangle size={12} color={palette.danger} />}
+                      <AppText variant="caption" color={low ? palette.danger : palette.muted}>
+                        {low ? 'متاح - منخفض' : 'متاح'}
                       </AppText>
                     </Row>
-                    <AppText variant="label">{meters(item.balance.reservedM)}</AppText>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        مستهلك
-                      </AppText>
-                    </Row>
-                    <AppText variant="label" color={palette.muted}>
-                      {meters(item.balance.consumedM)}
-                    </AppText>
                   </View>
                 </Row>
 
-                {/* شريط واحد يروي عمر الرول بدل ثلاثة أرقام معلّقة */}
+                {/* شريط عمر الرول: متاح ← محجوز ← مستهلك */}
                 <View style={styles.bar}>
                   <View style={{ width: `${seg(item.balance.availableM)}%`, backgroundColor: availTone }} />
                   <View style={{ width: `${seg(item.balance.reservedM)}%`, backgroundColor: palette.warning }} />
                   <View style={{ width: `${seg(item.balance.consumedM)}%`, backgroundColor: palette.sandDeep }} />
                 </View>
 
-                <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ marginTop: spacing.sm }}>
-                  رف {item.roll.location} • صبغة {item.roll.dyeLot}
-                </AppText>
+                {/* سطر إسناد واحد هادئ: حاضرٌ للسياق، غير منافسٍ للرقم البطل */}
+                <Row justify="space-between" gap={spacing.sm} style={{ marginTop: spacing.sm }}>
+                  <Row gap={spacing.md}>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.warning }]} />
+                      <AppText variant="caption" color={palette.muted}>
+                        محجوز {meters(item.balance.reservedM)}
+                      </AppText>
+                    </Row>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
+                      <AppText variant="caption" color={palette.muted}>
+                        مستهلك {meters(item.balance.consumedM)}
+                      </AppText>
+                    </Row>
+                  </Row>
+                  <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                    رف {item.roll.location}
+                  </AppText>
+                </Row>
               </Card>
             );
           }}
@@ -248,10 +242,10 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   bar: {
     flexDirection: 'row-reverse',
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
     overflow: 'hidden',
     backgroundColor: palette.ivoryDeep,
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
 });
