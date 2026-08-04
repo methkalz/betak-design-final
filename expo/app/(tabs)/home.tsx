@@ -450,52 +450,53 @@ function AdminDashboard() {
             style={StyleSheet.absoluteFill}
           />
           {/* أضواء شعاعية مشبعة — حادة عمدًا (بلا تمويه فوقها) كي تمنح
-              زجاج الشريحتين ما يطمسه */}
+              زجاج الشريحتين ما يطمسه. مساراتها مضبوطة على النطاق الأوسط
+              والسفلي من البطاقة (حيث تجلس الشريحتان) فتعبر خلفهما فعلًا. */}
           <AuroraBloom
             id="hb1"
             color="#38BDF8"
-            peak={0.85}
-            size={300}
-            style={{ top: -120, left: -90 }}
+            peak={0.9}
+            size={280}
+            style={{ top: 20, left: -150 }}
             duration={9000}
-            dx={95}
-            dy={52}
-            grow={0.3}
+            dx={230}
+            dy={26}
+            grow={0.28}
           />
           <AuroraBloom
             id="hb2"
             color="#FB7185"
-            peak={0.8}
-            size={300}
-            style={{ bottom: -130, right: -100 }}
+            peak={0.85}
+            size={280}
+            style={{ top: 60, right: -150 }}
             duration={12500}
-            dx={-84}
-            dy={-58}
-            grow={0.34}
+            dx={-215}
+            dy={-24}
+            grow={0.32}
             delay={900}
           />
           <AuroraBloom
             id="hb3"
             color="#FDCD69"
-            peak={0.55}
-            size={260}
-            style={{ top: -20, right: -90 }}
+            peak={0.6}
+            size={230}
+            style={{ top: 55, left: 30 }}
             duration={15000}
-            dx={-70}
-            dy={80}
+            dx={130}
+            dy={-34}
             grow={0.26}
             delay={2000}
           />
-          {/* بريق يعبر ببطء — لمعة المادة */}
+          {/* بريق يعبر ببطء خلف الشريحتين — لمعة المادة */}
           <AuroraBloom
             id="hb4"
             color="#FFFFFF"
-            peak={0.4}
-            size={230}
-            style={{ top: -90, right: 30 }}
+            peak={0.5}
+            size={200}
+            style={{ top: 45, right: -60 }}
             duration={18000}
-            dx={-120}
-            dy={40}
+            dx={-230}
+            dy={22}
             grow={0.18}
             delay={3200}
           />
@@ -877,8 +878,8 @@ const styles = StyleSheet.create({
   },
   heroChipFill: {
     ...StyleSheet.absoluteFillObject,
-    // أقل كثافة الآن: التمويه صار له ما يطمسه فيحمل جزءًا من مظهر المادة
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    // لوح حليبي أكثف: الألوان تعبر خلفه مطموسة لا صريحة — هذا هو الصقيع
+    backgroundColor: 'rgba(255,255,255,0.66)',
   },
   quickTile: {
     width: '100%',
