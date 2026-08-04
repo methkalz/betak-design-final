@@ -9,7 +9,7 @@
  * فيحسب الآخر، لأن البائع يفاوض أحيانًا بالنسبة وأحيانًا بمبلغ مقطوع.
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -25,6 +25,8 @@ import { agorotToShekel, money, percent, shekelToAgorot } from '@/lib/format';
 
 const KNOB = 30;
 const TRACK_H = 10;
+/** زنبرك سريع قليل التذبذب: يلتصق كالمغناطيس بلا ارتداد ولا تباطؤ. */
+const SNAPPY = { damping: 26, stiffness: 520, mass: 0.4 } as const;
 const LABEL_H = 26;
 const ROW_H = KNOB + 12;
 
@@ -136,52 +138,79 @@ export function DiscountSlider({
     [snaps, value],
   );
 
+  /**
+   * موضع المقبض قيمةٌ مشتركة تعمل على الخيط الرسومي، لا مشتقة من حالة
+   * React: الاشتقاق كان يعيد تشغيل الزنبرك في كل إطار فيتخلّف المقبض عن
+   * الإصبع ويستقر ببطء. الآن يتتبّع الإصبع فورًا، والزنبرك السريع لا يعمل
+   * إلا في الجذب إلى نقطة أو عند تغيير القيمة من الحقول اليدوية.
+   */
+  const pos = useSharedValue(0);
+  const dragging = useSharedValue(false);
+
+  const snapPx = useMemo(
+    () => (usable > 0 ? snaps.map((s) => (s.pct / max) * usable) : []),
+    [snaps, max, usable],
+  );
+
+  useEffect(() => {
+    if (dragging.value) return;
+    pos.value = withSpring(ratio * usable, SNAPPY);
+  }, [ratio, usable, pos, dragging]);
+
   /** RTL: الصفر عند اليمين، فالإزاحة تُقاس من اليمين إلى اليسار. */
-  const commit = useCallback(
+  const commitPx = useCallback(
     (px: number) => {
       if (usable <= 0) return;
       const r = Math.min(1, Math.max(0, px / usable));
-      const raw = r * max;
-      // جذب مغناطيسي: نافذة الالتقاط 14 بكسل مترجمة إلى نسبة مئوية
-      const window = (14 / usable) * max;
-      let best: Snap | null = null;
-      let bestGap = window;
-      for (const s of snaps) {
-        const gap = Math.abs(s.pct - raw);
-        if (gap <= bestGap) {
-          best = s;
-          bestGap = gap;
-        }
-      }
-      onChange(best ? best.pct : Math.round(raw * 10) / 10);
+      onChange(Math.round(r * max * 10) / 10);
     },
-    [usable, max, onChange, snaps],
+    [usable, max, onChange],
   );
 
   const pan = useMemo(
     () =>
       Gesture.Pan()
         .onBegin(() => {
-          startPct.value = ratio;
+          dragging.value = true;
+          startPct.value = pos.value;
         })
         .onUpdate((e) => {
-          const from = startPct.value * usable;
-          runOnJS(commit)(from - e.translationX);
+          let raw = startPct.value - e.translationX;
+          raw = Math.max(0, Math.min(usable, raw));
+          // الجذب على الخيط الرسومي نفسه: المقبض يلتصق بالنقطة فورًا
+          let target = raw;
+          for (let i = 0; i < snapPx.length; i++) {
+            if (Math.abs(snapPx[i] - raw) <= 16) {
+              target = snapPx[i];
+              break;
+            }
+          }
+          pos.value = withSpring(target, SNAPPY);
+          runOnJS(commitPx)(target);
+        })
+        .onFinalize(() => {
+          dragging.value = false;
         }),
-    [startPct, ratio, usable, commit],
+    [startPct, pos, dragging, usable, snapPx, commitPx],
   );
 
   const tap = useMemo(
     () =>
       Gesture.Tap().onEnd((e) => {
-        runOnJS(commit)(usable - (e.x - KNOB / 2));
+        let raw = Math.max(0, Math.min(usable, usable - (e.x - KNOB / 2)));
+        for (let i = 0; i < snapPx.length; i++) {
+          if (Math.abs(snapPx[i] - raw) <= 16) {
+            raw = snapPx[i];
+            break;
+          }
+        }
+        pos.value = withSpring(raw, SNAPPY);
+        runOnJS(commitPx)(raw);
       }),
-    [usable, commit],
+    [usable, snapPx, pos, commitPx],
   );
 
-  const knobStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: withSpring(-ratio * usable, { damping: 20, stiffness: 220 }) }],
-  }));
+  const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value }] }));
 
   const applyPct = (t: string) => {
     setPctDraft(t);
