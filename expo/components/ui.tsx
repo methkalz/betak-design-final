@@ -570,11 +570,12 @@ export function ProgressBar({
       sweep.value = 0;
       return;
     }
-    sweep.value = withRepeat(withTiming(1, { duration: 2200, easing: REasing.inOut(REasing.quad) }), -1, false);
+    sweep.value = withRepeat(withTiming(1, { duration: 3400, easing: REasing.inOut(REasing.quad) }), -1, false);
   }, [live, sweep]);
 
   const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
-  const sweepStyle = useAnimatedStyle(() => ({ left: `${sweep.value * 130 - 30}%` }));
+  // من اليمين إلى اليسار مع اتجاه القراءة: تحريك الحافة اليمنى للبريق
+  const sweepStyle = useAnimatedStyle(() => ({ right: `${sweep.value * 130 - 30}%` }));
 
   return (
     <View style={{ height, backgroundColor: track, borderRadius: height / 2, overflow: 'hidden' }}>
