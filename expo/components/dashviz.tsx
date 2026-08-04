@@ -4,7 +4,14 @@
  * عدّاد رقمي متحرك، ودخول متدرج (reanimated) يمنح اللوحة حياتها.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated as RNAnimated, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import {
+  Animated as RNAnimated,
+  Easing,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -31,14 +38,18 @@ export function Enter({
 
 /* ── عدّاد رقمي متحرك ───────────────────────────────────────────────────── */
 
-export function useCountUp(target: number, duration = 950): number {
+/**
+ * عدّاد متأنٍّ (قرار المالك: أبطأ ليُستمتع بمشاهدته) — انطلاقة سريعة
+ * ثم استقرار طويل هادئ بمنحنى quart-out، لا حشو زمني في الوسط.
+ */
+export function useCountUp(target: number, duration = 1900): number {
   const [value, setValue] = useState(0);
   useEffect(() => {
     let raf = 0;
     const start = Date.now();
     const tick = () => {
       const p = Math.min(1, (Date.now() - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
+      const eased = 1 - Math.pow(1 - p, 4);
       setValue(target * eased);
       if (p < 1) raf = requestAnimationFrame(tick);
     };
@@ -100,7 +111,8 @@ export function RingStat({
   useEffect(() => {
     RNAnimated.timing(dash, {
       toValue: c - (c * clamped) / 100,
-      duration: 1000,
+      duration: 1900,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
   }, [clamped, c, dash]);
@@ -152,7 +164,12 @@ export function StackedBar({ segments }: { segments: StackedSegment[] }) {
   const total = segments.reduce((s, x) => s + x.count, 0);
   const scale = useRef(new RNAnimated.Value(0)).current;
   useEffect(() => {
-    RNAnimated.timing(scale, { toValue: 1, duration: 650, useNativeDriver: true }).start();
+    RNAnimated.timing(scale, {
+      toValue: 1,
+      duration: 1100,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
   }, [scale]);
 
   return (
@@ -219,7 +236,7 @@ export function MiniBars({
         return (
           <Animated.View
             key={`${d.label}-${i}`}
-            entering={FadeInDown.delay(120 + i * 70).duration(420)}
+            entering={FadeInDown.delay(200 + i * 110).duration(620)}
             style={{ flex: 1, alignItems: 'center', gap: 5 }}
           >
             <View
