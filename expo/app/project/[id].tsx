@@ -21,6 +21,7 @@ import Animated, {
   Easing as REasing,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
@@ -41,7 +42,7 @@ import {
   SectionHeader,
   Swatch,
 } from '@/components/ui';
-import { gradients, palette, radius, spacing } from '@/constants/theme';
+import { font, gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
   CURTAIN_MODEL_LABELS,
@@ -203,15 +204,17 @@ export default function ProjectStudioScreen() {
  * غائبة حين كان النقل مخبوءًا في نقطة ملوّنة.
  */
 function AdvanceButton({ label, onPress }: { label: string; onPress: () => void }) {
-  const x = useSharedValue(0);
+  // سهمان يتتابعان لا قرص يتحرك: الحركة يجب أن تكون في الرمز الدال على
+  // الاتجاه نفسه. التأخير بين السهمين يصنع إحساس التدفق نحو الأمام.
+  const x1 = useSharedValue(0);
+  const x2 = useSharedValue(0);
   useEffect(() => {
-    x.value = withRepeat(
-      withTiming(-7, { duration: 900, easing: REasing.inOut(REasing.quad) }),
-      -1,
-      true,
-    );
-  }, [x]);
-  const nudge = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+    const cycle = { duration: 620, easing: REasing.inOut(REasing.quad) };
+    x1.value = withRepeat(withTiming(-9, cycle), -1, true);
+    x2.value = withDelay(140, withRepeat(withTiming(-9, cycle), -1, true));
+  }, [x1, x2]);
+  const nudge1 = useAnimatedStyle(() => ({ transform: [{ translateX: x1.value }] }));
+  const nudge2 = useAnimatedStyle(() => ({ transform: [{ translateX: x2.value }] }));
 
   return (
     <Pressable
@@ -233,9 +236,14 @@ function AdvanceButton({ label, onPress }: { label: string; onPress: () => void 
             {label}
           </AppText>
         </View>
-        <Animated.View style={[styles.advanceArrow, nudge]}>
-          <ChevronLeft size={22} color={palette.white} />
-        </Animated.View>
+        <View style={styles.advanceArrows}>
+          <Animated.View style={nudge1}>
+            <ChevronLeft size={28} color={palette.white} />
+          </Animated.View>
+          <Animated.View style={[nudge2, { marginRight: -16 }]}>
+            <ChevronLeft size={28} color="rgba(255,255,255,0.55)" />
+          </Animated.View>
+        </View>
       </Row>
     </Pressable>
   );
@@ -305,7 +313,11 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
                     )}
                   </View>
                   <View style={{ flex: 1, paddingBottom: spacing.sm }}>
-                    <AppText variant={active ? 'label' : 'caption'} color={active ? palette.charcoal : palette.muted}>
+                    <AppText
+                      variant={active ? 'label' : 'caption'}
+                      color={active ? palette.charcoal : palette.muted}
+                      style={active ? { fontFamily: font.bold } : undefined}
+                    >
                       {PROJECT_STATUS_LABELS[s]}
                     </AppText>
                     {active && (
@@ -960,13 +972,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     justifyContent: 'center',
   },
-  advanceArrow: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+  advanceArrows: {
+    flexDirection: 'row-reverse',
     alignItems: 'center',
-    justifyContent: 'center',
   },
   backStep: { paddingVertical: spacing.sm },
   windowRow: {
