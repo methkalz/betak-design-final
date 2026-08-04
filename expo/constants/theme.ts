@@ -75,12 +75,13 @@ export const font = {
 } as const;
 
 export const shadow = {
+  // أنعم وأخف — حداثة مسطّحة: العمق يوحي به الهواء لا العتمة
   card: {
     shadowColor: '#3B3226',
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   raised: {
     shadowColor: '#2A2418',

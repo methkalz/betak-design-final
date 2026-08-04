@@ -25,13 +25,14 @@ export function StatTile({
   icon: React.ReactNode;
   label: string;
   value: string;
+  /** لون دائرة الأيقونة فقط — البلاطة نفسها بيضاء هادئة (مينيماليست). */
   tint: string;
 }) {
   return (
-    <View style={[styles.tile, { backgroundColor: tint }]}>
-      <View style={styles.tileIcon}>{icon}</View>
-      <AppText variant="numberLarge">{value}</AppText>
-      <AppText variant="caption" color={palette.muted}>
+    <View style={styles.tile}>
+      <View style={[styles.tileIcon, { backgroundColor: tint }]}>{icon}</View>
+      <AppText variant="number">{value}</AppText>
+      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
         {label}
       </AppText>
     </View>
@@ -214,16 +215,18 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     borderRadius: radius.lg,
-    padding: spacing.lg,
+    padding: spacing.md,
     gap: 2,
-    minHeight: 112,
+    minHeight: 104,
     justifyContent: 'flex-end',
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.line,
   },
   tileIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.sm,

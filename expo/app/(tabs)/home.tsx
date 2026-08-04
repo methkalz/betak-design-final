@@ -3,13 +3,12 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgePercent,
-  Banknote,
-  CalendarClock,
   ChevronLeft,
+  Clock3,
+  Layers,
+  LayoutGrid,
   Package,
   Scissors,
-  TrendingUp,
-  Wallet,
 } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -18,9 +17,9 @@ import { AppHeader } from '@/components/AppHeader';
 import { ProjectRow, StatTile, TailorCard, VisitCard } from '@/components/cards';
 import {
   AppText,
-  Banner,
   Button,
   Card,
+  Divider,
   ProgressBar,
   Row,
   SectionHeader,
@@ -28,9 +27,8 @@ import {
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
-import { VISIT_TYPE_LABELS } from '@/domain/labels';
-import { projectFinance, useRollViews } from '@/hooks/selectors';
-import { formatDate, formatTime, isSameDay, money } from '@/lib/format';
+import { useRollViews } from '@/hooks/selectors';
+import { formatDate, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function DashboardScreen() {
@@ -55,115 +53,178 @@ function LoadingDashboard() {
 }
 
 function AdminDashboard() {
-  const { db, currentUser } = useStore();
+  const { db } = useStore();
   const router = useRouter();
   const rolls = useRollViews();
 
+  // أرقام المالك من مصادر موثوقة في الوضعين (العروض لا الدفعات —
+  // الدفعات تصل في شريحة لاحقة): اعتمادات الشهر، وما ينتظر رد الزبون.
   const stats = useMemo(() => {
-    const active = db.projects.filter((p) => p.status !== 'completed');
-    const openValue = active.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
-    const due = db.projects.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    const collected = db.payments
-      .filter((p) => new Date(p.createdAt) >= monthStart)
-      .reduce((s, p) => s + p.amountAgorot, 0);
-    return { activeCount: active.length, openValue, due, collected };
-  }, [db]);
+    const now = Date.now();
+
+    const approvedMonth = db.quotationVersions
+      .filter((v) => v.status === 'approved' && v.approvedAt && new Date(v.approvedAt) >= monthStart)
+      .reduce((s, v) => s + v.totalAgorot, 0);
+
+    const awaiting = db.quotationVersions.filter(
+      (v) => v.status === 'sent' && new Date(v.validUntil).getTime() >= now,
+    );
+    const awaitingValue = awaiting.reduce((s, v) => s + v.totalAgorot, 0);
+
+    const active = db.projects.filter((p) => p.status !== 'completed');
+
+    const reservedM = db.reservations
+      .filter((r) => r.status === 'active' || r.status === 'partially_consumed')
+      .reduce(
+        (s, r) => s + Math.max(0, r.quantityM - r.consumedM - (r.releasedM ?? 0) - (r.damagedReservedM ?? 0)),
+        0,
+      );
+
+    return { approvedMonth, awaiting, awaitingValue, activeCount: active.length, reservedM };
+  }, [db.quotationVersions, db.projects, db.reservations]);
 
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending');
   const lowStock = rolls.filter(
     (r) => r.balance.availableM < LOW_STOCK_THRESHOLD_M && !r.roll.isMiniRoll,
   );
-  const todayVisits = db.fieldVisits.filter(
-    (v) => isSameDay(v.scheduledAt, new Date()) && v.status !== 'completed',
-  );
+  const expiringSoon = useMemo(() => {
+    const soon = Date.now() + 3 * 24 * 60 * 60 * 1000;
+    return db.quotationVersions.filter(
+      (v) =>
+        v.status === 'sent' &&
+        new Date(v.validUntil).getTime() >= Date.now() &&
+        new Date(v.validUntil).getTime() <= soon,
+    );
+  }, [db.quotationVersions]);
+
   const hotProjects = useMemo(
     () =>
       db.projects
         .filter((p) => p.status !== 'completed')
         .sort((a, b) => (a.priority === 'high' ? -1 : b.priority === 'high' ? 1 : 0))
-        .slice(0, 4),
+        .slice(0, 3),
     [db.projects],
   );
+
+  const attention: {
+    key: string;
+    icon: React.ReactNode;
+    tint: string;
+    title: string;
+    sub: string;
+    onPress: () => void;
+  }[] = [];
+  if (pendingDiscounts.length > 0)
+    attention.push({
+      key: 'discounts',
+      icon: <BadgePercent size={17} color={palette.warning} />,
+      tint: palette.warningSoft,
+      title: `${pendingDiscounts.length} طلب خصم بانتظار قرارك`,
+      sub: `أعلى نسبة مطلوبة ${Math.max(...pendingDiscounts.map((d) => d.requestedPercent))}%`,
+      onPress: () => router.push('/discounts'),
+    });
+  if (expiringSoon.length > 0)
+    attention.push({
+      key: 'expiring',
+      icon: <Clock3 size={17} color={palette.info} />,
+      tint: palette.infoSoft,
+      title: `${expiringSoon.length} عرض تنتهي صلاحيته خلال ٣ أيام`,
+      sub: 'تواصل مع الزبون قبل الانقضاء',
+      onPress: () => router.push('/projects'),
+    });
+  if (lowStock.length > 0)
+    attention.push({
+      key: 'stock',
+      icon: <AlertTriangle size={17} color={palette.danger} />,
+      tint: palette.dangerSoft,
+      title: `${lowStock.length} بكرة تحت حد المخزون`,
+      sub: lowStock
+        .slice(0, 3)
+        .map((r) => `${r.roll.code}: ${r.balance.availableM} م`)
+        .join(' • '),
+      onPress: () => router.push('/inventory'),
+    });
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
     >
-      <AppHeader subtitle={`${db.organization.name} • ${stats.activeCount} مشروع نشط`} />
+      <AppHeader subtitle={`${db.organization.name} • ${formatDate(new Date().toISOString())}`} />
 
-      <View style={{ padding: spacing.lg, gap: spacing.xl }}>
-        <View style={{ gap: spacing.md }}>
-          <Row gap={spacing.md}>
-            <StatTile
-              icon={<TrendingUp size={18} color={palette.olive} />}
-              label="قيمة المشاريع المفتوحة"
-              value={money(stats.openValue, { compact: true })}
-              tint={palette.sageSoft}
-            />
-            <StatTile
-              icon={<Wallet size={18} color={palette.terracotta} />}
-              label="متبقٍ للتحصيل"
-              value={money(stats.due, { compact: true })}
-              tint={palette.terracottaSoft}
-            />
+      <View style={{ padding: spacing.lg, gap: spacing.xxl }}>
+        {/* بطاقة المالك — رقم واحد كبير يفتتح اليوم */}
+        <Pressable onPress={() => router.push('/projects')} style={styles.hero}>
+          <AppText variant="label" color={palette.sage}>
+            اعتمادات هذا الشهر
+          </AppText>
+          <AppText variant="numberLarge" color={palette.ivory} style={{ fontSize: 34, lineHeight: 46 }}>
+            {money(stats.approvedMonth, { compact: true })}
+          </AppText>
+          <View style={styles.heroDivider} />
+          <Row justify="space-between">
+            <AppText variant="caption" color={palette.sage}>
+              بانتظار رد الزبون
+            </AppText>
+            <AppText variant="label" color={palette.ivory}>
+              {stats.awaiting.length > 0
+                ? `${stats.awaiting.length} عروض • ${money(stats.awaitingValue, { compact: true })}`
+                : 'لا عروض معلقة'}
+            </AppText>
           </Row>
-          <Row gap={spacing.md}>
-            <StatTile
-              icon={<Banknote size={18} color={palette.success} />}
-              label="تحصيل هذا الشهر"
-              value={money(stats.collected, { compact: true })}
-              tint={palette.successSoft}
-            />
-            <StatTile
-              icon={<Package size={18} color={palette.info} />}
-              label="رولات في المخزن"
-              value={`${rolls.length}`}
-              tint={palette.infoSoft}
-            />
-          </Row>
-        </View>
+        </Pressable>
 
-        {pendingDiscounts.length > 0 && (
-          <Banner
-            tone="warning"
-            title={`${pendingDiscounts.length} طلب خصم بانتظار قرارك`}
-            body={`أعلى نسبة مطلوبة: ${Math.max(...pendingDiscounts.map((d) => d.requestedPercent))}%`}
-            icon={<BadgePercent size={18} color={palette.warning} />}
-            action={
-              <Button
-                label="مراجعة الطلبات"
-                variant="secondary"
-                small
-                onPress={() => router.push('/discounts')}
-              />
-            }
+        {/* ثلاث إشارات هادئة */}
+        <Row gap={spacing.md}>
+          <StatTile
+            icon={<LayoutGrid size={16} color={palette.olive} />}
+            label="مشاريع نشطة"
+            value={`${stats.activeCount}`}
+            tint={palette.sageSoft}
           />
-        )}
+          <StatTile
+            icon={<Package size={16} color={palette.terracotta} />}
+            label="قماش محجوز"
+            value={`${Math.round(stats.reservedM * 10) / 10} م`}
+            tint={palette.terracottaSoft}
+          />
+          <StatTile
+            icon={<Layers size={16} color={lowStock.length > 0 ? palette.danger : palette.info} />}
+            label="بكرات منخفضة"
+            value={`${lowStock.length}`}
+            tint={lowStock.length > 0 ? palette.dangerSoft : palette.infoSoft}
+          />
+        </Row>
 
-        {lowStock.length > 0 && (
-          <Banner
-            tone="danger"
-            title="مخزون منخفض"
-            body={lowStock.map((r) => `${r.roll.code}: ${r.balance.availableM} م`).join(' • ')}
-            icon={<AlertTriangle size={18} color={palette.danger} />}
-            action={
-              <Button
-                label="فتح المخزون"
-                variant="secondary"
-                small
-                onPress={() => router.push('/inventory')}
-              />
-            }
-          />
+        {attention.length > 0 && (
+          <View>
+            <SectionHeader title="يحتاج انتباهك" />
+            <Card padded={false}>
+              {attention.map((a, i) => (
+                <View key={a.key}>
+                  <Pressable onPress={a.onPress} style={styles.attentionRow}>
+                    <View style={[styles.attentionIcon, { backgroundColor: a.tint }]}>{a.icon}</View>
+                    <View style={{ flex: 1, gap: 1 }}>
+                      <AppText variant="label">{a.title}</AppText>
+                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                        {a.sub}
+                      </AppText>
+                    </View>
+                    <ChevronLeft size={17} color={palette.muted} />
+                  </Pressable>
+                  {i < attention.length - 1 && <Divider style={{ marginVertical: 0, marginHorizontal: spacing.lg }} />}
+                </View>
+              ))}
+            </Card>
+          </View>
         )}
 
         <View>
-          <SectionHeader title="خط الإنتاج" subtitle="توزيع المشاريع على مراحل دورة الحياة" />
+          <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
           <Card>
             <PipelineChart />
           </Card>
@@ -189,67 +250,6 @@ function AdminDashboard() {
             ))}
           </View>
         </View>
-
-        {todayVisits.length > 0 && (
-          <View>
-            <SectionHeader title="زيارات اليوم" subtitle={formatDate(new Date().toISOString())} />
-            <View style={{ gap: spacing.md }}>
-              {todayVisits.map((v) => {
-                const project = db.projects.find((p) => p.id === v.projectId);
-                const customer = db.customers.find((c) => c.id === project?.customerId);
-                return (
-                  <Card key={v.id} onPress={() => router.push(`/visit/${v.id}`)}>
-                    <Row justify="space-between">
-                      <View style={{ flex: 1 }}>
-                        <AppText variant="heading">{customer?.fullName}</AppText>
-                        <AppText variant="caption" color={palette.muted}>
-                          {VISIT_TYPE_LABELS[v.type]} • {formatTime(v.scheduledAt)} •{' '}
-                          {customer?.city}
-                        </AppText>
-                      </View>
-                      <CalendarClock size={20} color={palette.olive} />
-                    </Row>
-                  </Card>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        <View>
-          <SectionHeader
-            title="آخر النشاطات"
-            subtitle="سجل التدقيق"
-            action={
-              <Pressable onPress={() => router.push('/audit')}>
-                <AppText variant="label" color={palette.olive}>
-                  عرض السجل
-                </AppText>
-              </Pressable>
-            }
-          />
-          <Card>
-            {db.auditLogs.slice(0, 4).map((log, i) => (
-              <View key={log.id}>
-                <Row gap={spacing.md} align="flex-start">
-                  <View style={styles.auditDot} />
-                  <View style={{ flex: 1 }}>
-                    <AppText variant="label">{log.summary}</AppText>
-                    <AppText variant="caption" color={palette.muted}>
-                      {db.profiles.find((p) => p.id === log.actorId)?.fullName ?? 'النظام'} •{' '}
-                      {formatDate(log.createdAt)}
-                    </AppText>
-                  </View>
-                </Row>
-                {i < 3 && <View style={styles.auditLine} />}
-              </View>
-            ))}
-          </Card>
-        </View>
-
-        <AppText variant="caption" color={palette.muted} align="center">
-          {currentUser?.fullName} — صلاحية كاملة على مؤسسة {db.organization.name}
-        </AppText>
       </View>
     </ScrollView>
   );
@@ -286,7 +286,7 @@ function PipelineChart() {
               {g.count}
             </AppText>
           </Row>
-          <ProgressBar value={g.ratio} color={g.color} />
+          <ProgressBar value={g.ratio} color={g.color} height={6} />
         </View>
       ))}
     </View>
@@ -410,12 +410,30 @@ function TailorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  auditDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: palette.terracotta,
-    marginTop: 8,
+  hero: {
+    backgroundColor: palette.oliveDark,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.xs,
   },
-  auditLine: { height: 1, backgroundColor: palette.line, marginVertical: spacing.md },
+  heroDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    marginVertical: spacing.md,
+  },
+  attentionRow: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    minHeight: 64,
+  },
+  attentionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
