@@ -28,7 +28,9 @@ export default function NewCustomerScreen() {
       setError(res.error);
       return;
     }
-    router.replace(`/customer/${res.data}`);
+    // العلامة تُشغّل الضوء الكاشف على زر «مشروع جديد» في صفحة الزبون:
+    // الإرشاد يأتي بعد فعل المستخدم لا عند فتح الشاشة اعتباطًا
+    router.replace({ pathname: '/customer/[id]', params: { id: res.data, justCreated: '1' } });
   };
 
   return (

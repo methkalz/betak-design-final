@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, MapPin, MessageCircle, Phone, Plus, StickyNote } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform, View } from 'react-native';
 
 import { ProjectRow } from '@/components/cards';
+import { Spotlight, type SpotlightTarget } from '@/components/Spotlight';
 import {
   AppText,
   Button,
@@ -22,11 +23,30 @@ import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
 export default function CustomerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, justCreated } = useLocalSearchParams<{ id: string; justCreated?: string }>();
   const { db, role, archiveCustomer } = useStore();
   const router = useRouter();
   const goBack = useGoBack('/customers');
   const customer = useCustomer(id);
+
+  // ضوء كاشف بعد إضافة زبون: يدلّ على الخطوة التالية الطبيعية
+  const newProjectRef = useRef<View>(null);
+  const [spot, setSpot] = useState<SpotlightTarget | null>(null);
+  const [showSpot, setShowSpot] = useState(false);
+
+  useEffect(() => {
+    if (justCreated !== '1') return;
+    // مهلة قصيرة حتى يستقر التخطيط قبل القياس
+    const t = setTimeout(() => {
+      newProjectRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0) {
+          setSpot({ x, y, width, height });
+          setShowSpot(true);
+        }
+      });
+    }, 480);
+    return () => clearTimeout(t);
+  }, [justCreated]);
 
   if (!customer) {
     return (
@@ -132,13 +152,17 @@ export default function CustomerScreen() {
           subtitle={`${projects.length} مشروع`}
           action={
             can(role, 'manage_customers') ? (
-              <Button
-                label="مشروع جديد"
-                small
-                variant="secondary"
-                icon={<Plus size={15} color={palette.oliveDark} />}
-                onPress={() => router.push({ pathname: '/project/new', params: { customerId: customer.id } })}
-              />
+              <View ref={newProjectRef} collapsable={false}>
+                <Button
+                  label="مشروع جديد"
+                  small
+                  variant="secondary"
+                  icon={<Plus size={15} color={palette.oliveDark} />}
+                  onPress={() =>
+                    router.push({ pathname: '/project/new', params: { customerId: customer.id } })
+                  }
+                />
+              </View>
             ) : undefined
           }
         />
@@ -177,6 +201,14 @@ export default function CustomerScreen() {
           }
         />
       )}
+
+      <Spotlight
+        visible={showSpot}
+        target={spot}
+        title="والآن: مشروع جديد"
+        body="من هنا تبدأ أول مشروع لهذا الزبون"
+        onDismiss={() => setShowSpot(false)}
+      />
     </ScrollScreen>
   );
 }
