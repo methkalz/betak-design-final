@@ -36,7 +36,7 @@ export function TownField({
           setTouched(true);
           onChangeText(t);
         }}
-        placeholder="اكتب أول حرفين واختر من القائمة"
+        placeholder="كفرمندا"
       />
       {options.length > 0 && (
         <View style={styles.list}>
