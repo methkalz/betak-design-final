@@ -1,10 +1,10 @@
 import { useRouter } from 'expo-router';
-import { Plus, Search, UserRound, Users } from 'lucide-react-native';
+import { Plus, Search, Users } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { FlatList, TextInput, View } from 'react-native';
+import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Card, EmptyState, IconButton, Pill, Row } from '@/components/ui';
+import { AppText, Card, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
 import { projectFinance } from '@/hooks/selectors';
 import { initials, money } from '@/lib/format';
@@ -70,54 +70,51 @@ export default function CustomersScreen() {
           const value = projects.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
           const due = projects.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
           return (
-            <Card onPress={() => router.push(`/customer/${item.id}`)}>
-              <Row gap={spacing.md}>
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    backgroundColor: palette.sageSoft,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <AppText variant="label" color={palette.oliveDark}>
+            /* بطاقة هادئة: هوية على اليمين، رقم واحد على اليسار في عمود
+               ثابت، وسطر حالة يظهر عند وجود مستحق فقط. الشارات الأربع
+               السابقة (المستحق، عدد المشاريع، تفضيلان) كانت تتنافس على
+               النظرة نفسها بلا أن يقرأها أحد. */
+            <Card onPress={() => router.push(`/customer/${item.id}`)} style={{ padding: spacing.xl }}>
+              <Row gap={spacing.md} align="center">
+                <View style={styles.avatar}>
+                  <AppText variant="label" color={palette.olive}>
                     {initials(item.fullName)}
                   </AppText>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="heading">{item.fullName}</AppText>
-                  <AppText variant="caption" color={palette.muted}>
+                  <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+                    {item.fullName}
+                  </AppText>
+                  <AppText variant="caption" color={palette.muted} numberOfLines={1}>
                     {item.city} • {item.phone}
                   </AppText>
                 </View>
-                <View style={{ alignItems: 'flex-start', gap: 4 }}>
-                  <AppText variant="label">{money(value)}</AppText>
-                  {due > 0 ? (
-                    <Pill
-                      label={`متبقٍ ${money(due)}`}
-                      bg={palette.terracottaSoft}
-                      fg={palette.terracotta}
-                      small
-                    />
+                <View style={{ alignItems: 'flex-start' }}>
+                  {value > 0 ? (
+                    <>
+                      <AppText variant="number" style={{ fontSize: 17 }}>
+                        {money(value)}
+                      </AppText>
+                      <AppText variant="caption" color={palette.muted}>
+                        {projects.length} مشروع
+                      </AppText>
+                    </>
                   ) : (
-                    <Pill label="مسدد" bg={palette.successSoft} fg={palette.success} small />
+                    <AppText variant="caption" color={palette.muted}>
+                      بلا مشاريع بعد
+                    </AppText>
                   )}
                 </View>
               </Row>
-              <Row gap={spacing.sm} style={{ marginTop: spacing.md }} wrap>
-                <Pill
-                  label={`${projects.length} مشروع`}
-                  bg={palette.ivoryDeep}
-                  fg={palette.muted}
-                  small
-                  icon={<UserRound size={12} color={palette.muted} />}
-                />
-                {item.preferences.slice(0, 2).map((p) => (
-                  <Pill key={p} label={p} bg={palette.sand} fg={palette.oliveDark} small />
-                ))}
-              </Row>
+
+              {due > 0 && (
+                <Row gap={6} style={{ marginTop: spacing.md }}>
+                  <View style={styles.dueDot} />
+                  <AppText variant="caption" color={palette.terracotta}>
+                    متبقٍ للتحصيل {money(due)}
+                  </AppText>
+                </Row>
+              )}
             </Card>
           );
         }}
@@ -132,3 +129,15 @@ export default function CustomersScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: palette.sand,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dueDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.terracotta },
+});
