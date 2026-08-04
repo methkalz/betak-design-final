@@ -190,6 +190,36 @@ function SoftGlow({
   );
 }
 
+/**
+ * لوح زجاجي بوصفة العرض الكاملة — لأن الإعتام وحده لا يصنع زجاجًا، بل
+ * يقتله: كل 10% بياض إضافي تحجب 10% من الضوء المموَّه خلفه. صلابة المظهر
+ * تأتي من الطبقات لا من الكثافة:
+ *   تمويه ← ملء خفيف ← بريق علوي متدرّج ← خط ضوء عند الحافة العليا ← حدّ.
+ */
+function GlassChip({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.heroChip}>
+      <BlurView
+        intensity={40}
+        tint="light"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.heroChipFill} />
+      <LinearGradient
+        colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0)']}
+        locations={[0, 0.55, 1]}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View style={styles.heroChipSheen} />
+      {children}
+    </View>
+  );
+}
+
 function Glass({
   children,
   style,
@@ -515,41 +545,25 @@ function AdminDashboard() {
           />
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
-            {/* لوحان بمادة الفوتر نفسها: تمويه 44 + أبيض 0.62 — ولأن السطح
-                صار ساطعًا انقلب محتواه إلى ألوان داكنة كي يبقى مقروءًا */}
-            <View style={styles.heroChip}>
-              <BlurView
-                intensity={44}
-                tint="light"
-                experimentalBlurMethod="dimezisBlurView"
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.heroChipFill} />
+            <GlassChip>
               <View style={[styles.heroChipIcon, { backgroundColor: palette.success }]}>
                 <ArrowUpRight size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.6)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.62)" style={{ fontSize: 12 }}>
                   عروض معتمدة
                 </AppText>
                 <AppText variant="label" color={palette.charcoal}>
                   {db.quotationVersions.filter((v) => v.status === 'approved').length}
                 </AppText>
               </View>
-            </View>
-            <View style={styles.heroChip}>
-              <BlurView
-                intensity={44}
-                tint="light"
-                experimentalBlurMethod="dimezisBlurView"
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.heroChipFill} />
+            </GlassChip>
+            <GlassChip>
               <View style={[styles.heroChipIcon, { backgroundColor: palette.warning }]}>
                 <Clock3 size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.6)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.62)" style={{ fontSize: 12 }}>
                   بانتظار الرد
                 </AppText>
                 <AppText variant="label" color={palette.charcoal}>
@@ -558,7 +572,7 @@ function AdminDashboard() {
                     : '—'}
                 </AppText>
               </View>
-            </View>
+            </GlassChip>
           </Row>
           </View>
         </View>
@@ -878,8 +892,17 @@ const styles = StyleSheet.create({
   },
   heroChipFill: {
     ...StyleSheet.absoluteFillObject,
-    // لوح حليبي أكثف: الألوان تعبر خلفه مطموسة لا صريحة — هذا هو الصقيع
-    backgroundColor: 'rgba(255,255,255,0.66)',
+    // خفيف عمدًا: كل زيادة هنا تحجب الضوء المموَّه — الصلابة من البريق
+    backgroundColor: 'rgba(255,255,255,0.34)',
+  },
+  /** خط ضوء عند الحافة العليا — انكسار الضوء على حرف الزجاج. */
+  heroChipSheen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.75)',
   },
   quickTile: {
     width: '100%',
