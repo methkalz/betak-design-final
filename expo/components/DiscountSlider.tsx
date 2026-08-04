@@ -24,12 +24,72 @@ import { palette, radius, spacing } from '@/constants/theme';
 import { agorotToShekel, money, percent, shekelToAgorot } from '@/lib/format';
 
 const KNOB = 30;
+const TRACK_H = 10;
+const LABEL_H = 26;
+const ROW_H = KNOB + 12;
 
 /** لون الشريط عند نسبة ما: أخضر ← كهرماني ← أحمر بحسب الحدود. */
 export function discountTone(pct: number, employeeLimit: number, adminLimit: number): string {
   if (pct <= employeeLimit) return palette.success;
   if (pct <= adminLimit) return palette.warning;
   return palette.danger;
+}
+
+interface Snap {
+  pct: number;
+  label: string;
+  kind: 'zero' | 'limit' | 'round';
+}
+
+/** خطوة «مريحة» تعطي عددًا معقولًا من النقاط مهما كان حجم العرض. */
+function niceStep(rangeShekel: number): number {
+  for (const t of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]) {
+    if (rangeShekel / t <= 6) return t;
+  }
+  return 10000;
+}
+
+/**
+ * النقاط المغناطيسية: حدود الصلاحية (5% و10%) لأنها تغيّر مسار الموافقة،
+ * ونِسَبٌ تُنزل **الإجمالي النهائي** إلى رقم مستدير (1,300 بدل 1,385) لأن
+ * التفاوض الحقيقي يجري على الرقم المستدير لا على النسبة.
+ */
+function buildSnaps(
+  subtotalAgorot: number,
+  max: number,
+  employeeLimit: number,
+  adminLimit: number,
+): Snap[] {
+  const out: Snap[] = [{ pct: 0, label: 'بلا خصم', kind: 'zero' }];
+
+  for (const [limit, label] of [
+    [employeeLimit, 'حد الموظف'],
+    [adminLimit, 'حد الأدمن'],
+  ] as const) {
+    if (limit > 0 && limit <= max) out.push({ pct: limit, label, kind: 'limit' });
+  }
+
+  if (subtotalAgorot > 0) {
+    const rangeShekel = agorotToShekel((subtotalAgorot * max) / 100);
+    const stepAgorot = shekelToAgorot(niceStep(rangeShekel));
+    const lowest = subtotalAgorot - (subtotalAgorot * max) / 100;
+    let target = Math.floor((subtotalAgorot - 1) / stepAgorot) * stepAgorot;
+    while (target >= lowest && target > 0) {
+      const pct = Math.round(((subtotalAgorot - target) / subtotalAgorot) * 1000) / 10;
+      if (pct > 0 && pct <= max) {
+        out.push({ pct, label: `الإجمالي ${money(target)}`, kind: 'round' });
+      }
+      target -= stepAgorot;
+    }
+  }
+
+  // الحدود تفوز على النقاط المستديرة إن تقاربتا، فمسار الموافقة أهم
+  const seen = new Map<string, Snap>();
+  for (const s of out.sort((a, b) => (a.kind === 'round' ? 1 : -1))) {
+    const key = s.pct.toFixed(1);
+    if (!seen.has(key)) seen.set(key, s);
+  }
+  return [...seen.values()].sort((a, b) => a.pct - b.pct);
 }
 
 export function DiscountSlider({
@@ -65,14 +125,37 @@ export function DiscountSlider({
     setWidth(e.nativeEvent.layout.width);
   }, []);
 
+  const snaps = useMemo(
+    () => buildSnaps(subtotalAgorot, max, employeeLimit, adminLimit),
+    [subtotalAgorot, max, employeeLimit, adminLimit],
+  );
+
+  /** النقطة التي نقف عليها الآن (إن وُجدت) — تُظهر بطاقة الوصف فوق المقبض. */
+  const resting = useMemo(
+    () => snaps.find((s) => Math.abs(s.pct - value) < 0.05) ?? null,
+    [snaps, value],
+  );
+
   /** RTL: الصفر عند اليمين، فالإزاحة تُقاس من اليمين إلى اليسار. */
   const commit = useCallback(
     (px: number) => {
       if (usable <= 0) return;
       const r = Math.min(1, Math.max(0, px / usable));
-      onChange(Math.round(r * max * 10) / 10);
+      const raw = r * max;
+      // جذب مغناطيسي: نافذة الالتقاط 14 بكسل مترجمة إلى نسبة مئوية
+      const window = (14 / usable) * max;
+      let best: Snap | null = null;
+      let bestGap = window;
+      for (const s of snaps) {
+        const gap = Math.abs(s.pct - raw);
+        if (gap <= bestGap) {
+          best = s;
+          bestGap = gap;
+        }
+      }
+      onChange(best ? best.pct : Math.round(raw * 10) / 10);
     },
-    [usable, max, onChange],
+    [usable, max, onChange, snaps],
   );
 
   const pan = useMemo(
@@ -141,6 +224,22 @@ export function DiscountSlider({
         </View>
       </Row>
 
+      {/* بطاقة الوصف فوق النقطة التي نقف عليها */}
+      <View style={{ height: LABEL_H, justifyContent: 'flex-end' }}>
+        {!!resting && usable > 0 && (
+          <View
+            style={[
+              styles.snapLabel,
+              { borderColor: tone, right: Math.max(0, KNOB / 2 + ratio * usable - 60) },
+            ]}
+          >
+            <AppText variant="caption" color={tone} numberOfLines={1} style={{ fontSize: 12 }}>
+              {resting.label}
+            </AppText>
+          </View>
+        )}
+      </View>
+
       {/* الشريط */}
       <GestureDetector gesture={Gesture.Race(pan, tap)}>
         <View style={styles.trackWrap} onLayout={onLayout} collapsable={false}>
@@ -155,6 +254,30 @@ export function DiscountSlider({
             {/* الجزء غير المستخدم يُغطّى فيبقى اللون معبّرًا عن الموضع */}
             <View style={[styles.trackRest, { width: `${(1 - ratio) * 100}%` }]} />
           </View>
+
+          {/* النقاط المغناطيسية فوق الشريط */}
+          {usable > 0 &&
+            snaps.map((s) => {
+              const on = Math.abs(s.pct - value) < 0.05;
+              return (
+                <View
+                  key={`${s.kind}-${s.pct}`}
+                  pointerEvents="none"
+                  style={[
+                    styles.snapDot,
+                    {
+                      right: KNOB / 2 + (s.pct / max) * usable - (on ? 4 : 3),
+                      width: on ? 8 : 6,
+                      height: on ? 8 : 6,
+                      borderRadius: on ? 4 : 3,
+                      backgroundColor:
+                        s.kind === 'limit' ? palette.charcoal : 'rgba(27,31,50,0.35)',
+                    },
+                  ]}
+                />
+              );
+            })}
+
           <Animated.View style={[styles.knob, { borderColor: tone }, knobStyle]} />
         </View>
       </GestureDetector>
@@ -194,16 +317,28 @@ export function DiscountSlider({
 }
 
 const styles = StyleSheet.create({
+  /**
+   * الصفر عند اليمين: row-reverse مع flex-start يضع المقبض على الحافة
+   * اليمنى ثم ينزلق يسارًا. (كان justifyContent: center فيتوسط المقبض
+   * بعيدًا عن الشريط.)
+   */
   trackWrap: {
-    height: KNOB + 8,
-    justifyContent: 'center',
+    height: ROW_H,
     flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
+  /**
+   * موضع صريح لا absoluteFillObject: الأخير يثبّت top وbottom معًا فيتمدد
+   * الشريط على كامل الارتفاع ويُلغى height - وهو سبب ابتعاد المقبض عن الخط.
+   */
   track: {
-    ...StyleSheet.absoluteFillObject,
-    top: (KNOB + 8) / 2 - 5,
-    height: 10,
-    borderRadius: 5,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: (ROW_H - TRACK_H) / 2,
+    height: TRACK_H,
+    borderRadius: TRACK_H / 2,
     overflow: 'hidden',
     backgroundColor: palette.sand,
   },
@@ -213,6 +348,21 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     backgroundColor: palette.sand,
+  },
+  snapDot: {
+    position: 'absolute',
+    top: ROW_H / 2 - 4,
+  },
+  snapLabel: {
+    position: 'absolute',
+    bottom: 0,
+    minWidth: 120,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    backgroundColor: palette.white,
   },
   knob: {
     width: KNOB,
