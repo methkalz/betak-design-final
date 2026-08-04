@@ -191,7 +191,7 @@ export default function QuotationScreen() {
                   {item.description}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر ركض •{' '}
+                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر طولي •{' '}
                   {item.band === 'standard' ? 'حتى 329 سم' : '330–500 سم'}
                 </AppText>
               </View>

@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -15,7 +15,14 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import Animated, { SlideInDown } from 'react-native-reanimated';
+import Animated, {
+  Easing as REasing,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { font, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
 
@@ -529,29 +536,71 @@ export function Skeleton({ height = 96, style }: { height?: number; style?: Styl
   );
 }
 
+/**
+ * شريط تقدّم أنيق: التوصية المعتمدة تقول إن الشريط لا يجب أن يخطف الانتباه،
+ * وأن الحركة تكون خفيفة بمنحنى ناعم لا وميضًا صاخبًا. لذلك:
+ * التعبئة تنزلق بمنحنى out-cubic عند تغيّر القيمة، وبريقٌ شفيف يعبرها
+ * ببطء (وفي الجزء الممتلئ وحده) فيوحي بالحياة بلا ضجيج - ويتوقف تلقائيًا
+ * عند 0% و100% حيث لا شيء «جارٍ» ليُعبَّر عنه.
+ */
 export function ProgressBar({
   value,
   color = palette.olive,
   height = 8,
   track = palette.sand,
+  shimmer = true,
 }: {
   value: number;
   color?: string;
   height?: number;
   track?: string;
+  shimmer?: boolean;
 }) {
   const clamped = Math.max(0, Math.min(1, value));
+  const fill = useSharedValue(0);
+  const sweep = useSharedValue(0);
+
+  useEffect(() => {
+    fill.value = withTiming(clamped, { duration: 900, easing: REasing.out(REasing.cubic) });
+  }, [clamped, fill]);
+
+  const live = shimmer && clamped > 0.02 && clamped < 0.995;
+  useEffect(() => {
+    if (!live) {
+      sweep.value = 0;
+      return;
+    }
+    sweep.value = withRepeat(withTiming(1, { duration: 2200, easing: REasing.inOut(REasing.quad) }), -1, false);
+  }, [live, sweep]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  const sweepStyle = useAnimatedStyle(() => ({ left: `${sweep.value * 130 - 30}%` }));
+
   return (
     <View style={{ height, backgroundColor: track, borderRadius: height / 2, overflow: 'hidden' }}>
-      <View
-        style={{
-          width: `${clamped * 100}%`,
-          height: '100%',
-          backgroundColor: color,
-          borderRadius: height / 2,
-          alignSelf: 'flex-end',
-        }}
-      />
+      <Animated.View
+        style={[
+          {
+            height: '100%',
+            backgroundColor: color,
+            borderRadius: height / 2,
+            alignSelf: 'flex-end',
+            overflow: 'hidden',
+          },
+          fillStyle,
+        ]}
+      >
+        {live && (
+          <Animated.View style={[{ position: 'absolute', top: 0, bottom: 0, width: '28%' }, sweepStyle]}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+        )}
+      </Animated.View>
     </View>
   );
 }

@@ -57,7 +57,7 @@ export default function PricingRulesScreen() {
       <Banner
         tone="info"
         title="التسعير لكل شباك"
-        body="السعر يُحسب لكل متر ركض حسب شريحة الارتفاع ونوع القماش ووجود البطانة، ثم تُجمع البنود في عرض واحد."
+        body="السعر يُحسب لكل متر طولي حسب شريحة الارتفاع ونوع القماش ووجود البطانة، ثم تُجمع البنود في عرض واحد."
       />
       {!!info && <Banner tone="success" title={info} />}
 
@@ -104,14 +104,14 @@ export default function PricingRulesScreen() {
                   {isEditing && (
                     <View style={{ gap: spacing.md, marginTop: spacing.md }}>
                       <Field
-                        label="سعر الزبون لكل متر ركض"
+                        label="سعر الزبون لكل متر طولي"
                         value={price}
                         onChangeText={setPrice}
                         keyboardType="decimal-pad"
                         suffix="₪"
                       />
                       <Field
-                        label="أجرة الخياط لكل متر ركض"
+                        label="أجرة الخياط لكل متر طولي"
                         value={tailor}
                         onChangeText={setTailor}
                         keyboardType="decimal-pad"

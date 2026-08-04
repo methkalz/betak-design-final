@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CalendarPlus, Check } from 'lucide-react-native';
+import { CalendarPlus, Check, UserPlus } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -31,7 +31,9 @@ export default function NewProjectScreen() {
   const { db, createProject } = useStore();
   const router = useRouter();
 
-  const [customerId, setCustomerId] = useState<string>(params.customerId ?? db.customers[0]?.id ?? '');
+  // لا اختيار تلقائي لأول زبون: إسناد المشروع لصاحبه قرارٌ صريح
+  const [customerId, setCustomerId] = useState<string>(params.customerId ?? '');
+  const [search, setSearch] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [priority, setPriority] = useState<Priority>('normal');
   const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(
@@ -48,6 +50,7 @@ export default function NewProjectScreen() {
 
   const submit = () => {
     setError(null);
+    if (!customerId) return setError('اختر الزبون صاحب المشروع أولًا.');
     const res = createProject({
       customerId,
       title,
@@ -61,12 +64,44 @@ export default function NewProjectScreen() {
     router.replace(`/project/${res.data}`);
   };
 
+  /**
+   * المشروع لا يقوم بلا زبون، فاختياره أول خطوة لا حقلٌ في وسط النموذج:
+   * بحث حيّ فوق القائمة، وزر «زبون جديد» ظاهر دائمًا لا مخبوء في شاشة أخرى
+   * (فالنموذج القديم كان يفترض وجود الزبون سلفًا ويختار الأول تلقائيًا).
+   */
+  const shown = useMemo(() => {
+    const q = search.trim();
+    if (!q) return customers;
+    return customers.filter(
+      (c) => c.fullName.includes(q) || c.phone.includes(q) || c.city.includes(q),
+    );
+  }, [customers, search]);
+
   return (
     <ScrollScreen>
       <Card>
-        <AppText variant="heading">الزبون</AppText>
+        <Row justify="space-between" gap={spacing.md}>
+          <AppText variant="heading">الزبون</AppText>
+          <Button
+            label="زبون جديد"
+            variant="secondary"
+            small
+            icon={<UserPlus size={15} color={palette.oliveDark} />}
+            onPress={() => router.push('/customer/new')}
+          />
+        </Row>
+
+        <View style={{ marginTop: spacing.md }}>
+          <Field
+            label="ابحث عن الزبون"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="الاسم أو الهاتف أو البلدة"
+          />
+        </View>
+
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-          {customers.map((c) => (
+          {shown.map((c) => (
             <Pressable
               key={c.id}
               onPress={() => setCustomerId(c.id)}
@@ -83,6 +118,20 @@ export default function NewProjectScreen() {
               </Row>
             </Pressable>
           ))}
+          {shown.length === 0 && (
+            <View style={{ paddingVertical: spacing.lg, gap: spacing.md, alignItems: 'center' }}>
+              <AppText variant="body" color={palette.muted} align="center">
+                {customers.length === 0
+                  ? 'لا زبائن بعد. ابدأ بإضافة الزبون صاحب المشروع.'
+                  : 'لا نتائج مطابقة لبحثك.'}
+              </AppText>
+              <Button
+                label="إضافة زبون جديد"
+                icon={<UserPlus size={16} color={palette.white} />}
+                onPress={() => router.push('/customer/new')}
+              />
+            </View>
+          )}
         </View>
       </Card>
 

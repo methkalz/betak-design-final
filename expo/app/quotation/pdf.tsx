@@ -1,4 +1,4 @@
-﻿import * as Print from 'expo-print';
+import * as Print from 'expo-print';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
@@ -113,7 +113,7 @@ function buildHtml(params: {
     <thead>
       <tr>
         <th>#</th><th>الغرفة والشباك</th><th>الوصف</th><th>القياس</th>
-        <th>متر ركض</th><th>سعر المتر</th><th>الإجمالي</th>
+        <th>متر طولي</th><th>سعر المتر</th><th>الإجمالي</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>

@@ -133,11 +133,12 @@ export default function ProjectStudioScreen() {
             </Row>
           </Pressable>
         </View>
-        <View style={{ marginTop: spacing.lg, gap: 6 }}>
+        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <ProgressBar
             value={statusProgress(project.status)}
             color={palette.sage}
             track="rgba(255,255,255,0.15)"
+            height={12}
           />
           <AppText variant="caption" color={palette.sage}>
             {PROJECT_STATUS_HINTS[project.status]}
@@ -463,7 +464,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
               <View style={{ flex: 1 }}>
                 <AppText variant="heading">{room.name}</AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {windows.length} شباك • {meters(round3(totalRunning))} متر ركض
+                  {windows.length} شباك • {meters(round3(totalRunning))} متر طولي
                 </AppText>
               </View>
               {editable && (
@@ -608,7 +609,7 @@ function QuoteTab({ projectId }: { projectId: string }) {
                 {item.description}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
-                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر ركض
+                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر طولي
               </AppText>
             </View>
             <View style={{ alignItems: 'flex-start' }}>

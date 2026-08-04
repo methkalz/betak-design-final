@@ -297,17 +297,17 @@ export function priceWindow(input: PriceInput): WindowPricing {
   });
   costLines.push({
     label: 'المسار',
-    detail: 'لكل متر ركض',
+    detail: 'لكل متر طولي',
     amountAgorot: settings.trackCostPerMeterAgorot,
   });
   costLines.push({
     label: 'التوصيل',
-    detail: 'لكل متر ركض',
+    detail: 'لكل متر طولي',
     amountAgorot: settings.deliveryCostPerMeterAgorot,
   });
   costLines.push({
     label: 'القياس والتركيب',
-    detail: 'لكل متر ركض',
+    detail: 'لكل متر طولي',
     amountAgorot: settings.measureInstallCostPerMeterAgorot,
   });
 

@@ -57,7 +57,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
-        <SectionHeader title="تكاليف ثابتة لكل متر ركض" subtitle="تُستخدم في حساب التكلفة الداخلية" />
+        <SectionHeader title="تكاليف ثابتة لكل متر طولي" subtitle="تُستخدم في حساب التكلفة الداخلية" />
         {role === 'admin' ? (
           <>
             <CostRow label="المسار" value={money(db.settings.trackCostPerMeterAgorot)} />
