@@ -391,8 +391,8 @@ function AdminDashboard() {
       {/* هالات الخلفية: تدرّج شعاعيّ أملس يذوب في الورق بلا حافة.
           الذروة عالية عمدًا لأن الانحدار يلتهم معظمها بسرعة — القيمة
           المرئية على المساحة هي نحو ثلث الذروة. */}
-      <SoftGlow id="glowViolet" color="#8B5CF6" peak={0.4} size={600} style={{ top: -200, right: -170 }} />
-      <SoftGlow id="glowSky" color="#38BDF8" peak={0.3} size={520} style={{ top: 300, left: -190 }} />
+      <SoftGlow id="glowSkyTop" color="#38BDF8" peak={0.3} size={600} style={{ top: -200, right: -170 }} />
+      <SoftGlow id="glowSky" color="#38BDF8" peak={0.22} size={520} style={{ top: 300, left: -190 }} />
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
