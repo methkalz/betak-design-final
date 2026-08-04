@@ -3,6 +3,7 @@ import { UserPlus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 
+import { TownField } from '@/components/TownField';
 import { AppText, Banner, Button, Card, Field, ScrollScreen } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import { useStore } from '@/providers/store';
@@ -43,7 +44,7 @@ export default function NewCustomerScreen() {
             placeholder="052-6444414"
             keyboardType="phone-pad"
           />
-          <Field label="البلدة" value={city} onChangeText={setCity} placeholder="كفرمندا" />
+          <TownField value={city} onChangeText={setCity} />
           <Field label="العنوان" value={address} onChangeText={setAddress} placeholder="الحي، رقم البناية" />
           <Field label="ملاحظات" value={notes} onChangeText={setNotes} multiline placeholder="تفضيلات الزبون، أوقات التواصل..." />
         </View>
