@@ -456,7 +456,14 @@ function AdminDashboard() {
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
             <View style={styles.heroChip}>
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <BlurView
+                intensity={26}
+                tint="light"
+                experimentalBlurMethod="dimezisBlurView"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.heroChipFill} />
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
                 <ArrowUpRight size={14} color={heroMint} />
               </View>
               <View>
@@ -469,7 +476,14 @@ function AdminDashboard() {
               </View>
             </View>
             <View style={styles.heroChip}>
-              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <BlurView
+                intensity={26}
+                tint="light"
+                experimentalBlurMethod="dimezisBlurView"
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.heroChipFill} />
+              <View style={[styles.heroChipIcon, { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
                 <Clock3 size={14} color={heroAmber} />
               </View>
               <View>
@@ -794,17 +808,22 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(40,32,110,0.30)',
   },
+  /** زجاج حقيقي: تمويه داخلي + طبقة بيضاء + حدّ مضيء (glassmorphism). */
   heroChip: {
     flex: 1,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: spacing.sm,
-    backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    borderColor: 'rgba(255,255,255,0.45)',
+    overflow: 'hidden',
+  },
+  heroChipFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.30)',
   },
   quickTile: {
     width: '100%',
