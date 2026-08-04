@@ -393,33 +393,33 @@ function AdminDashboard() {
             style={StyleSheet.absoluteFill}
           />
           <AuroraBloom
-            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(255,255,255,0.32)' }]}
+            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(255,255,255,0.46)' }]}
             duration={9000}
-            dx={80}
-            dy={44}
-            grow={0.26}
+            dx={95}
+            dy={52}
+            grow={0.3}
           />
           <AuroraBloom
-            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(249,112,102,0.30)' }]}
+            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(249,112,102,0.46)' }]}
             duration={12500}
-            dx={-70}
-            dy={-50}
-            grow={0.3}
+            dx={-84}
+            dy={-58}
+            grow={0.34}
             delay={900}
           />
           <AuroraBloom
             style={[
               styles.heroBloom,
-              { top: 10, right: -60, width: 190, height: 190, borderRadius: 95, backgroundColor: 'rgba(125,231,199,0.22)' },
+              { top: 10, right: -60, width: 190, height: 190, borderRadius: 95, backgroundColor: 'rgba(125,231,199,0.36)' },
             ]}
             duration={15000}
-            dx={-58}
-            dy={70}
-            grow={0.22}
+            dx={-70}
+            dy={80}
+            grow={0.26}
             delay={2000}
           />
           <BlurView
-            intensity={38}
+            intensity={32}
             tint="light"
             experimentalBlurMethod="dimezisBlurView"
             style={StyleSheet.absoluteFill}
@@ -776,7 +776,7 @@ const styles = StyleSheet.create({
   },
   heroScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(40,32,110,0.30)',
+    backgroundColor: 'rgba(40,32,110,0.24)',
   },
   heroChip: {
     flex: 1,
