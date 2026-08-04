@@ -63,14 +63,15 @@ export function ProjectRow({ projectId }: { projectId: string }) {
         <Pill label={PROJECT_STATUS_LABELS[project.status]} bg={c.bg} fg={c.fg} />
       </Row>
 
-      <AppText
-        variant="caption"
-        color={palette.muted}
-        numberOfLines={1}
-        style={{ marginTop: 2 }}
-      >
-        {project.code} • {project.title}
+      {/* الكود سطر مستقل (قرار مالك): معرّف المشروع لا يُدمج مع عنوانه */}
+      <AppText variant="caption" color={palette.olive} style={{ marginTop: 4 }}>
+        {project.code}
       </AppText>
+      {!!project.title && (
+        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ marginTop: 1 }}>
+          {project.title}
+        </AppText>
+      )}
 
       {/* كتلة القياس — بمسافة تنفّس واضحة عن الهوية، وشريط رفيع لا يثقل */}
       <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>

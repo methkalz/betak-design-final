@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+﻿import { useRouter } from 'expo-router';
 import { UserPlus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { View } from 'react-native';
@@ -43,7 +43,7 @@ export default function NewCustomerScreen() {
             placeholder="052-6444414"
             keyboardType="phone-pad"
           />
-          <Field label="البلدة" value={city} onChangeText={setCity} placeholder="كفر قاسم" />
+          <Field label="البلدة" value={city} onChangeText={setCity} placeholder="كفرمندا" />
           <Field label="العنوان" value={address} onChangeText={setAddress} placeholder="الحي، رقم البناية" />
           <Field label="ملاحظات" value={notes} onChangeText={setNotes} multiline placeholder="تفضيلات الزبون، أوقات التواصل..." />
         </View>

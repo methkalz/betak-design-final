@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+﻿import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CalendarPlus, Check } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
@@ -93,7 +93,7 @@ export default function NewProjectScreen() {
             label="عنوان المشروع"
             value={title}
             onChangeText={setTitle}
-            placeholder="مثال: بيت مثقال — كفر قاسم"
+            placeholder="مثال: بيت مثقال — كفرمندا"
           />
           <View style={{ gap: 6 }}>
             <AppText variant="label" color={palette.muted}>

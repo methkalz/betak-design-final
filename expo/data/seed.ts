@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Realistic demo dataset for Baytak Design.
  * Every record is cross-linked: measurements feed the quotation, the approved
  * quotation feeds the reservations, reservations feed the tailor, and the
@@ -74,7 +74,7 @@ const organization: Organization = {
   id: ORG,
   name: 'بيتك ديزاين',
   phone: '054-9068709',
-  address: 'كفر قاسم — شارع الوحدة 12',
+  address: 'كفرمندا — شارع الشيخ حامد',
   vatPercent: 18,
 };
 
@@ -131,7 +131,7 @@ const customers: Customer[] = [
     organizationId: ORG,
     fullName: 'مثقال زيدان',
     phone: '052-6444414',
-    city: 'كفر قاسم',
+    city: 'كفرمندا',
     address: 'حي الزيتون — بناية 7، طابق 2',
     notes: 'يفضّل الألوان الدافئة، ولا يحب المسارات الظاهرة.',
     preferences: ['ألوان دافئة', 'كريب مع بطانة', 'مسار سقف مخفي'],
@@ -155,7 +155,7 @@ const customers: Customer[] = [
     organizationId: ORG,
     fullName: 'نادر مصاروة',
     phone: '050-7742210',
-    city: 'كفر قاسم',
+    city: 'كفرمندا',
     address: 'حي الشمالي — فيلا 3',
     notes: 'طلب مخمل للصالون، حسّاس للسعر.',
     preferences: ['مخمل', 'ستائر ثقيلة'],
@@ -447,7 +447,7 @@ const projects: Project[] = [
     organizationId: ORG,
     customerId: 'cus-methkal',
     code: 'BD-1041',
-    title: 'بيت مثقال — كفر قاسم',
+    title: 'بيت مثقال — كفرمندا',
     status: 'with_tailor',
     priority: 'high',
     fieldWorkerId: 'usr-saher',
@@ -1294,7 +1294,7 @@ const notifications: AppNotification[] = [
     userId: 'usr-saher',
     kind: 'appointment_tomorrow',
     title: 'تذكير: تركيب بيت مثقال',
-    body: 'بعد 4 أيام — 9:00 صباحًا، كفر قاسم.',
+    body: 'بعد 4 أيام — 9:00 صباحًا، كفرمندا.',
     deepLink: '/visit/fv-1041-i',
     readAt: at(-1, 21),
     createdAt: at(-1, 20, 5),
