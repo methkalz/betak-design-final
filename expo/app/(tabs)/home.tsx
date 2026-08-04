@@ -97,11 +97,16 @@ function QuickActions() {
 }
 
 /**
- * ضوء شفقي ينجرف ببطء تحت زجاج البطاقة. تحريك transform حصرًا فيعمل على
- * الخيط الرسومي (60 إطارًا) بلا أي كلفة على الواجهة؛ الـblur فوقه يذيب
- * الحواف فيبدو كأن التدرّج نفسه يتنفّس ويتموّج.
+ * ضوء شفقي ينجرف ببطء داخل البطاقة. صار تدرّجًا شعاعيًا (SoftGlow) لا قرصًا
+ * مصمتًا، فلم يعد يحتاج طبقة تمويه فوقه لإذابة حوافه — ولذلك أمكن إبقاء
+ * الشفق حادًا وملوّنًا خلف الشريحتين الزجاجيتين، فيصير لتمويههما ما يطمسه
+ * ويظهر أثر الزجاج فعلًا. التحريك transform حصرًا: 60 إطارًا بلا كلفة.
  */
 function AuroraBloom({
+  id,
+  color,
+  size,
+  peak,
   style,
   duration,
   dx,
@@ -109,6 +114,10 @@ function AuroraBloom({
   grow = 0.2,
   delay = 0,
 }: {
+  id: string;
+  color: string;
+  size: number;
+  peak: number;
   style: StyleProp<ViewStyle>;
   duration: number;
   dx: number;
@@ -130,7 +139,14 @@ function AuroraBloom({
       { scale: 1 + p.value * grow },
     ],
   }));
-  return <Animated.View pointerEvents="none" style={[style, drift]} />;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{ position: 'absolute', width: size, height: size }, style, drift]}
+    >
+      <SoftGlow id={id} color={color} size={size} peak={peak} style={{ top: 0, left: 0 }} />
+    </Animated.View>
+  );
 }
 
 /**
@@ -433,19 +449,25 @@ function AdminDashboard() {
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
-          {/* أضواء مشبعة اللون لا بيضاء: الأبيض يرفع السطوع ويُزيل التشبّع
-              فيشحب التدرّج — أما الألوان المغايرة للقاعدة البنفسجية (سماوي،
-              وردي، ذهبي) فتُحدث تحوّلًا لونيًّا واضحًا تحت تمويه عالٍ يُبقي
-              الحواف ذائبة. */}
+          {/* أضواء شعاعية مشبعة — حادة عمدًا (بلا تمويه فوقها) كي تمنح
+              زجاج الشريحتين ما يطمسه */}
           <AuroraBloom
-            style={[styles.heroBloom, { top: -100, left: -70, backgroundColor: 'rgba(56,189,248,0.55)' }]}
+            id="hb1"
+            color="#38BDF8"
+            peak={0.85}
+            size={300}
+            style={{ top: -120, left: -90 }}
             duration={9000}
             dx={95}
             dy={52}
             grow={0.3}
           />
           <AuroraBloom
-            style={[styles.heroBloom, { bottom: -120, right: -80, backgroundColor: 'rgba(251,113,133,0.52)' }]}
+            id="hb2"
+            color="#FB7185"
+            peak={0.8}
+            size={300}
+            style={{ bottom: -130, right: -100 }}
             duration={12500}
             dx={-84}
             dy={-58}
@@ -453,35 +475,31 @@ function AdminDashboard() {
             delay={900}
           />
           <AuroraBloom
-            style={[
-              styles.heroBloom,
-              { top: 0, right: -70, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(253,205,105,0.34)' },
-            ]}
+            id="hb3"
+            color="#FDCD69"
+            peak={0.55}
+            size={260}
+            style={{ top: -20, right: -90 }}
             duration={15000}
             dx={-70}
             dy={80}
             grow={0.26}
             delay={2000}
           />
-          {/* بريق زجاجي خافت يعبر ببطء — يمنح السطح لمعة المادة */}
+          {/* بريق يعبر ببطء — لمعة المادة */}
           <AuroraBloom
-            style={[
-              styles.heroBloom,
-              { top: -70, right: 40, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.20)' },
-            ]}
+            id="hb4"
+            color="#FFFFFF"
+            peak={0.4}
+            size={230}
+            style={{ top: -90, right: 30 }}
             duration={18000}
             dx={-120}
             dy={40}
             grow={0.18}
             delay={3200}
           />
-          <BlurView
-            intensity={42}
-            tint="light"
-            experimentalBlurMethod="dimezisBlurView"
-            style={StyleSheet.absoluteFill}
-          />
-          {/* ستارة خفيفة تعيد العمق وتضمن وضوح النص فوق الزجاج */}
+          {/* ستارة خفيفة تعيد العمق وتضمن وضوح النص */}
           <View style={styles.heroScrim} />
           <View style={styles.heroContent}>
           <AppText variant="caption" color="rgba(255,255,255,0.78)">
@@ -840,16 +858,9 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: 2,
   },
-  /** أضواء واسعة تحت الزجاج — الحواف تذوب فلا تومض مع الحركة. */
-  heroBloom: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-  },
   heroScrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(40,32,110,0.30)',
+    backgroundColor: 'rgba(40,32,110,0.22)',
   },
   /** زجاج حقيقي: تمويه داخلي + طبقة بيضاء + حدّ مضيء (glassmorphism). */
   heroChip: {
@@ -866,7 +877,8 @@ const styles = StyleSheet.create({
   },
   heroChipFill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
+    // أقل كثافة الآن: التمويه صار له ما يطمسه فيحمل جزءًا من مظهر المادة
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
   quickTile: {
     width: '100%',
