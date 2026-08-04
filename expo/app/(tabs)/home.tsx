@@ -584,10 +584,10 @@ function AdminDashboard() {
                 <ArrowUpRight size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.62)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.66)" style={{ fontSize: 13.5 }}>
                   عروض معتمدة
                 </AppText>
-                <AppText variant="label" color={palette.charcoal}>
+                <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
                   {db.quotationVersions.filter((v) => v.status === 'approved').length}
                 </AppText>
               </View>
@@ -597,10 +597,10 @@ function AdminDashboard() {
                 <Clock3 size={14} color={palette.white} />
               </View>
               <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.62)" style={{ fontSize: 12 }}>
+                <AppText variant="caption" color="rgba(27,31,50,0.66)" style={{ fontSize: 13.5 }}>
                   بانتظار الرد
                 </AppText>
-                <AppText variant="label" color={palette.charcoal}>
+                <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
                   {stats.awaiting.length > 0
                     ? `${stats.awaiting.length} • ${money(stats.awaitingValue, { compact: true })}`
                     : '—'}
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.85)',
     overflow: 'hidden',
@@ -947,9 +947,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   heroChipIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
