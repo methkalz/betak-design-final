@@ -19,12 +19,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppHeader } from '@/components/AppHeader';
 import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
+import { CountUpText, Enter, MiniBars, RingStat, StackedBar } from '@/components/dashviz';
 import {
   AppText,
   Button,
   Card,
   Divider,
-  ProgressBar,
   Row,
   SectionHeader,
   Skeleton,
@@ -148,7 +148,44 @@ function AdminDashboard() {
         0,
       );
 
-    return { approvedMonth, awaiting, awaitingValue, activeCount: active.length, reservedM };
+    // متوسط هامش المعتمد هذا الشهر (وإلا كل المعتمد) — للأدمن والمبيعات فقط
+    const approvedAll = db.quotationVersions.filter((v) => v.status === 'approved');
+    const approvedThisMonth = approvedAll.filter(
+      (v) => v.approvedAt && new Date(v.approvedAt) >= monthStart,
+    );
+    const marginPool = approvedThisMonth.length > 0 ? approvedThisMonth : approvedAll;
+    const marginAvg =
+      marginPool.length > 0
+        ? marginPool.reduce((s, v) => s + v.marginPercent, 0) / marginPool.length
+        : 0;
+
+    // اعتمادات آخر 6 أشهر — أعمدة اتجاه مصغّرة (تسميات لاتينية لرقم الشهر)
+    const sixMonths: { label: string; value: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(1);
+      d.setMonth(d.getMonth() - i);
+      const next = new Date(d);
+      next.setMonth(next.getMonth() + 1);
+      const sum = approvedAll
+        .filter((v) => {
+          if (!v.approvedAt) return false;
+          const t = new Date(v.approvedAt);
+          return t >= d && t < next;
+        })
+        .reduce((s, v) => s + v.totalAgorot, 0);
+      sixMonths.push({ label: `${d.getMonth() + 1}`, value: sum });
+    }
+
+    return {
+      approvedMonth,
+      awaiting,
+      awaitingValue,
+      activeCount: active.length,
+      reservedM,
+      marginAvg,
+      sixMonths,
+    };
   }, [db.quotationVersions, db.projects, db.reservations]);
 
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending');
@@ -251,6 +288,7 @@ function AdminDashboard() {
         </Row>
 
         {/* بطاقة المحفظة الداكنة — رقم واحد كبير يفتتح اليوم */}
+        <Enter delay={60}>
         <Pressable onPress={() => router.push('/projects')} style={styles.hero}>
           <View style={[styles.heroDot, { backgroundColor: palette.terracotta, top: 18, left: 22 }]} />
           <View
@@ -259,9 +297,12 @@ function AdminDashboard() {
           <AppText variant="caption" color="rgba(255,255,255,0.55)">
             اعتمادات هذا الشهر
           </AppText>
-          <AppText variant="numberLarge" color={palette.white} style={{ fontSize: 38, lineHeight: 52 }}>
-            {money(stats.approvedMonth, { compact: true })}
-          </AppText>
+          <CountUpText
+            value={stats.approvedMonth}
+            format={(v) => money(v, { compact: true })}
+            color={palette.white}
+            style={{ fontSize: 38, lineHeight: 52 }}
+          />
 
           <Row gap={spacing.md} style={{ marginTop: spacing.lg }}>
             <View style={styles.heroChip}>
@@ -294,8 +335,10 @@ function AdminDashboard() {
             </View>
           </Row>
         </Pressable>
+        </Enter>
 
         {/* بلاطات زجاجية — اللون في دائرة الأيقونة فقط */}
+        <Enter delay={140}>
         <Row gap={spacing.md}>
           <GlassTile
             color={palette.olive}
@@ -323,9 +366,29 @@ function AdminDashboard() {
             label="رولات تحت الحد"
           />
         </Row>
+        </Enter>
+
+        {/* كسر الروتين: حلقة الهامش + اتجاه 6 أشهر */}
+        <Enter delay={220}>
+          <Row gap={spacing.md} align="stretch">
+            <Glass style={{ flex: 1 }} inner={{ padding: spacing.md, alignItems: 'center', justifyContent: 'center' }}>
+              <RingStat
+                percent={stats.marginAvg}
+                color={stats.marginAvg >= db.settings.minMarginPercent ? palette.olive : palette.danger}
+                label="متوسط هامش المعتمد"
+              />
+            </Glass>
+            <Glass style={{ flex: 1.5 }} inner={{ padding: spacing.md, justifyContent: 'flex-end', gap: spacing.sm }}>
+              <AppText variant="caption" color={palette.muted}>
+                اعتمادات آخر 6 أشهر
+              </AppText>
+              <MiniBars data={stats.sixMonths} />
+            </Glass>
+          </Row>
+        </Enter>
 
         {attention.length > 0 && (
-          <View>
+          <Enter delay={300}>
             <SectionHeader title="يحتاج انتباهك" />
             <Glass inner={{ padding: 0 }}>
               {attention.map((a, i) => (
@@ -346,17 +409,17 @@ function AdminDashboard() {
                 </View>
               ))}
             </Glass>
-          </View>
+          </Enter>
         )}
 
-        <View>
+        <Enter delay={380}>
           <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
           <Glass>
             <PipelineChart />
           </Glass>
-        </View>
+        </Enter>
 
-        <View>
+        <Enter delay={460}>
           <SectionHeader
             title="مشاريع تحتاج متابعة"
             action={
@@ -375,7 +438,7 @@ function AdminDashboard() {
               <ProjectRow key={p.id} projectId={p.id} />
             ))}
           </View>
-        </View>
+        </Enter>
       </View>
     </ScrollView>
     </View>
@@ -404,19 +467,9 @@ function PipelineChart() {
   }, [db.projects]);
 
   return (
-    <View style={{ gap: spacing.md }}>
-      {groups.map((g) => (
-        <View key={g.label} style={{ gap: 6 }}>
-          <Row justify="space-between">
-            <AppText variant="label">{g.label}</AppText>
-            <AppText variant="label" color={palette.muted}>
-              {g.count}
-            </AppText>
-          </Row>
-          <ProgressBar value={g.ratio} color={g.color} height={6} />
-        </View>
-      ))}
-    </View>
+    <StackedBar
+      segments={groups.map((g) => ({ label: g.label, count: g.count, color: g.color }))}
+    />
   );
 }
 
