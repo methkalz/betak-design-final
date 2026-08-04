@@ -360,14 +360,7 @@ function AdminDashboard() {
         <Row justify="space-between">
           <Row gap={spacing.md}>
             <View style={styles.avatar}>
-              <BlurView
-                intensity={34}
-                tint="light"
-                experimentalBlurMethod="dimezisBlurView"
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.avatarFill} />
-              <AppText variant="label" color={palette.olive}>
+              <AppText variant="label" color={palette.oliveDark}>
                 {initials(currentUser?.fullName ?? '')}
               </AppText>
             </View>
@@ -379,13 +372,6 @@ function AdminDashboard() {
             </View>
           </Row>
           <Pressable onPress={() => router.push('/notifications')} style={styles.bellBtn}>
-            <BlurView
-              intensity={34}
-              tint="light"
-              experimentalBlurMethod="dimezisBlurView"
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.bellFill} />
             <Bell size={19} color={palette.charcoal} />
           </Pressable>
         </Row>
@@ -781,36 +767,25 @@ function TailorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  /** قرص زجاجي: تمويه + مسحة نيلية شفيفة + حدّ أبيض رفيع بلا سماكة بارزة. */
   avatar: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: palette.sand,
+    borderWidth: 1.5,
+    borderColor: palette.sandDeep,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.card,
-  },
-  avatarFill: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(79,70,229,0.10)',
   },
   bellBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    overflow: 'hidden',
+    backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderColor: palette.line,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.card,
-  },
-  bellFill: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.62)',
   },
   hero: {
     borderRadius: radius.xl,
