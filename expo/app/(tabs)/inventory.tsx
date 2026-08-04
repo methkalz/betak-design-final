@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, Layers, Package, Scissors } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
@@ -51,11 +52,26 @@ export default function InventoryScreen() {
             </AppText>
           )}
         </Row>
-        {/* الأرقام الثلاثة التي تُدار بها الورشة، بلا زخرفة حولها */}
+        {/* الأرقام الثلاثة التي تُدار بها الورشة - لكلٍّ لون حالته */}
         <Row gap={spacing.md}>
-          <TotalTile label="متاح للحجز" value={meters(totals.available)} tone={palette.success} />
-          <TotalTile label="محجوز لمشاريع" value={meters(totals.reserved)} tone={palette.warning} />
-          <TotalTile label="مستهلك" value={meters(totals.consumed)} tone={palette.muted} />
+          <TotalTile
+            label="متاح للحجز"
+            value={totals.available}
+            tone={palette.success}
+            tint={['rgba(16,185,129,0.16)', 'rgba(16,185,129,0.04)']}
+          />
+          <TotalTile
+            label="محجوز لمشاريع"
+            value={totals.reserved}
+            tone={palette.warning}
+            tint={['rgba(245,158,11,0.16)', 'rgba(245,158,11,0.04)']}
+          />
+          <TotalTile
+            label="مستهلك"
+            value={totals.consumed}
+            tone={palette.muted}
+            tint={['rgba(120,126,155,0.14)', 'rgba(120,126,155,0.03)']}
+          />
         </Row>
         <SegmentedControl
           value={tab}
@@ -88,18 +104,20 @@ export default function InventoryScreen() {
                 <Row justify="space-between" align="center" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
+                    {/* اسم القماش هو ما يبحث عنه الخيّاط، والكود معرّف
+                        يُقرأ بعده - فالاسم فوق وبالخط العريض */}
                     <View style={{ flex: 1 }}>
+                      <AppText variant="heading" numberOfLines={1}>
+                        {item.product?.name} {item.variant?.colorName}
+                      </AppText>
                       <Row gap={spacing.sm}>
-                        <AppText variant="heading" numberOfLines={1}>
+                        <AppText variant="caption" color={palette.muted} numberOfLines={1}>
                           {item.roll.code}
                         </AppText>
                         {item.roll.isMiniRoll && (
                           <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
                         )}
                       </Row>
-                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                        {item.product?.name} • {item.variant?.colorName}
-                      </AppText>
                     </View>
                   </Row>
 
@@ -212,19 +230,44 @@ export default function InventoryScreen() {
   );
 }
 
-/** بلاطة إجمالي علوية: رقم كبير ونقطة لون تربطه بشريط البطاقات. */
-function TotalTile({ label, value, tone }: { label: string; value: string; tone: string }) {
+/**
+ * بلاطة إجمالي: تدرّج زجاجي خفيف بلون الحالة نفسها التي تُلوّن مقاطع شريط
+ * البطاقات - فالربط بين الملخص والتفصيل يصير لونيًا لا ذهنيًا. و«متر»
+ * لاحقةٌ صغيرة كي يبقى الرقم هو ما تلتقطه العين.
+ */
+function TotalTile({
+  label,
+  value,
+  tone,
+  tint,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  tint: [string, string];
+}) {
   return (
-    <View style={styles.totalTile}>
+    <View style={[styles.totalTile, { borderColor: tint[0] }]}>
+      <LinearGradient
+        colors={tint}
+        start={{ x: 0.2, y: 0 }}
+        end={{ x: 0.8, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <Row gap={5}>
         <View style={[styles.dot, { backgroundColor: tone }]} />
         <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12 }}>
           {label}
         </AppText>
       </Row>
-      <AppText variant="number" numberOfLines={1}>
-        {value}
-      </AppText>
+      <Row gap={3} align="baseline">
+        <AppText variant="number" numberOfLines={1}>
+          {meters(value, false)}
+        </AppText>
+        <AppText variant="caption" color={palette.muted} style={{ fontSize: 11 }}>
+          متر
+        </AppText>
+      </Row>
     </View>
   );
 }
@@ -235,9 +278,9 @@ const styles = StyleSheet.create({
     gap: 2,
     backgroundColor: palette.white,
     borderWidth: 1,
-    borderColor: palette.line,
     borderRadius: radius.lg,
     padding: spacing.md,
+    overflow: 'hidden',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   bar: {
