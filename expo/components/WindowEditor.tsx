@@ -20,6 +20,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { CURTAIN_MODEL_LABELS, TRACK_LABELS } from '@/domain/labels';
 import { priceWindow, resolveBand } from '@/domain/pricing';
+import { meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
 
@@ -289,18 +290,18 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               </AppText>
             </Row>
             <AppText variant="numberLarge" color={palette.ivory}>
-              ₪{(preview.lineTotalAgorot / 100).toLocaleString('en-US')}
+              {money(preview.lineTotalAgorot)}
             </AppText>
           </Row>
           <View style={{ marginTop: spacing.md, gap: 6 }}>
-            <PreviewRow label="متر ركض" value={`${preview.runningMeters} م`} />
-            <PreviewRow label="قماش مطلوب" value={`${preview.fabricMeters} م`} />
-            {hasLining && <PreviewRow label="بطانة مطلوبة" value={`${preview.liningMeters} م`} />}
-            <PreviewRow label="سعر المتر" value={`₪${preview.unitPriceAgorot / 100}`} />
+            <PreviewRow label="متر ركض" value={meters(preview.runningMeters)} />
+            <PreviewRow label="قماش مطلوب" value={meters(preview.fabricMeters)} />
+            {hasLining && <PreviewRow label="بطانة مطلوبة" value={meters(preview.liningMeters)} />}
+            <PreviewRow label="سعر المتر" value={money(preview.unitPriceAgorot)} />
             {showCost && (
               <>
-                <PreviewRow label="التكلفة الداخلية" value={`₪${preview.internalCostAgorot / 100}`} />
-                <PreviewRow label="هامش الربح" value={`${preview.marginPercent}%`} highlight />
+                <PreviewRow label="التكلفة الداخلية" value={money(preview.internalCostAgorot)} />
+                <PreviewRow label="نسبة الربح" value={percent(preview.marginPercent)} highlight />
               </>
             )}
           </View>

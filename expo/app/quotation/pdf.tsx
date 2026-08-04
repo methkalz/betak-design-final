@@ -1,4 +1,4 @@
-import * as Print from 'expo-print';
+﻿import * as Print from 'expo-print';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
@@ -45,8 +45,8 @@ function buildHtml(params: {
         <td>${i.description}</td>
         <td>${i.widthCm} × ${i.heightCm} سم</td>
         <td>${i.runningMeters} م</td>
-        <td>₪${(i.unitPriceAgorot / 100).toLocaleString('en-US')}</td>
-        <td class="strong">₪${(i.lineTotalAgorot / 100).toLocaleString('en-US')}</td>
+        <td>${money(i.unitPriceAgorot)}</td>
+        <td class="strong">${money(i.lineTotalAgorot)}</td>
       </tr>`,
     )
     .join('');
@@ -120,10 +120,10 @@ function buildHtml(params: {
   </table>
 
   <div class="totals">
-    <div><span>المجموع</span><span>₪${(version.subtotalAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div><span>الخصم (${version.discountPercent}%)</span><span>- ₪${(version.discountAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div><span>ض.ق.م ${vatPercent}%</span><span>₪${(version.vatAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div class="grand"><span>الإجمالي</span><span>₪${(version.totalAgorot / 100).toLocaleString('en-US')}</span></div>
+    <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
+    <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
+    <div><span>ض.ق.م ${vatPercent}%</span><span>${money(version.vatAgorot)}</span></div>
+    <div class="grand"><span>الإجمالي</span><span>${money(version.totalAgorot)}</span></div>
   </div>
 
   <div class="foot">
@@ -206,7 +206,7 @@ export default function QuotationPdfScreen() {
     const intl = digits.startsWith('0') ? `972${digits.slice(1)}` : digits;
     const text = encodeURIComponent(
       `مرحبًا ${customer?.fullName ?? ''}، هذا عرض السعر ${quotation.number} من ${db.organization.name}.\n` +
-        `الإجمالي: ₪${(version.totalAgorot / 100).toLocaleString('en-US')}\n` +
+        `الإجمالي: ${money(version.totalAgorot)}\n` +
         `صالح حتى ${formatDate(version.validUntil)}.`,
     );
     Linking.openURL(`https://wa.me/${intl}?text=${text}`).catch(() =>

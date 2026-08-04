@@ -4,6 +4,19 @@
 
 const AR = 'ar-EG';
 
+/**
+ * عزل اتجاهي (U+2066 … U+2069): رقمٌ ورمزُه وحدةٌ واحدة لا تعيد خوارزمية
+ * الاتجاه ترتيبها مهما سبقها أو تلاها من نص عربي.
+ *
+ * بدونه يتنقّل رمز ₪ بين يمين الرقم ويساره حسب الحرف المجاور — لأن الرموز
+ * والأرقام «محايدة» في خوارزمية Unicode ثنائية الاتجاه فترث اتجاه جارها.
+ * محرفا العزل بلا عرض ولا يظهران للمستخدم.
+ */
+const isolate = (s: string): string => `⁦${s}⁩`;
+
+/** مسافة غير فاصلة: لا ينكسر المبلغ عن رمزه في آخر السطر. */
+const NB = ' ';
+
 export function agorotToShekel(agorot: number): number {
   return agorot / 100;
 }
@@ -12,33 +25,39 @@ export function shekelToAgorot(shekel: number): number {
   return Math.round(shekel * 100);
 }
 
-/** `₪1,240` — no decimals when the amount is whole, otherwise two. */
+/**
+ * `1,240 ₪` — الرمز بعد المبلغ (ترتيب القراءة العربي: ألف ومئتان شيكل)،
+ * ومعزول اتجاهيًا فيظهر بالشكل ذاته في كل موضع من التطبيق.
+ * بلا كسور إن كان المبلغ صحيحًا، وإلا خانتان.
+ */
 export function money(agorot: number, opts?: { compact?: boolean }): string {
   const value = agorotToShekel(agorot);
   if (opts?.compact && Math.abs(value) >= 1000) {
-    return `₪${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`;
+    const k = (value / 1000).toFixed(value % 1000 === 0 ? 0 : 1);
+    return isolate(`${k}k${NB}₪`);
   }
   const hasFraction = Math.abs(value % 1) > 0.001;
-  return `₪${value.toLocaleString('en-US', {
+  const text = value.toLocaleString('en-US', {
     minimumFractionDigits: hasFraction ? 2 : 0,
     maximumFractionDigits: 2,
-  })}`;
+  });
+  return isolate(`${text}${NB}₪`);
 }
 
 /** Meters with up to 3 decimals, trimmed. قرار مالك: «متر» كاملة لا «م». */
 export function meters(value: number, unit = true): string {
   const rounded = Math.round(value * 1000) / 1000;
-  const text = rounded.toLocaleString('en-US', { maximumFractionDigits: 3 });
+  const text = isolate(rounded.toLocaleString('en-US', { maximumFractionDigits: 3 }));
   return unit ? `${text} متر` : text;
 }
 
 export function cm(value: number): string {
-  return `${Math.round(value * 100) / 100} سم`;
+  return `${isolate(String(Math.round(value * 100) / 100))} سم`;
 }
 
 export function percent(value: number): string {
   const rounded = Math.round(value * 100) / 100;
-  return `${rounded}%`;
+  return isolate(`${rounded}%`);
 }
 
 const DAYS_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
