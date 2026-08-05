@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   Tags,
+  Users,
   Wallet,
 } from 'lucide-react-native';
 import React from 'react';
@@ -86,6 +87,13 @@ export default function MoreScreen() {
       href: '/sync',
       badge: pendingOps,
       show: true,
+    },
+    {
+      label: 'الطاقم',
+      hint: 'الحسابات، الأداء، ما بين يد كل واحد',
+      icon: <Users size={20} color={palette.olive} />,
+      href: '/team',
+      show: can(role, 'manage_users'),
     },
     {
       label: 'سجل التدقيق',

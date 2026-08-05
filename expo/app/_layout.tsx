@@ -57,6 +57,9 @@ function RootLayoutNav() {
       <Stack.Screen name="roll/[id]" options={{ title: 'تفاصيل الرول' }} />
       <Stack.Screen name="fabric/[id]" options={{ title: 'القماش' }} />
       <Stack.Screen name="tailor/[id]" options={{ title: 'أمر الإنتاج' }} />
+      <Stack.Screen name="team/index" options={{ title: 'الطاقم' }} />
+      <Stack.Screen name="team/new" options={{ title: 'موظف جديد', presentation: 'modal' }} />
+      <Stack.Screen name="team/[id]" options={{ title: 'ملف الموظف' }} />
       <Stack.Screen name="discounts" options={{ title: 'طلبات الخصم' }} />
       <Stack.Screen name="payments" options={{ title: 'الدفعات' }} />
       <Stack.Screen name="reports" options={{ title: 'التقارير' }} />

@@ -1,47 +1,52 @@
 /**
- * صورة الاسم.
+ * علامة الشخص - بلا حروف.
  *
- * القرار بعد مراجعة ما تفعله أدوات العمل الجادة (Google وSlack وLinear
- * وAtlassian): الحرفان على لونٍ مشتقّ من هوية الشخص، لا صورة.
+ * الحرفان الأولان في العربية يتصادفان أحيانًا على كلمة غير لائقة، وهذا وحده
+ * يكفي لإسقاط الفكرة: صورةٌ قد تسيء لزبون مرة واحدة أسوأ من صورة لا تقول
+ * شيئًا أبدًا. والصورة الموحّدة على طريقة فيسبوك تجعل كل سطور القائمة
+ * متطابقة فتفقد الدائرة وظيفتها. والشخصيات الجاهزة تُوزَّع عشوائيًا فلا
+ * تثبت هوية أحد.
  *
- * الخياران الآخران يكلّفان أكثر مما يعطيان. الشخصيات ثلاثية الأبعاد تُوزَّع
- * عشوائيًا فتفقد ثباتها: الزبون نفسه قد يظهر بوجهين على جهازين، فتصير
- * الصورة زينةً لا تعريفًا - ولهجتها المرحة تجاور مبالغ وعروض أسعار مطبوعة.
- * والصورة الموحّدة على طريقة فيسبوك أسوأ في قائمة: كل السطور تصبح متطابقة،
- * فتأكل الدائرة مساحةً دون أن تفرّق بين أحد وأحد.
- *
- * أما اللون المشتقّ من المعرّف فثابت لا يتغيّر أبدًا، ويجعل الزبون يُعرف من
- * طرف العين قبل قراءة اسمه. والتنفيذ هنا يرفعه فوق الدائرة المصمتة: تدرّج
- * فاتح رقيق، وحلقة شعرة بلون الهوية، والحرفان بلونها المشبع.
+ * فالعلامة هنا شكلٌ مجرّد يُولَّد من معرّف الشخص: ثابت لا يتغيّر، فريد
+ * لكل واحد، يُميَّز من طرف العين في قائمة طويلة، ولا يحمل حرفًا واحدًا.
  */
-import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { View, type ViewStyle } from 'react-native';
+import Svg, { Circle, Rect } from 'react-native-svg';
 
-import { AppText } from '@/components/ui';
 import { palette } from '@/constants/theme';
-import { initials } from '@/lib/format';
 
-/** ثماني هويات متمايزة بوضوح ومتناغمة مع لغة التطبيق النيلية. */
-const TONES = [
-  { from: '#EEF0FF', to: '#DFE3FD', ink: '#4338CA' },
-  { from: '#E7F6FF', to: '#D6EBFD', ink: '#0369A1' },
-  { from: '#E4F8F0', to: '#D2F1E5', ink: '#047857' },
-  { from: '#FFF3E3', to: '#FCE7CB', ink: '#B45309' },
-  { from: '#FFEDF1', to: '#FCDCE4', ink: '#BE123C' },
-  { from: '#F4ECFF', to: '#E8DBFE', ink: '#6D28D9' },
-  { from: '#FFEFEB', to: '#FCDFD8', ink: '#C2410C' },
-  { from: '#EDF3E9', to: '#DEEAD7', ink: '#4D7C0F' },
+/** ثماني عائلات لونية ناعمة، كلٌّ منها ثلاث درجات متناغمة. */
+const FAMILIES = [
+  ['#E0E7FF', '#A5B4FC', '#6366F1'],
+  ['#DBEEFE', '#7DD3FC', '#0EA5E9'],
+  ['#D5F5E6', '#6EE7B7', '#10B981'],
+  ['#FDF0D5', '#FCD34D', '#F59E0B'],
+  ['#FEE1E6', '#FDA4AF', '#F43F5E'],
+  ['#EAE2FE', '#C4B5FD', '#8B5CF6'],
+  ['#FEE7D6', '#FDBA74', '#F97316'],
+  ['#E9F5D8', '#BEF264', '#84CC16'],
 ] as const;
 
-/** المعرّف لا الاسم: تغيير الاسم لا يجوز أن يبدّل هوية الشخص البصرية. */
-function toneOf(seed: string) {
+/**
+ * عدّاد شبه عشوائي مشتقّ من نصّ - ثابت تمامًا لنفس المعرّف على كل جهاز.
+ * (المعرّف لا الاسم: تغيير اسم الزبون لا يجوز أن يبدّل علامته.)
+ */
+function seeded(seed: string): (i: number) => number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return TONES[Math.abs(h) % TONES.length];
+  return (i: number) => {
+    let x = (h + i * 0x9e3779b9) >>> 0;
+    x ^= x << 13;
+    x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    x >>>= 0;
+    return x / 4294967296;
+  };
 }
 
 export function Avatar({
@@ -51,49 +56,47 @@ export function Avatar({
   onDark = false,
   style,
 }: {
-  /** المعرّف الثابت للشخص - مصدر اللون. */
+  /** المعرّف الثابت للشخص - منه تُولَّد العلامة. */
   id: string;
+  /** للقارئ الصوتي فقط - لا يُرسم. */
   name: string;
   size?: number;
-  /** فوق خلفية داكنة: زجاج أبيض شفيف بدل اللون، ليبقى مقروءًا. */
+  /** فوق خلفية داكنة: حلقة بيضاء رفيعة تفصل العلامة عن الخلفية. */
   onDark?: boolean;
   style?: ViewStyle;
 }) {
-  const tone = toneOf(id);
-  const shell: ViewStyle = {
-    width: size,
-    height: size,
-    borderRadius: size / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  };
-  // الحرفان يشغلان نحو ثلثي القطر - نسبة تبقى متزنة من 32 إلى 72
-  const fontSize = Math.round(size * 0.36);
+  const r = seeded(id);
+  const family = FAMILIES[Math.floor(r(0) * FAMILIES.length) % FAMILIES.length];
 
-  if (onDark) {
-    return (
-      <View style={[shell, { backgroundColor: 'rgba(255,255,255,0.16)' }, style]}>
-        <AppText variant="label" color={palette.ivory} style={{ fontSize }}>
-          {initials(name)}
-        </AppText>
-      </View>
-    );
-  }
+  // دائرتان كبيرتان يخرج معظمهما خارج الإطار، فما يظهر منهما أقواسٌ لينة
+  // لا أقراص محدّدة - وهذا ما يعطي الشكل نعومته بدل أن يبدو رسمًا هندسيًا.
+  const a = { cx: 20 + r(1) * 44, cy: 18 + r(2) * 40, rad: 30 + r(3) * 16 };
+  const b = { cx: 16 + r(4) * 48, cy: 30 + r(5) * 44, rad: 20 + r(6) * 14 };
 
   return (
     <View
-      style={[shell, { borderWidth: 1, borderColor: tone.to }, style]}
+      accessibilityLabel={name}
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          overflow: 'hidden',
+          backgroundColor: palette.sand,
+          borderWidth: 1,
+          borderColor: onDark ? 'rgba(255,255,255,0.35)' : palette.line,
+        },
+        style,
+      ]}
     >
-      <LinearGradient
-        colors={[tone.from, tone.to]}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.85, y: 1 }}
-        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-      />
-      <AppText variant="label" color={tone.ink} style={{ fontSize }}>
-        {initials(name)}
-      </AppText>
+      {/* القصّ من الغلاف (`overflow: hidden` + نصف قطر) لا من ClipPath داخل
+          الـSVG: معرّفات ClipPath عالمية على الويب فتتصادم حين تظهر عدة
+          علامات في قائمة واحدة. */}
+      <Svg width="100%" height="100%" viewBox="0 0 80 80">
+        <Rect x={0} y={0} width={80} height={80} fill={family[0]} />
+        <Circle cx={a.cx} cy={a.cy} r={a.rad} fill={family[1]} />
+        <Circle cx={b.cx} cy={b.cy} r={b.rad} fill={family[2]} opacity={0.9} />
+      </Svg>
     </View>
   );
 }

@@ -10,7 +10,7 @@ import {
   TAILOR_STAGE_LABELS,
   TAILOR_STAGE_ORDER,
 } from '@/domain/labels';
-import { can, type Capability } from '@/domain/permissions';
+import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid } from '@/lib/id';
 import { supabase } from '@/lib/supabase';
@@ -451,6 +451,70 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   // ── Rooms & windows (offline-first) ───────────────────────────────────────
+  /**
+   * إنشاء حساب موظف.
+   *
+   * الرمز السرّي يدخله الأدمن هنا لأنه لا يوجد بريد ولا رسائل في هذا السياق -
+   * الخياط أو العامل يستلمه شفهيًا ويغيّره لاحقًا. أربعة أرقام لا أقل: أقصر
+   * من ذلك يجعل التخمين مسألة دقائق على جهاز مشترك في المعرض.
+   */
+  const createProfile = useCallback(
+    (input: { fullName: string; phone: string; role: Role; title: string; pin: string }): Result<string> => {
+      const denied = guard('manage_users');
+      if (denied) return denied as Result<string>;
+      if (!input.fullName.trim()) return failWith('اسم الموظف مطلوب.', 'validation');
+      if (!/^0\d{1,2}-?\d{7}$/.test(input.phone.replace(/\s/g, '')))
+        return failWith('رقم الهاتف غير صحيح.', 'validation');
+      if (!/^\d{4}$/.test(input.pin)) return failWith('الرمز أربعة أرقام.', 'validation');
+      if (db.profiles.some((p) => p.phone.replace(/\D/g, '') === input.phone.replace(/\D/g, '')))
+        return failWith('يوجد حساب بهذا الرقم بالفعل.', 'conflict');
+      const id = uid('usr');
+      mutate((draft) => {
+        draft.profiles.push({
+          id,
+          organizationId: draft.organization.id,
+          fullName: input.fullName.trim(),
+          phone: input.phone.trim(),
+          role: input.role,
+          pin: input.pin,
+          title: input.title.trim() || ROLE_LABELS[input.role],
+          isActive: true,
+        });
+        enqueue(draft, 'profile.create', `إضافة موظف: ${input.fullName.trim()}`, id);
+        audit(draft, 'profile.create', 'profile', id, `إضافة ${ROLE_LABELS[input.role]}: ${input.fullName.trim()}`);
+      });
+      return { ok: true, data: id };
+    },
+    [guard, db.profiles, mutate, enqueue, audit],
+  );
+
+  /**
+   * التعطيل لا الحذف: الموظف الذي غادر مذكورٌ في مشاريع وحركات مخزون لا يجوز
+   * أن تفقد فاعلها. التعطيل يُخرجه من قوائم الإسناد ويُبقي تاريخه سليمًا.
+   */
+  const setProfileActive = useCallback(
+    (profileId: UUID, active: boolean): Result<void> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      if (profileId === userId && !active)
+        return failWith('لا يمكنك تعطيل حسابك أنت.', 'validation');
+      mutate((draft) => {
+        const p = draft.profiles.find((x) => x.id === profileId);
+        if (!p) return;
+        p.isActive = active;
+        audit(
+          draft,
+          active ? 'profile.activate' : 'profile.deactivate',
+          'profile',
+          profileId,
+          `${active ? 'تفعيل' : 'تعطيل'} حساب ${p.fullName}`,
+        );
+      });
+      return okVoid;
+    },
+    [guard, userId, mutate, audit],
+  );
+
   const addRoom = useCallback(
     (projectId: UUID, name: string, floor: string): Result<string> => {
       const denied = guard('enter_measurements');
@@ -1607,6 +1671,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createCustomer,
       updateCustomer,
       archiveCustomer,
+      createProfile,
+      setProfileActive,
       createProject,
       updateProject,
       setProjectStatus,
@@ -1658,6 +1724,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createCustomer,
       updateCustomer,
       archiveCustomer,
+      createProfile,
+      setProfileActive,
       createProject,
       updateProject,
       setProjectStatus,
