@@ -1,12 +1,12 @@
 /**
- * استلام بضاعة - رول جديد.
+ * استلام بضاعة - حقلان لا نموذج (M23).
  *
- * الشحنة رولٌ مستقلّ بدفعة صبغه ورقمه، لا زيادةُ أمتار على رول قائم. الدمج
- * يُخفي اختلاف الدفعتين تحت رقم واحد، فيسقط التحذير الذي يمنع خروج ستارة
- * بلونين متقاربين لا متطابقين - وهو فرقٌ يظهر على الجدار ولا يُصلَح بعد القص.
+ * الاختيار للنوع والأمتار فقط. رقم الرول ودفعة الصبغ يولَّدان تلقائيًا في
+ * المخزن: كل استلام دفعة مستقلة، فتحذير اختلاف الدفعات - الذي يمنع خروج
+ * ستارة بلونين متقاربين لا متطابقين - يبقى يعمل بلا أن يُكتب حرف واحد.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { PackagePlus } from 'lucide-react-native';
+import { PackagePlus, Search } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -23,6 +23,7 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
+import { normalizeArabic } from '@/data/towns';
 import { useStore } from '@/providers/store';
 
 export default function NewRollScreen() {
@@ -31,31 +32,27 @@ export default function NewRollScreen() {
   const router = useRouter();
 
   const [variantId, setVariantId] = useState<string>(preset ?? '');
-  const [code, setCode] = useState('');
-  const [dyeLot, setDyeLot] = useState('');
+  const [metersIn, setMetersIn] = useState('');
   const [location, setLocation] = useState('');
-  const [meters, setMeters] = useState('');
+  const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  /** الدفعات المستعملة لهذا اللون - تذكيرٌ بما في المخزن قبل كتابة دفعة جديدة. */
-  const knownLots = useMemo(() => {
-    const lots = db.fabricRolls
-      .filter((r) => r.variantId === variantId)
-      .map((r) => r.dyeLot)
-      .filter(Boolean);
-    return Array.from(new Set(lots));
-  }, [db.fabricRolls, variantId]);
+  const variants = useMemo(() => {
+    const q = normalizeArabic(search.trim());
+    if (!q) return db.fabricVariants;
+    return db.fabricVariants.filter((v) => {
+      const p = db.fabricProducts.find((x) => x.id === v.productId);
+      return (
+        normalizeArabic(`${p?.name ?? ''} ${v.colorName}`).includes(q) ||
+        v.sku.toLowerCase().includes(q.toLowerCase())
+      );
+    });
+  }, [db.fabricVariants, db.fabricProducts, search]);
 
   const submit = () => {
     setError(null);
     if (!variantId) return setError('اختر لون القماش أولًا.');
-    const res = addFabricRoll({
-      variantId,
-      code,
-      dyeLot,
-      location,
-      meters: parseFloat(meters || '0'),
-    });
+    const res = addFabricRoll({ variantId, meters: parseFloat(metersIn || '0'), location });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/roll/[id]', params: { id: res.data } });
   };
@@ -66,7 +63,7 @@ export default function NewRollScreen() {
         <EmptyState
           icon={<PackagePlus size={26} color={palette.olive} />}
           title="لا توجد ألوان بعد"
-          body="أضف قماشًا ولونًا في المكتبة أولًا، ثم استلم شحنته."
+          body="أضف قماشًا ولونًا في المكتبة أولًا، ثم استلم بضاعته."
         />
       </ScrollScreen>
     );
@@ -75,9 +72,19 @@ export default function NewRollScreen() {
   return (
     <ScrollScreen>
       <Card>
-        <SectionHeader title="اللون المستلَم" subtitle="الرول يتبع لونًا واحدًا" />
+        <SectionHeader title="النوع واللون" subtitle="كل استلام يتبع لونًا واحدًا" />
+        {db.fabricVariants.length > 6 && (
+          <View style={{ marginBottom: spacing.md }}>
+            <Field
+              label="ابحث"
+              value={search}
+              onChangeText={setSearch}
+              placeholder="اسم القماش أو اللون أو الرمز"
+            />
+          </View>
+        )}
         <View style={{ gap: spacing.sm }}>
-          {db.fabricVariants.map((v) => {
+          {variants.map((v) => {
             const product = db.fabricProducts.find((p) => p.id === v.productId);
             const active = variantId === v.id;
             return (
@@ -100,51 +107,38 @@ export default function NewRollScreen() {
               </Pressable>
             );
           })}
+          {variants.length === 0 && (
+            <Row gap={spacing.sm}>
+              <Search size={15} color={palette.muted} />
+              <AppText variant="caption" color={palette.muted}>
+                لا نتيجة مطابقة لبحثك.
+              </AppText>
+            </Row>
+          )}
         </View>
       </Card>
 
       <Card>
-        <AppText variant="heading">بيانات الرول</AppText>
+        <AppText variant="heading">الكمية</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.lg }}>
           <Field
-            label="رقم الرول"
-            value={code}
-            onChangeText={setCode}
-            autoCapitalize="characters"
-            placeholder="R-2026-014"
-          />
-          <Field
-            label="دفعة الصبغ"
-            value={dyeLot}
-            onChangeText={setDyeLot}
-            autoCapitalize="characters"
-            placeholder="LOT-441"
-          />
-          {knownLots.length > 0 && (
-            <View style={{ gap: 6 }}>
-              <AppText variant="caption" color={palette.muted}>
-                دفعات موجودة لهذا اللون
-              </AppText>
-              <Row gap={spacing.sm} wrap>
-                {knownLots.map((l) => (
-                  <Pressable key={l} onPress={() => setDyeLot(l)} style={styles.lotChip}>
-                    <AppText variant="caption" color={palette.oliveDark}>
-                      {l}
-                    </AppText>
-                  </Pressable>
-                ))}
-              </Row>
-            </View>
-          )}
-          <Field label="الموقع في المخزن" value={location} onChangeText={setLocation} placeholder="رف A3" />
-          <Field
             label="الأمتار المستلمة"
-            value={meters}
-            onChangeText={setMeters}
+            value={metersIn}
+            onChangeText={setMetersIn}
             keyboardType="decimal-pad"
             suffix="متر"
             placeholder="0"
           />
+          <Field
+            label="الموقع في المخزن (اختياري)"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="رف A3"
+          />
+          <AppText variant="caption" color={palette.muted}>
+            رقم الرول ودفعة الصبغ يُسجَّلان تلقائيًا - كل استلام دفعة مستقلة،
+            وتحذير اختلاف الدفعات يبقى يعمل كما هو.
+          </AppText>
         </View>
       </Card>
 
@@ -170,10 +164,4 @@ const styles = {
     justifyContent: 'center' as const,
   },
   optionActive: { borderColor: palette.olive, backgroundColor: palette.sageSoft },
-  lotChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: palette.sand,
-  },
 };

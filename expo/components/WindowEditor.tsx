@@ -1,4 +1,4 @@
-import { Calculator, Check, Save, Trash2 } from 'lucide-react-native';
+import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
@@ -24,13 +24,28 @@ import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
 
-/** تسميات ترتيبية شائعة للشبابيك. */
-const WINDOW_SUGGESTIONS = [
-  'الشباك الرئيسي',
-  'الشباك الأول',
-  'الشباك الثاني',
-  'الشباك الثالث',
+/**
+ * التسمية الترتيبية تكتب نفسها (M1): أول شباك في الغرفة يُقترح «الشباك
+ * الأول»، والذي بعده «الثاني»، وهكذا حسب العدّ الفعلي - لا قائمة ثابتة
+ * يختار منها المستخدم ما عدّه بنفسه.
+ */
+const ORDINALS = [
+  'الأول',
+  'الثاني',
+  'الثالث',
+  'الرابع',
+  'الخامس',
+  'السادس',
+  'السابع',
+  'الثامن',
+  'التاسع',
+  'العاشر',
 ] as const;
+
+/** اسم الشباك التالي لغرفةٍ فيها `count` شباكًا. */
+export function nextWindowName(count: number): string {
+  return count < ORDINALS.length ? `الشباك ${ORDINALS[count]}` : `الشباك ${count + 1}`;
+}
 
 interface Props {
   projectId: string;
@@ -42,7 +57,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const { db, role, saveWindow, deleteWindow } = useStore();
   const goBack = useGoBack('/projects');
 
-  const [name, setName] = useState<string>(existing?.name ?? '');
+  const roomCount = db.windows.filter((w) => w.roomId === roomId).length;
+  const [name, setName] = useState<string>(existing?.name ?? nextWindowName(roomCount));
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
   const [model, setModel] = useState<CurtainModel>(existing?.model ?? 'wave');
@@ -57,6 +73,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   );
   const [notes, setNotes] = useState<string>(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
 
   const fabricVariants = db.fabricVariants.filter((v) => {
     const p = db.fabricProducts.find((x) => x.id === v.productId);
@@ -118,7 +135,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     notes,
   ]);
 
-  const submit = () => {
+  const save = () => {
     setError(null);
     const res = saveWindow({
       id: existing?.id,
@@ -136,8 +153,33 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       quantity: 1,
       notes,
     });
-    if (!res.ok) return setError(res.error);
-    goBack();
+    if (!res.ok) {
+      setError(res.error);
+      return false;
+    }
+    return true;
+  };
+
+  const submit = () => {
+    if (save()) goBack();
+  };
+
+  /**
+   * الإدخال المتتابع (M2): الحفظ يبقيك في المحرر جاهزًا للشباك التالي.
+   *
+   * ما يتكرر في شبابيك الغرفة الواحدة يُحمَل (الموديل، السكة، القماش،
+   * البطانة، المضاعف) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
+   * شباك وحده يُصفَّر (المقاسات، الملاحظات، الاسم يتقدّم للترتيب التالي).
+   * هكذا تُدخَل خمسة شبابيك بخمسة قياسات لا بخمسة نماذج كاملة.
+   */
+  const submitAndNext = () => {
+    const saved = name;
+    if (!save()) return;
+    setName(nextWindowName(roomCount + 1));
+    setWidth('');
+    setHeight('');
+    setNotes('');
+    setSavedFlash(`حُفظ «${saved}» - أدخل قياسات التالي.`);
   };
 
   return (
@@ -145,17 +187,18 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       <Card>
         <AppText variant="heading">القياس</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-          <Field label="اسم الشباك" value={name} onChangeText={setName} placeholder="الشباك الرئيسي" />
-          {/* التسمية هنا ترتيبية بطبعها، فالاقتراح يوفّر كتابتها في كل شباك */}
-          <Row gap={spacing.sm} wrap>
-            {WINDOW_SUGGESTIONS.map((s) => (
-              <Pressable key={s} onPress={() => setName(s)} style={suggestChip}>
+          <Field label="اسم الشباك" value={name} onChangeText={setName} placeholder="الشباك الأول" />
+          {/* الاسم الترتيبي مكتوب سلفًا؛ يبقى «الرئيسي» بديلًا بلمسة لمن
+              يسمّي شباك الصدارة به */}
+          {!existing && name !== 'الشباك الرئيسي' && (
+            <Row gap={spacing.sm} wrap>
+              <Pressable onPress={() => setName('الشباك الرئيسي')} style={suggestChip}>
                 <AppText variant="caption" color={palette.oliveDark}>
-                  {s}
+                  الشباك الرئيسي
                 </AppText>
               </Pressable>
-            ))}
-          </Row>
+            </Row>
+          )}
           <Row gap={spacing.md}>
             <View style={{ flex: 1 }}>
               <Field
@@ -341,13 +384,34 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       {!!error && <Banner tone="danger" title="تعذر الحفظ" body={error} />}
+      {!!savedFlash && <Banner tone="success" title={savedFlash} />}
 
-      <Button
-        label={existing ? 'حفظ التعديلات' : 'حفظ الشباك'}
-        full
-        icon={<Save size={18} color={palette.ivory} />}
-        onPress={submit}
-      />
+      {existing ? (
+        <Button
+          label="حفظ التعديلات"
+          full
+          icon={<Save size={18} color={palette.ivory} />}
+          onPress={submit}
+        />
+      ) : (
+        <>
+          {/* الإدخال المتتابع هو الحالة الغالبة (غرفة = عدة شبابيك)،
+              فزرّه هو الأساسي والإغلاق يليه */}
+          <Button
+            label="حفظ وإضافة التالي"
+            full
+            icon={<Plus size={18} color={palette.ivory} />}
+            onPress={submitAndNext}
+          />
+          <Button
+            label="حفظ وإغلاق"
+            variant="secondary"
+            full
+            icon={<Save size={17} color={palette.oliveDark} />}
+            onPress={submit}
+          />
+        </>
+      )}
 
       {!!existing && (
         <Button

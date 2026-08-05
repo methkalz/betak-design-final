@@ -1672,28 +1672,57 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   /**
-   * شحنة جديدة = رول جديد، لا زيادة على رول قائم.
+   * استلام بضاعة = رول جديد، لا زيادة على رول قائم.
    *
    * إضافة الأمتار إلى رولٍ موجود تدمج دفعتَي صبغ تحت رقم واحد، فيختفي
-   * التحذير الذي بُني عليه كل منطق الدفعات في التطبيق. الاستلام هنا يفتح
-   * رولًا مستقلًا بدفعته ورقمه، والحركة الأولى عليه هي رصيده الافتتاحي.
+   * التحذير الذي بُني عليه كل منطق الدفعات في التطبيق.
+   *
+   * M23: الإدخال نوعٌ وأمتار فقط. الرقم والدفعة يولَّدان تلقائيًا -
+   * التبسيط في الإدخال لا في النموذج: كل استلام دفعةُ صبغ مستقلة (شحنتان
+   * في يوم واحد = دفعتان)، فتحذير اختلاف الدفعات يبقى حيًّا بلا أن يكتب
+   * المستخدم حرفًا. ومن عنده رقم المورّد الفعلي يمرّره فيُحترم.
    */
   const addFabricRoll = useCallback(
     (input: {
       variantId: UUID;
-      code: string;
-      dyeLot: string;
-      location: string;
       meters: number;
+      location?: string;
+      code?: string;
+      dyeLot?: string;
     }): Result<string> => {
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
-      const code = input.code.trim().toUpperCase();
-      if (!code) return failWith('رقم الرول مطلوب.', 'validation');
-      if (db.fabricRolls.some((r) => r.code.toUpperCase() === code))
-        return failWith('رقم الرول مستعمل - لكل رول رقم واحد.', 'conflict');
-      if (!input.dyeLot.trim()) return failWith('دفعة الصبغ مطلوبة.', 'validation');
+      const variant = db.fabricVariants.find((v) => v.id === input.variantId);
+      if (!variant) return failWith('اللون غير موجود.', 'validation');
       if (!(input.meters > 0)) return failWith('الأمتار يجب أن تكون أكبر من صفر.', 'validation');
+
+      let code = (input.code ?? '').trim().toUpperCase();
+      if (code && db.fabricRolls.some((r) => r.code.toUpperCase() === code))
+        return failWith('رقم الرول مستعمل - لكل رول رقم واحد.', 'conflict');
+      if (!code) {
+        // تسلسل على رمز اللون: CR-BEIGE-3 يُقرأ في المخزن بلا فكّ شيفرة
+        const base = variant.sku || 'RL';
+        let n = db.fabricRolls.filter((r) => r.variantId === variant.id).length + 1;
+        code = `${base}-${n}`;
+        while (db.fabricRolls.some((r) => r.code.toUpperCase() === code)) {
+          n += 1;
+          code = `${base}-${n}`;
+        }
+      }
+
+      let dyeLot = (input.dyeLot ?? '').trim().toUpperCase();
+      if (!dyeLot) {
+        // دفعة فريدة لكل استلام: تاريخ اليوم + تمييز عند تعدد استلامات اليوم
+        const d = new Date();
+        const ymd = `${d.getFullYear() % 100}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+        let n = 1;
+        dyeLot = `LOT-${ymd}`;
+        while (db.fabricRolls.some((r) => r.dyeLot === dyeLot)) {
+          n += 1;
+          dyeLot = `LOT-${ymd}-${n}`;
+        }
+      }
+
       const id = uid('roll');
       mutate((draft) => {
         draft.fabricRolls.push({
@@ -1701,18 +1730,18 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           organizationId: draft.organization.id,
           variantId: input.variantId,
           code,
-          dyeLot: input.dyeLot.trim(),
-          location: input.location.trim() || '-',
+          dyeLot,
+          location: (input.location ?? '').trim() || '-',
           initialMeters: round3(input.meters),
           isMiniRoll: false,
           createdAt: new Date().toISOString(),
         });
-        addMovement(draft, id, 'receipt', input.meters, null, null, 'استلام شحنة جديدة');
+        addMovement(draft, id, 'receipt', input.meters, null, null, 'استلام بضاعة');
         audit(draft, 'inventory.roll.create', 'fabric_roll', id, `استلام رول ${code} بـ${round3(input.meters)} م`);
       });
       return { ok: true, data: id };
     },
-    [guard, db.fabricRolls, mutate, addMovement, audit],
+    [guard, db.fabricRolls, db.fabricVariants, mutate, addMovement, audit],
   );
 
   const createMiniRoll = useCallback(
