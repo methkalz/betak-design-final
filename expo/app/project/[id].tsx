@@ -17,9 +17,10 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing as REasing,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -118,10 +119,32 @@ export default function ProjectStudioScreen() {
     return () => clearTimeout(t);
   }, [justCreated]);
 
-  /** تمرير جسم الصفحة إلى بطاقة بعينها - تستعمله الغرف بعد الإضافة. */
+  /**
+   * تمرير جسم الصفحة إلى بطاقة بعينها - تستعمله الغرف بعد الإضافة.
+   * الإحداثي وارد من داخل لوح التبويب، وهو يبدأ بعد حشوة الصفحة، فالتمرير
+   * إليه كما هو يترك تلك الحشوة فوق البطاقة هامشًا طبيعيًا.
+   */
   const focusCard = useCallback((y: number) => {
-    bodyRef.current?.scrollTo({ y: Math.max(0, y - spacing.lg), animated: true });
+    bodyRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
   }, []);
+
+  const resetScroll = useCallback(() => {
+    bodyRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
+  /* مثبّتان بالمرجع لا محسوبان في كل رسم: يدخلان قائمة اعتماديات حركة
+     الانتقال، ولو تغيّرت هويتهما مع كل رسم لأعادت الحركة نفسها من أولها في
+     منتصف طريقها. */
+  const visibleTabs = useMemo(
+    () =>
+      TABS.filter((t) => {
+        if (role === 'tailor') return ['overview', 'rooms', 'production'].includes(t.value);
+        if (role === 'field') return ['overview', 'rooms', 'media'].includes(t.value);
+        return true;
+      }),
+    [role],
+  );
+  const tabOrder = useMemo(() => visibleTabs.map((t) => t.value), [visibleTabs]);
 
   if (!project) {
     return (
@@ -137,11 +160,6 @@ export default function ProjectStudioScreen() {
 
   const customer = db.customers.find((c) => c.id === project.customerId);
   const c = projectStatusColor(project.status);
-  const visibleTabs = TABS.filter((t) => {
-    if (role === 'tailor') return ['overview', 'rooms', 'production'].includes(t.value);
-    if (role === 'field') return ['overview', 'rooms', 'media'].includes(t.value);
-    return true;
-  });
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
@@ -187,52 +205,212 @@ export default function ProjectStudioScreen() {
         </View>
       </LinearGradient>
 
-      <View style={{ backgroundColor: palette.white, borderBottomWidth: 1, borderBottomColor: palette.line }}>
-        {/* شريط التبويبات عربي (row-reverse) فأول تبويب يقع أقصى يمين
-            المحتوى، بينما التمرير الأفقي يبدأ من اليسار دائمًا - فيُفتح
-            المشروع على آخر التبويبات. القفز لنهاية المحتوى مرة واحدة عند
-            القياس يضع «نظرة عامة» أمام المستخدم كما يجب. */}
-        <ScrollView
-          ref={tabsRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onContentSizeChange={() => {
-            if (tabsPinned.current) return;
-            tabsPinned.current = true;
-            tabsRef.current?.scrollToEnd({ animated: false });
-          }}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, flexDirection: 'row-reverse' }}
-        >
-          {visibleTabs.map((t) => (
-            <Pressable key={t.value} onPress={() => setTab(t.value)} style={styles.tabBtn}>
-              <AppText variant="label" color={tab === t.value ? palette.olive : palette.muted}>
-                {t.label}
-              </AppText>
-              <View
-                style={{
-                  height: 3,
-                  borderRadius: 2,
-                  marginTop: 6,
-                  backgroundColor: tab === t.value ? palette.terracotta : 'transparent',
-                }}
-              />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
+      <TabBar tabs={visibleTabs} active={tab} onSelect={setTab} scrollRef={tabsRef} pinned={tabsPinned} />
 
       <ScrollView
         ref={bodyRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140, gap: spacing.lg }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
       >
-        {tab === 'overview' && <OverviewTab projectId={project.id} statusColor={c.fg} />}
-        {tab === 'rooms' && <RoomsTab projectId={project.id} onFocusCard={focusCard} />}
-        {tab === 'quote' && <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />}
-        {tab === 'production' && <ProductionTab projectId={project.id} />}
-        {tab === 'money' && <MoneyTab projectId={project.id} />}
-        {tab === 'media' && <MediaTab projectId={project.id} />}
+        <TabPanel tab={tab} order={tabOrder} onSwap={resetScroll}>
+          {(shown) => (
+            <>
+              {shown === 'overview' && <OverviewTab projectId={project.id} statusColor={c.fg} />}
+              {shown === 'rooms' && <RoomsTab projectId={project.id} onFocusCard={focusCard} />}
+              {shown === 'quote' && (
+                <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />
+              )}
+              {shown === 'production' && <ProductionTab projectId={project.id} />}
+              {shown === 'money' && <MoneyTab projectId={project.id} />}
+              {shown === 'media' && <MediaTab projectId={project.id} />}
+            </>
+          )}
+        </TabPanel>
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ───────────────────────── Tabs ───────────────────────── */
+
+/**
+ * حركة التبويبات - مبنية على «المحور المشترك» (shared axis) في Material
+ * Motion، وهي الممارسة المستقرّة لتنقّل بين مستويات متجاورة:
+ *
+ * - إزاحة قصيرة (26 نقطة) لا عرض الشاشة كاملًا. الانزلاق الكامل لغة السحب
+ *   باليد؛ حين تكون النقلة بضغطة زر يكفي أن يقول المحتوى «جئت من هناك».
+ * - الخروج أسرع من الدخول (110 مقابل 210): العين تودّع بسرعة وتستقبل على
+ *   مهل، ولو تساويا لبدت النقلة ثقيلة.
+ * - نسخة واحدة محمولة في كل لحظة، فلا يتراكب محتوى تبويبين ولا يقفز
+ *   الارتفاع أثناء الانتقال.
+ */
+const OUT_MS = 110;
+const IN_MS = 210;
+
+function TabPanel({
+  tab,
+  order,
+  onSwap,
+  children,
+}: {
+  tab: Tab;
+  order: Tab[];
+  onSwap: () => void;
+  children: (shown: Tab) => React.ReactNode;
+}) {
+  // مسافة السفر نسبةٌ من عرض الشاشة لا رقمًا ثابتًا: 26 نقطة توصي بها
+  // Material تُقرأ نكزةً على هاتف عريض لا انزلاقًا. السدس محسوسٌ كسحب،
+  // ويبقى دون الشاشة كاملة التي تُوهم بأن المحتوى جاء من العدم.
+  const { width } = useWindowDimensions();
+  const SHIFT = Math.min(90, Math.max(40, width * 0.16));
+  const [shown, setShown] = useState<Tab>(tab);
+  const pending = useRef<Tab>(tab);
+  const dir = useRef(1);
+  const opacity = useSharedValue(0);
+  const tx = useSharedValue(0);
+
+  const commit = useCallback(() => {
+    setShown(pending.current);
+    // التبويب الجديد يبدأ من أوله - إبقاء موضع التمرير السابق يُظهر منتصف
+    // شاشة لم يرها المستخدم قط
+    onSwap();
+  }, [onSwap]);
+
+  useEffect(() => {
+    if (tab === shown) return;
+    pending.current = tab;
+    // الاتجاه في العربية: التبويب التالي يقع يسارًا، فالخارج يخرج يمينًا
+    dir.current = order.indexOf(tab) > order.indexOf(shown) ? 1 : -1;
+    opacity.value = withTiming(0, { duration: OUT_MS, easing: REasing.in(REasing.quad) });
+    tx.value = withTiming(
+      dir.current * SHIFT,
+      { duration: OUT_MS, easing: REasing.in(REasing.quad) },
+      (done) => {
+        if (done) runOnJS(commit)();
+      },
+    );
+  }, [tab, shown, order, opacity, tx, commit, SHIFT]);
+
+  useEffect(() => {
+    tx.value = -dir.current * SHIFT;
+    opacity.value = 0;
+    tx.value = withTiming(0, { duration: IN_MS, easing: REasing.out(REasing.cubic) });
+    opacity.value = withTiming(1, { duration: IN_MS, easing: REasing.out(REasing.quad) });
+  }, [shown, opacity, tx, SHIFT]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: tx.value }],
+  }));
+
+  return (
+    <Animated.View style={[{ gap: spacing.lg }, style]}>{children(shown)}</Animated.View>
+  );
+}
+
+type Edge = { x: number; w: number };
+
+/**
+ * الشريط والمؤشّر.
+ *
+ * المؤشّر عنصر واحد يسافر، لا خطٌّ يُطفأ تحت كلمة ويُشعل تحت أخرى - وهذا ما
+ * يربط التبويبين في ذهن المستخدم بدل أن يبدوا شيئين منفصلين.
+ *
+ * وحافّتاه تتحرّكان بسرعتين مختلفتين: الحافّة التي تقود الحركة تصل أولًا
+ * والتي تتبعها تتأخّر، فيتمدّد الخط قليلًا في الطريق ثم يستقرّ. هذه هي حيلة
+ * مؤشّر Material، وهي ما يعطي الحركة إحساس المادة بدل انزلاق الصورة.
+ */
+function TabBar({
+  tabs,
+  active,
+  onSelect,
+  scrollRef,
+  pinned,
+}: {
+  tabs: { value: Tab; label: string }[];
+  active: Tab;
+  onSelect: (t: Tab) => void;
+  scrollRef: React.RefObject<ScrollView | null>;
+  pinned: React.MutableRefObject<boolean>;
+}) {
+  const [edges, setEdges] = useState<Partial<Record<Tab, Edge>>>({});
+  const stripW = useRef(0);
+  const scrolledFor = useRef<Tab | null>(null);
+  const start = useSharedValue(0);
+  const end = useSharedValue(0);
+
+  useEffect(() => {
+    const e = edges[active];
+    if (!e) return;
+    const lead = { duration: 210, easing: REasing.out(REasing.cubic) };
+    const trail = { duration: 300, easing: REasing.out(REasing.cubic) };
+    if (end.value === 0) {
+      // أول قياس: يوضع مكانه بلا سفر من الصفر
+      start.value = e.x;
+      end.value = e.x + e.w;
+    } else if (e.x > start.value) {
+      end.value = withTiming(e.x + e.w, lead);
+      start.value = withTiming(e.x, trail);
+    } else {
+      start.value = withTiming(e.x, lead);
+      end.value = withTiming(e.x + e.w, trail);
+    }
+
+    // إبقاء التبويب الفعّال داخل الرؤية - يلزم خاصةً حين تنتقل الشاشة وحدها
+    if (stripW.current > 0 && scrolledFor.current !== active) {
+      const first = scrolledFor.current === null;
+      scrolledFor.current = active;
+      scrollRef.current?.scrollTo({
+        x: Math.max(0, e.x + e.w / 2 - stripW.current / 2),
+        animated: !first,
+      });
+      pinned.current = true;
+    }
+  }, [active, edges, start, end, scrollRef, pinned]);
+
+  const indicator = useAnimatedStyle(() => ({
+    transform: [{ translateX: start.value }],
+    width: Math.max(0, end.value - start.value),
+  }));
+
+  return (
+    <View style={{ backgroundColor: palette.white, borderBottomWidth: 1, borderBottomColor: palette.line }}>
+      {/* row-reverse: أول تبويب أقصى اليمين كما يُقرأ العربي.
+          الحشوة الجانبية فاصلان لا `paddingHorizontal`: المؤشّر عنصر مطلق
+          يُوضع بـ`left: 0`، ولو كان للحاوية حشوة لاختلف مبدأ إحداثياته عن
+          مبدأ قياسات التبويبات فانزاح الخط بمقدارها. */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onLayout={(e) => {
+          stripW.current = e.nativeEvent.layout.width;
+        }}
+        contentContainerStyle={{ gap: spacing.sm, flexDirection: 'row-reverse' }}
+      >
+        <View style={{ width: spacing.lg }} />
+        {tabs.map((t) => (
+          <Pressable
+            key={t.value}
+            onPress={() => onSelect(t.value)}
+            style={styles.tabBtn}
+            onLayout={(e) => {
+              const { x, width } = e.nativeEvent.layout;
+              setEdges((prev) =>
+                prev[t.value]?.x === x && prev[t.value]?.w === width
+                  ? prev
+                  : { ...prev, [t.value]: { x, w: width } },
+              );
+            }}
+          >
+            <AppText variant="label" color={active === t.value ? palette.olive : palette.muted}>
+              {t.label}
+            </AppText>
+          </Pressable>
+        ))}
+        <View style={{ width: spacing.lg }} />
+        <Animated.View pointerEvents="none" style={[styles.tabIndicator, indicator]} />
       </ScrollView>
     </View>
   );
@@ -1159,7 +1337,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.sm, minHeight: 48 },
+  tabBtn: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  /** خطٌّ واحد يسافر بين التبويبات - موضعه وعرضه محرّكان لا حالتان. */
+  tabIndicator: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: palette.terracotta,
+  },
   metric: { flex: 1, borderRadius: radius.lg, padding: spacing.lg },
   advanceBtn: {
     minHeight: 68,
