@@ -42,9 +42,9 @@ export default function NewProjectScreen() {
   // نهائيًا حتى لا يمحو تبديلُ الزبون نصًّا كتبه بنفسه.
   const [titleEdited, setTitleEdited] = useState<boolean>(false);
   const [priority, setPriority] = useState<Priority>('normal');
-  // لا اختيار تلقائيًا (M16): الإسناد قرار صريح، والمشروع بلا عامل يظهر
-  // للأدمن في اللوحة حتى يُسنَد - لا يُوزَّع خلسةً على أول اسم في القائمة
-  const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(null);
+  // لا اختيار تلقائيًا (M16): الإسناد قرار صريح لا يُوزَّع خلسةً على أول اسم
+  const [measurerId, setMeasurerId] = useState<string | null>(null);
+  const [installerId, setInstallerId] = useState<string | null>(null);
   const [tailorId, setTailorId] = useState<string | null>(null);
   const [measurementAt, setMeasurementAt] = useState<string>(inDays(1));
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
@@ -74,7 +74,8 @@ export default function NewProjectScreen() {
       customerId,
       title,
       priority,
-      fieldWorkerId,
+      measurementWorkerId: measurerId,
+      installerId,
       tailorId,
       measurementDate: measurementAt,
       notes,
@@ -207,17 +208,21 @@ export default function NewProjectScreen() {
 
       <Card>
         <AppText variant="heading">الفريق والموعد</AppText>
-        <AppText variant="caption" color={palette.muted}>
-          العامل الميداني
+
+        {/* القياس والتركيب دوران منفصلان: القائس يلزم الآن لأن موعده يُحجز
+            معه، والمركّب يمكن تأجيله لأن التركيب بعد أسابيع وقد يتغيّر من
+            يفرغ له. الخياط إلزامي لأن مشروعًا بلا منفّذ يقف عند أول عمل. */}
+        <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.md }}>
+          من سيقوم بالقياس
         </AppText>
         <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
           {fieldWorkers.map((p) => (
             <Pressable
               key={p.id}
-              onPress={() => setFieldWorkerId(p.id)}
-              style={[styles.chip, fieldWorkerId === p.id && styles.chipActive]}
+              onPress={() => setMeasurerId(p.id)}
+              style={[styles.chip, measurerId === p.id && styles.chipActive]}
             >
-              <AppText variant="label" color={fieldWorkerId === p.id ? palette.ivory : palette.charcoal}>
+              <AppText variant="label" color={measurerId === p.id ? palette.ivory : palette.charcoal}>
                 {p.fullName}
               </AppText>
             </Pressable>
@@ -225,16 +230,41 @@ export default function NewProjectScreen() {
         </Row>
 
         <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.lg }}>
-          الخياط (اختياري)
+          الخياط المسؤول
         </AppText>
         <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
           {tailors.map((p) => (
             <Pressable
               key={p.id}
-              onPress={() => setTailorId(tailorId === p.id ? null : p.id)}
+              onPress={() => setTailorId(p.id)}
               style={[styles.chip, tailorId === p.id && styles.chipActive]}
             >
               <AppText variant="label" color={tailorId === p.id ? palette.ivory : palette.charcoal}>
+                {p.fullName}
+              </AppText>
+            </Pressable>
+          ))}
+        </Row>
+
+        <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.lg }}>
+          من سيركّب (يمكن تحديده لاحقًا)
+        </AppText>
+        <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
+          <Pressable
+            onPress={() => setInstallerId(null)}
+            style={[styles.chip, installerId === null && styles.chipActive]}
+          >
+            <AppText variant="label" color={installerId === null ? palette.ivory : palette.charcoal}>
+              أُقرّر لاحقًا
+            </AppText>
+          </Pressable>
+          {fieldWorkers.map((p) => (
+            <Pressable
+              key={p.id}
+              onPress={() => setInstallerId(p.id)}
+              style={[styles.chip, installerId === p.id && styles.chipActive]}
+            >
+              <AppText variant="label" color={installerId === p.id ? palette.ivory : palette.charcoal}>
                 {p.fullName}
               </AppText>
             </Pressable>

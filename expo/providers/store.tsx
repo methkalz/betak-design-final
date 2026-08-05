@@ -16,6 +16,7 @@ import {
   TAILOR_STAGE_LABELS,
   TAILOR_STAGE_ORDER,
 } from '@/domain/labels';
+import type { AssignmentKind } from '@/domain/assignment';
 import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid } from '@/lib/id';
@@ -363,7 +364,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       customerId: UUID;
       title: string;
       priority: Priority;
-      fieldWorkerId: UUID | null;
+      measurementWorkerId: UUID | null;
+      installerId: UUID | null;
       tailorId: UUID | null;
       measurementDate: string | null;
       notes: string;
@@ -371,6 +373,21 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const denied = guard('manage_customers');
       if (denied) return denied as Result<string>;
       if (input.title.trim().length < 3) return failWith('عنوان المشروع قصير جدًا.', 'validation');
+      // الخياط والقائس إلزاميان: مشروعٌ بلا منفّذ يقف عند أول مرحلة عمل،
+      // ومشروعٌ بلا قائس لا تُفتح له زيارة فلا تُسجَّل مقاسات أصلًا. الإلزام
+      // في الإنشاء أرحم من الوقوف في الوسط. أما المركّب فيؤجَّل عمدًا -
+      // التركيب بعيد وقد لا يُعرف اليوم من يفرغ له.
+      const tailor = db.profiles.find((p) => p.id === input.tailorId);
+      if (!tailor || tailor.role !== 'tailor' || !tailor.isActive)
+        return failWith('اختر الخياط المسؤول - إلزامي لكل مشروع.', 'validation');
+      const measurer = db.profiles.find((p) => p.id === input.measurementWorkerId);
+      if (!measurer || measurer.role !== 'field' || !measurer.isActive)
+        return failWith('اختر من سيقوم بالقياس - إلزامي لكل مشروع.', 'validation');
+      if (input.installerId) {
+        const inst = db.profiles.find((p) => p.id === input.installerId);
+        if (!inst || inst.role !== 'field' || !inst.isActive)
+          return failWith('عامل التركيب المختار غير مفعَّل.', 'validation');
+      }
       const id = uid('prj');
       mutate((draft) => {
         const number = 1046 + draft.projects.length;
@@ -382,7 +399,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           title: input.title.trim(),
           status: input.measurementDate ? 'awaiting_measurement' : 'new_request',
           priority: input.priority,
-          fieldWorkerId: input.fieldWorkerId,
+          measurementWorkerId: input.measurementWorkerId,
+          installerId: input.installerId,
           tailorId: input.tailorId,
           measurementDate: input.measurementDate,
           installationDate: null,
@@ -392,13 +410,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           lockVersion: 1,
         };
         draft.projects.unshift(project);
-        if (input.fieldWorkerId && input.measurementDate) {
+        if (input.measurementWorkerId && input.measurementDate) {
           const visitId = uid('fv');
           draft.fieldVisits.unshift({
             id: visitId,
             organizationId: draft.organization.id,
             projectId: id,
-            assigneeId: input.fieldWorkerId,
+            assigneeId: input.measurementWorkerId,
             type: 'measurement',
             status: 'scheduled',
             scheduledAt: input.measurementDate,
@@ -410,7 +428,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           });
           notify(
             draft,
-            input.fieldWorkerId,
+            input.measurementWorkerId,
             'visit_assigned',
             'زيارة قياس جديدة',
             `${project.title} - ${project.code}`,
@@ -457,10 +475,11 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           id,
           `تحديث حالة ${project.code} إلى: ${PROJECT_STATUS_LABELS[status]}`,
         );
-        if (status === 'ready_for_install' && project.fieldWorkerId) {
+        const readyTarget = project.installerId ?? project.measurementWorkerId;
+        if (status === 'ready_for_install' && readyTarget) {
           notify(
             draft,
-            project.fieldWorkerId,
+            readyTarget,
             'ready_for_install',
             'جاهز للتركيب',
             `${project.title} جاهز - حدد الموعد.`,
@@ -474,58 +493,88 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   /**
-   * إسناد العامل الميداني لمشروع قائم (M16).
+   * إسناد دور على مشروع قائم (M16) - قياسًا أو تركيبًا أو خياطةً.
    *
-   * الإسناد صار صريحًا بيد الأدمن - لا اختيار تلقائيًا لأول عامل - والمشروع
-   * بلا إسناد يظهر في لوحة الأدمن حتى يُسنَد، ولا يراه أي ميداني قبلها.
-   * الإسناد يفتح زيارة القياس إن كان موعدها محددًا ولا زيارة مفتوحة، فلا
-   * يضيع مشروع أُنشئ بلا عامل ثم أُسند بعد يوم.
+   * الإسناد صريح بيد الأدمن ويقبل التبديل في أي وقت: من يقيس ليس بالضرورة
+   * من يركّب، والتركيب قد يُقرَّر بعد أسابيع حين يُعرف من يفرغ له.
+   *
+   * وتبديل القائس يُحوَّل معه زيارة القياس المفتوحة، وإلا بقيت باسم من لم
+   * يعد مسؤولًا فيراها في قائمته ولا يراها صاحبها الجديد.
    */
-  const assignFieldWorker = useCallback(
-    (projectId: UUID, workerId: UUID): Result<void> => {
+  const assignRole = useCallback(
+    (projectId: UUID, workerId: UUID, kind: AssignmentKind): Result<void> => {
       const denied = guard('manage_users');
       if (denied) return denied;
       const worker = db.profiles.find((p) => p.id === workerId);
-      if (!worker || worker.role !== 'field' || !worker.isActive)
-        return failWith('اختر عاملًا ميدانيًا مفعَّلًا.', 'validation');
+      const wanted: Role = kind === 'tailor' ? 'tailor' : 'field';
+      if (!worker || worker.role !== wanted || !worker.isActive)
+        return failWith(
+          kind === 'tailor' ? 'اختر خياطًا مفعَّلًا.' : 'اختر عاملًا ميدانيًا مفعَّلًا.',
+          'validation',
+        );
       mutate((draft) => {
         const project = draft.projects.find((p) => p.id === projectId);
         if (!project) return;
-        project.fieldWorkerId = workerId;
         project.updatedAt = new Date().toISOString();
-        const hasOpenMeasurement = draft.fieldVisits.some(
-          (v) => v.projectId === projectId && v.type === 'measurement' && v.status !== 'completed',
-        );
-        if (
-          !hasOpenMeasurement &&
-          project.measurementDate &&
-          (project.status === 'new_request' || project.status === 'awaiting_measurement')
-        ) {
-          const visitId = uid('fv');
-          draft.fieldVisits.unshift({
-            id: visitId,
-            organizationId: draft.organization.id,
-            projectId,
-            assigneeId: workerId,
-            type: 'measurement',
-            status: 'scheduled',
-            scheduledAt: project.measurementDate,
-            startedAt: null,
-            completedAt: null,
-            notes: '',
-            checklist: { track: false, curtain: false, height: false, cleanliness: false },
-            customerSignedOff: false,
-          });
+
+        if (kind === 'tailor') {
+          project.tailorId = workerId;
+          const open = draft.tailorAssignments.find(
+            (a) => a.projectId === projectId && a.stage !== 'ready',
+          );
+          if (open) open.tailorId = workerId;
+        } else if (kind === 'measurement') {
+          project.measurementWorkerId = workerId;
+          const visit = draft.fieldVisits.find(
+            (v) => v.projectId === projectId && v.type === 'measurement' && v.status !== 'completed',
+          );
+          if (visit) {
+            visit.assigneeId = workerId;
+          } else if (
+            project.measurementDate &&
+            (project.status === 'new_request' || project.status === 'awaiting_measurement')
+          ) {
+            draft.fieldVisits.unshift({
+              id: uid('fv'),
+              organizationId: draft.organization.id,
+              projectId,
+              assigneeId: workerId,
+              type: 'measurement',
+              status: 'scheduled',
+              scheduledAt: project.measurementDate,
+              startedAt: null,
+              completedAt: null,
+              notes: '',
+              checklist: { track: false, curtain: false, height: false, cleanliness: false },
+              customerSignedOff: false,
+            });
+          }
+        } else {
+          project.installerId = workerId;
+          const visit = draft.fieldVisits.find(
+            (v) =>
+              v.projectId === projectId && v.type === 'installation' && v.status !== 'completed',
+          );
+          if (visit) visit.assigneeId = workerId;
         }
+
+        const label =
+          kind === 'tailor' ? 'الخياطة' : kind === 'measurement' ? 'القياس' : 'التركيب';
         notify(
           draft,
           workerId,
-          'visit_assigned',
-          'مشروع أُسند إليك',
+          kind === 'tailor' ? 'tailor_assignment' : 'visit_assigned',
+          `أُسند إليك ${label}`,
           `${project.title} - ${project.code}`,
           `/project/${projectId}`,
         );
-        audit(draft, 'project.assign_field', 'project', projectId, `إسناد الميداني ${worker.fullName}`);
+        audit(
+          draft,
+          'project.assign',
+          'project',
+          projectId,
+          `إسناد ${label} إلى ${worker.fullName}`,
+        );
       });
       return okVoid;
     },
@@ -1909,10 +1958,12 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           const project = draft.projects.find((p) => p.id === a.projectId);
           if (project) {
             project.status = 'ready_for_install';
-            if (project.fieldWorkerId) {
+            // المركّب إن أُسند، وإلا فالقائس يعلم ريثما يُسنِد الأدمن مركّبًا
+            const target = project.installerId ?? project.measurementWorkerId;
+            if (target) {
               notify(
                 draft,
-                project.fieldWorkerId,
+                target,
                 'ready_for_install',
                 'جاهز للتركيب',
                 `${project.title} - حدد موعد التركيب.`,
@@ -2282,7 +2333,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProject,
       updateProject,
       setProjectStatus,
-      assignFieldWorker,
+      assignRole,
       addRoom,
       deleteRoom,
       saveWindow,
@@ -2342,7 +2393,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProject,
       updateProject,
       setProjectStatus,
-      assignFieldWorker,
+      assignRole,
       addRoom,
       deleteRoom,
       saveWindow,

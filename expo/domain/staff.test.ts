@@ -74,7 +74,10 @@ test('الخياط: الهدر يُنسب عبر مشاريعه ويُنبَّه
 test('العامل الميداني: الزيارات المنجزة والموقّعة تُحسب من التركيبات وحدها', () => {
   const db = makeDb({
     profiles: [{ id: 'f1', role: 'field' }] as never,
-    projects: [{ id: 'p1', title: 'بيت أ', fieldWorkerId: 'f1' }] as never,
+    // قاس وركّب المشروع نفسه: يُعدّ مشروعًا واحدًا لا اثنين
+    projects: [
+      { id: 'p1', title: 'بيت أ', measurementWorkerId: 'f1', installerId: 'f1' },
+    ] as never,
     fieldVisits: [
       { id: 'v1', projectId: 'p1', assigneeId: 'f1', type: 'measurement', status: 'scheduled', scheduledAt: '2026-03-12T00:00:00.000Z', completedAt: null, customerSignedOff: false },
       { id: 'v2', projectId: 'p1', assigneeId: 'f1', type: 'installation', status: 'completed', scheduledAt: '2026-03-02T00:00:00.000Z', completedAt: '2026-03-02T00:00:00.000Z', customerSignedOff: true },

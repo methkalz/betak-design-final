@@ -61,6 +61,7 @@ import {
   projectStatusColor,
   statusProgress,
 } from '@/domain/labels';
+import type { AssignmentKind } from '@/domain/assignment';
 import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
 import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
@@ -359,7 +360,6 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
   const rooms = db.rooms.filter((r) => r.projectId === projectId);
   const windows = db.windows.filter((w) => w.projectId === projectId);
   const showMoney = role === 'admin' || role === 'sales';
-  const fieldWorker = db.profiles.find((p) => p.id === project.fieldWorkerId);
   const tailor = db.profiles.find((p) => p.id === project.tailorId);
 
   return (
@@ -474,9 +474,13 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
 
       <Card>
         <AppText variant="heading">الفريق والمواعيد</AppText>
+        {/* ثلاثة أدوار لا اثنان، وكلها قابلة للتبديل: من قاس قد لا يركّب،
+            والمركّب يُقرَّر متأخرًا، والخياط قد يتبدّل بالضغط والانشغال. */}
         <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-          <InfoRow label="العامل الميداني" value={fieldWorker?.fullName ?? 'غير معيّن'} />
-          <InfoRow label="الخياط" value={tailor?.fullName ?? 'غير معيّن'} />
+          <AssignRow projectId={projectId} kind="measurement" label="القياس" />
+          <AssignRow projectId={projectId} kind="tailor" label="الخياطة" />
+          <AssignRow projectId={projectId} kind="installation" label="التركيب" />
+          <Divider />
           <InfoRow label="موعد القياس" value={formatDate(project.measurementDate)} />
           <InfoRow label="موعد التركيب" value={formatDate(project.installationDate)} />
           <InfoRow label="ملاحظات" value={project.notes || '-'} />
@@ -496,6 +500,93 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         />
       )}
     </>
+  );
+}
+
+/**
+ * سطر إسناد: الاسم الحالي، ولمسة تفتح البدائل تحته.
+ * الأدمن وحده يبدّل - والسطر يبقى مقروءًا للبقية بلا إغراء بضغطة لا تعمل.
+ */
+function AssignRow({
+  projectId,
+  kind,
+  label,
+}: {
+  projectId: string;
+  kind: AssignmentKind;
+  label: string;
+}) {
+  const { db, role, assignRole } = useStore();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const project = db.projects.find((p) => p.id === projectId);
+  const editable = can(role, 'manage_users');
+  const currentId =
+    kind === 'tailor'
+      ? project?.tailorId
+      : kind === 'measurement'
+        ? project?.measurementWorkerId
+        : project?.installerId;
+  const current = db.profiles.find((p) => p.id === currentId);
+  const options = db.profiles.filter(
+    (p) => p.isActive && p.role === (kind === 'tailor' ? 'tailor' : 'field'),
+  );
+
+  return (
+    <View>
+      <Pressable
+        disabled={!editable}
+        onPress={() => setOpen((s) => !s)}
+        style={({ pressed }) => [
+          { borderRadius: radius.sm, minHeight: 40, justifyContent: 'center' },
+          pressed && { backgroundColor: palette.ivoryDeep },
+        ]}
+      >
+        <Row justify="space-between" align="center" gap={spacing.lg}>
+          <AppText variant="caption" color={palette.muted}>
+            {label}
+          </AppText>
+          <Row gap={6}>
+            <AppText variant="label" color={current ? palette.charcoal : palette.warning}>
+              {current?.fullName ?? 'لم يُسنَد بعد'}
+            </AppText>
+            {editable && <ChevronLeft size={14} color={palette.muted} />}
+          </Row>
+        </Row>
+      </Pressable>
+      {open && editable && (
+        <Row gap={spacing.sm} wrap style={{ paddingBottom: spacing.sm }}>
+          {options.map((p) => (
+            <Pressable
+              key={p.id}
+              onPress={() => {
+                const res = assignRole(projectId, p.id, kind);
+                if (!res.ok) setError(res.error);
+                else {
+                  setError(null);
+                  setOpen(false);
+                }
+              }}
+              style={styles.suggestChip}
+            >
+              <AppText variant="caption" color={palette.oliveDark}>
+                {p.fullName}
+              </AppText>
+            </Pressable>
+          ))}
+          {options.length === 0 && (
+            <AppText variant="caption" color={palette.muted}>
+              لا حسابات مفعَّلة لهذا الدور.
+            </AppText>
+          )}
+        </Row>
+      )}
+      {!!error && (
+        <AppText variant="caption" color={palette.danger}>
+          {error}
+        </AppText>
+      )}
+    </View>
   );
 }
 

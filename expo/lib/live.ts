@@ -153,7 +153,9 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       title: s(p.title),
       status: s(p.status_code) as Project['status'],
       priority: s(p.priority) as Project['priority'],
-      fieldWorkerId: sOrNull(p.field_worker_id),
+      // القياس والتركيب عمودان منفصلان على الخادم مع شريحة الكتابة
+      measurementWorkerId: sOrNull(p.measurement_worker_id ?? p.field_worker_id),
+      installerId: sOrNull(p.installer_id),
       tailorId: sOrNull(p.tailor_id),
       measurementDate: sOrNull(p.measurement_date),
       installationDate: sOrNull(p.installation_date),

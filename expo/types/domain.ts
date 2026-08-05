@@ -62,7 +62,17 @@ export interface Project {
   title: string;
   status: ProjectStatus;
   priority: Priority;
-  fieldWorkerId: UUID | null;
+  /**
+   * القياس والتركيب دوران مختلفان لا دورٌ واحد.
+   *
+   * كان حقلٌ واحد `fieldWorkerId` يخدمهما معًا، فيُلزم أن يقيس ويركّب الشخصُ
+   * نفسه - وهذا ليس واقع الورشة: القياس يسبق بأسابيع، وقد يركّب غيره.
+   * القائس يلزم عند الإنشاء (بلا قائس لا يبدأ المشروع)، والمركّب يُختار
+   * وقتما شئت: عند الإنشاء أو حين تجهز الورشة، ويقبل التبديل.
+   */
+  measurementWorkerId: UUID | null;
+  installerId: UUID | null;
+  /** الخياط إلزامي عند الإنشاء - لا مشروع بلا من ينفّذه. */
   tailorId: UUID | null;
   measurementDate: string | null;
   installationDate: string | null;

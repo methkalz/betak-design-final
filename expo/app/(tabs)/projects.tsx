@@ -37,7 +37,11 @@ export default function ProjectsScreen() {
   const [filter, setFilter] = useState<Filter>('all');
 
   const scoped = useMemo(() => {
-    if (role === 'field') return db.projects.filter((p) => p.fieldWorkerId === currentUser?.id);
+    // الميداني يرى ما أُسند إليه قياسًا أو تركيبًا - الدوران مختلفان
+    if (role === 'field')
+      return db.projects.filter(
+        (p) => p.measurementWorkerId === currentUser?.id || p.installerId === currentUser?.id,
+      );
     if (role === 'tailor') return db.projects.filter((p) => p.tailorId === currentUser?.id);
     return db.projects;
   }, [db.projects, role, currentUser?.id]);

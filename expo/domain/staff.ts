@@ -9,6 +9,7 @@
  * جميلًا بلا معنى - وذاك أسوأ من فراغ صريح.
  */
 import type { Database } from '@/data/seed';
+import { projectsAssignedTo } from '@/domain/assignment';
 import { round3 } from '@/domain/pricing';
 import type { Role, UUID } from '@/types/domain';
 
@@ -151,7 +152,7 @@ export function staffDossier(db: Database, profileId: UUID, now: number): StaffD
         { label: 'تركيبات موقّعة', value: pct(signed.length, installs.length) },
         {
           label: 'مشاريع مسندة',
-          value: String(db.projects.filter((p) => p.fieldWorkerId === profileId).length),
+          value: String(projectsAssignedTo(db, profileId).length),
         },
       ],
     };

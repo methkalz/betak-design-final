@@ -11,10 +11,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock3,
+  Hammer,
   FolderPlus,
   Layers,
   LayoutGrid,
   Package,
+  Ruler,
   Scissors,
   UserPlus,
 } from 'lucide-react-native';
@@ -46,6 +48,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
+import { assignmentGaps, type AssignmentGap } from '@/domain/assignment';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { staffBalance } from '@/domain/staffLedger';
 import { useRollViews } from '@/hooks/selectors';
@@ -334,8 +337,8 @@ function AdminDashboard() {
     const awaitingValue = awaiting.reduce((s, v) => s + v.totalAgorot, 0);
 
     const active = db.projects.filter((p) => p.status !== 'completed');
-    // M16: بلا إسناد = قياس لن يحدث؛ M20: مركَّب = ينتظر اعتماد الأدمن
-    const unassigned = active.filter((p) => !p.fieldWorkerId);
+    // فجوات الإسناد المُعطِّلة فقط - قياسٌ بلا قائس، أو تركيبٌ جاهز بلا مركّب
+    const unassigned = assignmentGaps(db);
     const installed = db.projects.filter((p) => p.status === 'installed');
 
     const reservedM = db.reservations
@@ -709,16 +712,16 @@ function AdminDashboard() {
           </Enter>
         )}
 
-        {/* مشاريع بلا عامل ميداني: الإسناد إلزامي (M16) ويُنجز من البطاقة */}
+        {/* فجوات الإسناد المُعطِّلة (M16): قياس بلا قائس، أو تركيب بلا مركّب */}
         {stats.unassigned.length > 0 && (
           <Enter delay={ENTER.attention + 20}>
             <SectionHeader
-              title="بلا إسناد ميداني"
-              subtitle={`${stats.unassigned.length} مشروع ينتظر من يقيسه`}
+              title="ينتظر إسنادك"
+              subtitle={`${stats.unassigned.length} مهمة بلا صاحب`}
             />
             <View style={{ gap: spacing.md }}>
-              {stats.unassigned.slice(0, 4).map((p) => (
-                <UnassignedProjectCard key={p.id} projectId={p.id} />
+              {stats.unassigned.slice(0, 4).map((g) => (
+                <AssignmentGapCard key={`${g.projectId}-${g.kind}`} gap={g} />
               ))}
             </View>
           </Enter>
@@ -850,17 +853,21 @@ function AwaitingQuoteCard({ versionId }: { versionId: string }) {
 }
 
 /**
- * مشروع بلا عامل ميداني (M16): لا يظهر لأي ميداني حتى يُسنَد، فبقاؤه بلا
- * إسناد يعني قياسًا لن يحدث. الإسناد من البطاقة نفسها بلمسة على الاسم.
+ * فجوة إسناد مُعطِّلة: قياسٌ بلا قائس، أو تركيبٌ جاهز بلا مركّب.
+ *
+ * البطاقة تقول ما الذي يتوقف فعلًا لا «ينقصه عامل» فحسب، فالنقصان مختلفان:
+ * الأول يمنع القياس من أصله، والثاني يوقف مشروعًا أنهى الخياط عمله فيه.
+ * والإسناد من البطاقة بلمسة على الاسم - القرار حيث يُرى النقص.
  */
-function UnassignedProjectCard({ projectId }: { projectId: string }) {
-  const { db, assignFieldWorker } = useStore();
+function AssignmentGapCard({ gap }: { gap: AssignmentGap }) {
+  const { db, assignRole } = useStore();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const project = db.projects.find((p) => p.id === projectId);
+  const project = db.projects.find((p) => p.id === gap.projectId);
   const customer = db.customers.find((c) => c.id === project?.customerId);
   const workers = db.profiles.filter((p) => p.role === 'field' && p.isActive);
   if (!project) return null;
+  const isInstall = gap.kind === 'installation';
 
   return (
     <Glass inner={{ padding: spacing.lg }}>
@@ -872,10 +879,17 @@ function UnassignedProjectCard({ projectId }: { projectId: string }) {
             </AppText>
             <AppText variant="caption" color={palette.muted} numberOfLines={1}>
               {project.code} • {customer?.fullName}
-              {project.measurementDate ? ` • قياس ${formatDate(project.measurementDate)}` : ''}
+            </AppText>
+            <AppText variant="caption" color={palette.warning}>
+              {isInstall ? 'من يركّب؟ ' : 'من يقيس؟ '}
+              {gap.blocks}
             </AppText>
           </View>
-          <UserPlus size={18} color={palette.warning} />
+          {isInstall ? (
+            <Hammer size={18} color={palette.warning} />
+          ) : (
+            <Ruler size={18} color={palette.warning} />
+          )}
         </Row>
       </Pressable>
       <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
@@ -883,7 +897,7 @@ function UnassignedProjectCard({ projectId }: { projectId: string }) {
           <Pressable
             key={w.id}
             onPress={() => {
-              const res = assignFieldWorker(project.id, w.id);
+              const res = assignRole(project.id, w.id, gap.kind);
               if (!res.ok) setError(res.error);
             }}
             style={({ pressed }) => [styles.assignChip, pressed && { backgroundColor: palette.sand }]}
