@@ -45,6 +45,8 @@ import {
   Swatch,
 } from '@/components/ui';
 import { QuotationDecision } from '@/components/QuotationDecision';
+import { AdvanceButton } from '@/components/AdvanceButton';
+import { TabPanel } from '@/components/TabMotion';
 import { font, gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
@@ -234,81 +236,6 @@ export default function ProjectStudioScreen() {
 
 /* ───────────────────────── Tabs ───────────────────────── */
 
-/**
- * حركة التبويبات - مبنية على «المحور المشترك» (shared axis) في Material
- * Motion، وهي الممارسة المستقرّة لتنقّل بين مستويات متجاورة:
- *
- * - إزاحة قصيرة (26 نقطة) لا عرض الشاشة كاملًا. الانزلاق الكامل لغة السحب
- *   باليد؛ حين تكون النقلة بضغطة زر يكفي أن يقول المحتوى «جئت من هناك».
- * - الخروج أسرع من الدخول (110 مقابل 210): العين تودّع بسرعة وتستقبل على
- *   مهل، ولو تساويا لبدت النقلة ثقيلة.
- * - نسخة واحدة محمولة في كل لحظة، فلا يتراكب محتوى تبويبين ولا يقفز
- *   الارتفاع أثناء الانتقال.
- */
-const OUT_MS = 110;
-const IN_MS = 210;
-
-function TabPanel({
-  tab,
-  order,
-  onSwap,
-  children,
-}: {
-  tab: Tab;
-  order: Tab[];
-  onSwap: () => void;
-  children: (shown: Tab) => React.ReactNode;
-}) {
-  // مسافة السفر نسبةٌ من عرض الشاشة لا رقمًا ثابتًا: 26 نقطة توصي بها
-  // Material تُقرأ نكزةً على هاتف عريض لا انزلاقًا. السدس محسوسٌ كسحب،
-  // ويبقى دون الشاشة كاملة التي تُوهم بأن المحتوى جاء من العدم.
-  const { width } = useWindowDimensions();
-  const SHIFT = Math.min(90, Math.max(40, width * 0.16));
-  const [shown, setShown] = useState<Tab>(tab);
-  const pending = useRef<Tab>(tab);
-  const dir = useRef(1);
-  const opacity = useSharedValue(0);
-  const tx = useSharedValue(0);
-
-  const commit = useCallback(() => {
-    setShown(pending.current);
-    // التبويب الجديد يبدأ من أوله - إبقاء موضع التمرير السابق يُظهر منتصف
-    // شاشة لم يرها المستخدم قط
-    onSwap();
-  }, [onSwap]);
-
-  useEffect(() => {
-    if (tab === shown) return;
-    pending.current = tab;
-    // الاتجاه في العربية: التبويب التالي يقع يسارًا، فالخارج يخرج يمينًا
-    dir.current = order.indexOf(tab) > order.indexOf(shown) ? 1 : -1;
-    opacity.value = withTiming(0, { duration: OUT_MS, easing: REasing.in(REasing.quad) });
-    tx.value = withTiming(
-      dir.current * SHIFT,
-      { duration: OUT_MS, easing: REasing.in(REasing.quad) },
-      (done) => {
-        if (done) runOnJS(commit)();
-      },
-    );
-  }, [tab, shown, order, opacity, tx, commit, SHIFT]);
-
-  useEffect(() => {
-    tx.value = -dir.current * SHIFT;
-    opacity.value = 0;
-    tx.value = withTiming(0, { duration: IN_MS, easing: REasing.out(REasing.cubic) });
-    opacity.value = withTiming(1, { duration: IN_MS, easing: REasing.out(REasing.quad) });
-  }, [shown, opacity, tx, SHIFT]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateX: tx.value }],
-  }));
-
-  return (
-    <Animated.View style={[{ gap: spacing.lg }, style]}>{children(shown)}</Animated.View>
-  );
-}
-
 type Edge = { x: number; w: number };
 
 /**
@@ -417,66 +344,6 @@ function TabBar({
 }
 
 /* ───────────────────────── Overview ───────────────────────── */
-
-/**
- * زر التقدّم — الممارسة المعتمدة (2024-2026): إجراء أساسي بارز وواضح
- * الوجهة، لا نقر على عنصر صغير داخل قائمة. السهم يتحرك بلطف لا زخرفةً بل
- * ليقول «اضغط هنا للانتقال»، وهي إشارة الإمكانية (affordance) التي كانت
- * غائبة حين كان النقل مخبوءًا في نقطة ملوّنة.
- */
-function AdvanceButton({
-  label,
-  onPress,
-  caption = 'المرحلة التالية',
-}: {
-  label: string;
-  onPress: () => void;
-  caption?: string;
-}) {
-  // سهمان يتتابعان لا قرص يتحرك: الحركة يجب أن تكون في الرمز الدال على
-  // الاتجاه نفسه. التأخير بين السهمين يصنع إحساس التدفق نحو الأمام.
-  const x1 = useSharedValue(0);
-  const x2 = useSharedValue(0);
-  useEffect(() => {
-    const cycle = { duration: 620, easing: REasing.inOut(REasing.quad) };
-    x1.value = withRepeat(withTiming(-9, cycle), -1, true);
-    x2.value = withDelay(140, withRepeat(withTiming(-9, cycle), -1, true));
-  }, [x1, x2]);
-  const nudge1 = useAnimatedStyle(() => ({ transform: [{ translateX: x1.value }] }));
-  const nudge2 = useAnimatedStyle(() => ({ transform: [{ translateX: x2.value }] }));
-
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.advanceBtn, pressed && { transform: [{ scale: 0.98 }] }]}
-    >
-      <LinearGradient
-        colors={gradients.indigo as unknown as [string, string]}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <Row justify="space-between" style={{ flex: 1 }}>
-        <View>
-          <AppText variant="caption" color="rgba(255,255,255,0.75)">
-            {caption}
-          </AppText>
-          <AppText variant="heading" color={palette.white}>
-            {label}
-          </AppText>
-        </View>
-        <View style={styles.advanceArrows}>
-          <Animated.View style={nudge1}>
-            <ChevronLeft size={28} color={palette.white} />
-          </Animated.View>
-          <Animated.View style={[nudge2, { marginRight: -16 }]}>
-            <ChevronLeft size={28} color="rgba(255,255,255,0.55)" />
-          </Animated.View>
-        </View>
-      </Row>
-    </Pressable>
-  );
-}
 
 function OverviewTab({ projectId, statusColor }: { projectId: string; statusColor: string }) {
   const { db, role, setProjectStatus } = useStore();

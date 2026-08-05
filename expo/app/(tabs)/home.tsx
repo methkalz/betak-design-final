@@ -7,6 +7,8 @@ import {
   ArrowUpRight,
   BadgePercent,
   Bell,
+  CalendarCheck,
+  CheckCircle2,
   ChevronLeft,
   Clock3,
   FolderPlus,
@@ -31,6 +33,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppHeader } from '@/components/AppHeader';
+import { PendingInstallations } from '@/components/PendingInstallations';
 import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
 import { CountUpText, Enter, MiniBars, RingStat, StackedBar } from '@/components/dashviz';
 import {
@@ -47,7 +50,7 @@ import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { useRollViews } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
 import { QuotationDecision } from '@/components/QuotationDecision';
-import { formatDate, isSameDay, money } from '@/lib/format';
+import { formatDate, isSameDay, meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 /* لوحة 2026: خلفية لافندرية بتوهجات، بطاقة بطل متدرّجة بهالة ملوّنة،
@@ -839,6 +842,13 @@ function PipelineChart() {
   );
 }
 
+/**
+ * لوحة العامل الميداني.
+ *
+ * ما يحتاجه صاحب اليوم الميداني ثلاثة أرقام لا تقارير: كم زيارة اليوم، وكم
+ * فات موعدها، وكم ينتظر التركيب. والمتأخرة تُرفع فوق زيارات اليوم لأنها
+ * الأولى في الواقع لا في الترتيب الزمني.
+ */
 function FieldDashboard() {
   const { db, currentUser } = useStore();
   const router = useRouter();
@@ -847,82 +857,196 @@ function FieldDashboard() {
   const myVisits = db.fieldVisits
     .filter((v) => v.assigneeId === currentUser?.id && v.status !== 'completed')
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  const late = myVisits.filter(
+    (v) => !isSameDay(v.scheduledAt, today) && new Date(v.scheduledAt).getTime() < today.getTime(),
+  );
   const todays = myVisits.filter((v) => isSameDay(v.scheduledAt, today));
-  const upcoming = myVisits.filter((v) => !isSameDay(v.scheduledAt, today));
+  const upcoming = myVisits.filter(
+    (v) => !isSameDay(v.scheduledAt, today) && new Date(v.scheduledAt).getTime() >= today.getTime(),
+  );
+  const doneThisMonth = db.fieldVisits.filter(
+    (v) =>
+      v.assigneeId === currentUser?.id &&
+      v.status === 'completed' &&
+      !!v.completedAt &&
+      new Date(v.completedAt).getMonth() === today.getMonth(),
+  ).length;
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
+      <RoleAurora />
       <AppHeader subtitle={`لديك ${todays.length} زيارة اليوم و ${upcoming.length} قادمة`} />
       <View style={{ padding: spacing.lg, gap: spacing.xl }}>
-        <View>
-          <SectionHeader title="زيارات اليوم" subtitle={formatDate(today.toISOString())} />
-          {todays.length === 0 ? (
-            <Card>
-              <AppText variant="body" color={palette.muted} align="center">
-                لا توجد زيارات اليوم - استمتع بيومك.
-              </AppText>
-            </Card>
-          ) : (
+        <Enter delay={ENTER.hero}>
+          <Row gap={spacing.md}>
+            <GlassTile
+              color={palette.infoSoft}
+              icon={<CalendarCheck size={16} color={palette.info} />}
+              value={String(todays.length)}
+              label="زيارة اليوم"
+            />
+            <GlassTile
+              color={late.length > 0 ? palette.dangerSoft : palette.sageSoft}
+              icon={
+                <AlertTriangle
+                  size={16}
+                  color={late.length > 0 ? palette.danger : palette.oliveDark}
+                />
+              }
+              value={String(late.length)}
+              label="فات موعدها"
+            />
+            <GlassTile
+              color={palette.successSoft}
+              icon={<CheckCircle2 size={16} color={palette.success} />}
+              value={String(doneThisMonth)}
+              label="أنجزت هذا الشهر"
+            />
+          </Row>
+        </Enter>
+
+        {late.length > 0 && (
+          <Enter delay={ENTER.quick}>
             <View style={{ gap: spacing.md }}>
-              {todays.map((v) => (
+              <SectionHeader title="فات موعدها" subtitle="ابدأ بها قبل زيارات اليوم" />
+              {late.map((v) => (
                 <VisitCard key={v.id} visitId={v.id} />
               ))}
             </View>
-          )}
-        </View>
+          </Enter>
+        )}
+
+        <Enter delay={ENTER.tiles}>
+          <PendingInstallations />
+        </Enter>
+
+        <Enter delay={ENTER.charts}>
+          <View style={{ gap: spacing.md }}>
+            <SectionHeader title="زيارات اليوم" subtitle={formatDate(today.toISOString())} />
+            {todays.length === 0 ? (
+              <Card>
+                <AppText variant="body" color={palette.muted} align="center">
+                  لا توجد زيارات اليوم - استمتع بيومك.
+                </AppText>
+              </Card>
+            ) : (
+              todays.map((v) => <VisitCard key={v.id} visitId={v.id} />)
+            )}
+          </View>
+        </Enter>
 
         {upcoming.length > 0 && (
-          <View>
-            <SectionHeader title="زيارات قادمة" />
+          <Enter delay={ENTER.attention}>
             <View style={{ gap: spacing.md }}>
+              <SectionHeader title="زيارات قادمة" />
               {upcoming.map((v) => (
                 <VisitCard key={v.id} visitId={v.id} />
               ))}
             </View>
-          </View>
+          </Enter>
         )}
 
-        <Button
-          label="فتح كل مشاريعي"
-          variant="ghost"
-          full
-          icon={<ArrowLeft size={18} color={palette.olive} />}
-          onPress={() => router.push('/projects')}
-        />
+        <Enter delay={ENTER.pipeline}>
+          <Button
+            label="فتح كل مشاريعي"
+            variant="ghost"
+            full
+            icon={<ArrowLeft size={18} color={palette.olive} />}
+            onPress={() => router.push('/projects')}
+          />
+        </Enter>
       </View>
     </ScrollView>
   );
 }
 
+/**
+ * لوحة الخياط.
+ *
+ * موعد التسليم هو ما يحكم يومه، فالمتأخر يُفرَز أولًا ويُلوَّن، ويُحسب القماش
+ * المحجوز له لأنه يقرّر إن كان يستطيع البدء أصلًا.
+ */
 function TailorDashboard() {
   const { db, currentUser } = useStore();
   const router = useRouter();
-  const mine = db.tailorAssignments.filter(
+  const today = new Date();
+  const open = db.tailorAssignments.filter(
     (a) => a.tailorId === currentUser?.id && a.stage !== 'ready',
   );
+  // بداية اليوم تُحسب على نسخة: `setHours` يعدّل التاريخ الأصلي، وهو مستعمل
+  // بعده في هذه الشاشة
+  const startOfToday = new Date(today).setHours(0, 0, 0, 0);
+  const late = open.filter((a) => new Date(a.dueDate).getTime() < startOfToday);
+  const onTrack = open.filter((a) => !late.includes(a));
   const done = db.tailorAssignments.filter(
     (a) => a.tailorId === currentUser?.id && a.stage === 'ready',
   );
+  const reservedM = db.reservations
+    .filter(
+      (r) => r.status !== 'released' && open.some((a) => a.projectId === r.projectId),
+    )
+    .reduce((s, r) => s + (r.quantityM - r.consumedM), 0);
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
     >
-      <AppHeader subtitle={`${mine.length} أمر إنتاج قيد التنفيذ`} />
+      <RoleAurora />
+      <AppHeader subtitle={`${open.length} أمر إنتاج قيد التنفيذ`} />
       <View style={{ padding: spacing.lg, gap: spacing.xl }}>
-        <View>
-          <SectionHeader title="أوامر الإنتاج" subtitle="مشاريعك فقط" />
+        <Enter delay={ENTER.hero}>
+          <Row gap={spacing.md}>
+            <GlassTile
+              color={palette.sageSoft}
+              icon={<Scissors size={16} color={palette.oliveDark} />}
+              value={String(open.length)}
+              label="أمر مفتوح"
+            />
+            <GlassTile
+              color={late.length > 0 ? palette.dangerSoft : palette.sageSoft}
+              icon={
+                <AlertTriangle
+                  size={16}
+                  color={late.length > 0 ? palette.danger : palette.oliveDark}
+                />
+              }
+              value={String(late.length)}
+              label="تأخّر تسليمه"
+            />
+            <GlassTile
+              color={palette.terracottaSoft}
+              icon={<Layers size={16} color={palette.terracotta} />}
+              value={meters(reservedM, false)}
+              unit="متر"
+              label="قماش محجوز لك"
+            />
+          </Row>
+        </Enter>
+
+        {late.length > 0 && (
+          <Enter delay={ENTER.quick}>
+            <View style={{ gap: spacing.md }}>
+              <SectionHeader title="تأخّر عن موعد التسليم" subtitle="ابدأ بها" />
+              {late.map((a) => (
+                <TailorCard key={a.id} assignmentId={a.id} />
+              ))}
+            </View>
+          </Enter>
+        )}
+
+        <Enter delay={ENTER.tiles}>
           <View style={{ gap: spacing.md }}>
-            {mine.map((a) => (
+            <SectionHeader title="أوامر الإنتاج" subtitle="مشاريعك فقط" />
+            {onTrack.map((a) => (
               <TailorCard key={a.id} assignmentId={a.id} />
             ))}
-            {mine.length === 0 && (
+            {open.length === 0 && (
               <Card>
                 <AppText variant="body" color={palette.muted} align="center">
                   لا توجد أوامر إنتاج مفتوحة حاليًا.
@@ -930,28 +1054,43 @@ function TailorDashboard() {
               </Card>
             )}
           </View>
-        </View>
+        </Enter>
 
         {done.length > 0 && (
-          <View>
-            <SectionHeader title="جاهز للتسليم" />
+          <Enter delay={ENTER.charts}>
             <View style={{ gap: spacing.md }}>
+              <SectionHeader title="جاهز للتسليم" />
               {done.map((a) => (
                 <TailorCard key={a.id} assignmentId={a.id} />
               ))}
             </View>
-          </View>
+          </Enter>
         )}
 
-        <Button
-          label="فتح قائمة الإنتاج"
-          variant="ghost"
-          full
-          icon={<Scissors size={18} color={palette.olive} />}
-          onPress={() => router.push('/tasks')}
-        />
+        <Enter delay={ENTER.attention}>
+          <Button
+            label="فتح قائمة الإنتاج"
+            variant="ghost"
+            full
+            icon={<Scissors size={18} color={palette.olive} />}
+            onPress={() => router.push('/tasks')}
+          />
+        </Enter>
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * الهالة الخلفية - نفس لغة لوحة الأدمن بلا أرقامها. مطلقة خلف المحتوى
+ * فلا تزحزح شيئًا، ولا تتحرك مع التمرير فتُتعب العين.
+ */
+function RoleAurora() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <SoftGlow id="roleA" color="#38BDF8" size={300} peak={0.22} style={{ top: -70, right: -60 }} />
+      <SoftGlow id="roleB" color="#8B5CF6" size={260} peak={0.16} style={{ top: 150, left: -80 }} />
+    </View>
   );
 }
 

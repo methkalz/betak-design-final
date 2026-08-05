@@ -685,6 +685,16 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   // ── Field visits ──────────────────────────────────────────────────────────
   const scheduleVisit = useCallback(
     (projectId: UUID, assigneeId: UUID, type: VisitType, scheduledAt: string): Result<string> => {
+      const denied = guard('install');
+      if (denied) return denied as Result<string>;
+      // زيارة تركيب واحدة مفتوحة لكل مشروع: جدولتها مرتين تُنتج زيارتين
+      // متطابقتين وموعدَي تركيب متضاربين على المشروع نفسه
+      if (
+        db.fieldVisits.some(
+          (v) => v.projectId === projectId && v.type === type && v.status !== 'completed',
+        )
+      )
+        return failWith('توجد زيارة من هذا النوع مجدولة بالفعل لهذا المشروع.', 'conflict');
       const id = uid('fv');
       mutate((draft) => {
         draft.fieldVisits.unshift({
@@ -716,29 +726,35 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [mutate, notify, audit],
+    [guard, db.fieldVisits, mutate, notify, audit],
   );
 
   const updateVisit = useCallback(
     (id: UUID, patch: Partial<FieldVisit>): Result<void> => {
+      const denied = guard('install');
+      if (denied) return denied;
       mutate((draft) => {
         draft.fieldVisits = draft.fieldVisits.map((v) => (v.id === id ? { ...v, ...patch } : v));
         enqueue(draft, 'visit.update', 'تحديث زيارة ميدانية', id);
       });
       return okVoid;
     },
-    [mutate, enqueue],
+    [guard, mutate, enqueue],
   );
 
   const startVisit = useCallback(
     (id: UUID): Result<void> => {
+      const denied = guard('install');
+      if (denied) return denied;
       mutate((draft) => {
         const visit = draft.fieldVisits.find((v) => v.id === id);
         if (!visit) return;
         visit.status = 'in_progress';
         visit.startedAt = new Date().toISOString();
+        // زيارة القياس تبدأ فعليًا: المشروع ينتقل من «بانتظار القياس» إلى
+        // الجدول الزمني الجاري. (كان الشرط هنا يُسند الحالة إلى نفسها.)
         const project = draft.projects.find((p) => p.id === visit.projectId);
-        if (project && visit.type === 'measurement' && project.status === 'awaiting_measurement') {
+        if (project && visit.type === 'measurement' && project.status === 'new_request') {
           project.status = 'awaiting_measurement';
         }
         enqueue(draft, 'visit.start', 'بدء زيارة ميدانية', id);
@@ -746,11 +762,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [mutate, enqueue, audit],
+    [guard, mutate, enqueue, audit],
   );
 
   const completeVisit = useCallback(
     (id: UUID): Result<void> => {
+      const denied = guard('install');
+      if (denied) return denied;
       const visit = db.fieldVisits.find((v) => v.id === id);
       if (!visit) return failWith('الزيارة غير موجودة.', 'validation');
       if (visit.type === 'measurement') {
@@ -788,7 +806,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [db.fieldVisits, db.windows, db.attachments, mutate, enqueue, audit],
+    [guard, db.fieldVisits, db.windows, db.attachments, mutate, enqueue, audit],
   );
 
   // ── Quotations ────────────────────────────────────────────────────────────
@@ -1580,6 +1598,16 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     (assignmentId: UUID, stage: TailorStage): Result<void> => {
       const denied = guard('update_production');
       if (denied) return denied;
+      const current = db.tailorAssignments.find((x) => x.id === assignmentId);
+      if (!current) return failWith('أمر الإنتاج غير موجود.', 'validation');
+      // خطوة واحدة في الاتجاهين لا قفزًا: القفز يترك مراحل بلا توقيت في
+      // السجل، فيصير «متوسط مدة الأمر» و«التزام بالموعد» محسوبين على تاريخ
+      // ناقص. والرجوع خطوة مسموح لأن الضغطة الخاطئة تقع.
+      const from = TAILOR_STAGE_ORDER.indexOf(current.stage);
+      const to = TAILOR_STAGE_ORDER.indexOf(stage);
+      if (to < 0) return failWith('مرحلة غير معروفة.', 'validation');
+      if (Math.abs(to - from) !== 1)
+        return failWith('المراحل تتقدّم خطوة واحدة في كل مرة.', 'validation');
       mutate((draft) => {
         const a = draft.tailorAssignments.find((x) => x.id === assignmentId);
         if (!a) return;
@@ -1616,7 +1644,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, notify, audit],
+    [guard, db.tailorAssignments, mutate, notify, audit],
   );
 
   const assignTailor = useCallback(

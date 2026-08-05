@@ -4,6 +4,7 @@ import { FlatList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TailorCard } from '@/components/cards';
+import { TabPanel } from '@/components/TabMotion';
 import { AppText, EmptyState, Row, SegmentedControl } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { TAILOR_STAGE_LABELS } from '@/domain/labels';
@@ -11,6 +12,8 @@ import { meters } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 type Tab = 'open' | 'ready';
+
+const TAB_ORDER: Tab[] = ['open', 'ready'];
 
 export default function TasksScreen() {
   const { db, currentUser } = useStore();
@@ -58,20 +61,25 @@ export default function TasksScreen() {
         />
       </View>
 
-      <FlatList
-        data={data}
-        keyExtractor={(a) => a.id}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <TailorCard assignmentId={item.id} />}
-        ListEmptyComponent={
-          <EmptyState
-            icon={<Scissors size={28} color={palette.olive} />}
-            title="لا توجد أوامر"
-            body="ستظهر هنا المشاريع المسندة إليك فقط."
+      {/* نفس حركة الانتقال المعتمدة في شاشة المشروع - التبويب لا يقطع */}
+      <TabPanel tab={tab} order={TAB_ORDER} style={{ flex: 1 }} gap={0}>
+        {() => (
+          <FlatList
+            data={data}
+            keyExtractor={(a) => a.id}
+            contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => <TailorCard assignmentId={item.id} />}
+            ListEmptyComponent={
+              <EmptyState
+                icon={<Scissors size={28} color={palette.olive} />}
+                title="لا توجد أوامر"
+                body="ستظهر هنا المشاريع المسندة إليك فقط."
+              />
+            }
           />
-        }
-      />
+        )}
+      </TabPanel>
     </View>
   );
 }

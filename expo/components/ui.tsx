@@ -392,16 +392,46 @@ export function SegmentedControl<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  /**
+   * القرص يسافر ولا يقفز.
+   *
+   * كان السطح الأبيض يُطفأ تحت خيار ويُشعل تحت آخر، فلا شيء يربط الخيارين
+   * في العين. الآن قطعة واحدة تنزلق، وهي الطريقة نفسها التي عولج بها شريط
+   * تبويبات المشروع. العرض يُقاس ولا يُفترض: النصوص العربية تتفاوت أطوالها،
+   * فالقسمة على العدد تُخرج القرص عن كلمته.
+   */
+  const [w, setW] = React.useState(0);
+  const n = options.length;
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  // حسابٌ من قياس الحاوية الفعلي: حشوة 4 من الجانبين وفراغ 4 بين كل خيارين
+  const cell = n > 0 && w > 0 ? (w - 8 - 4 * (n - 1)) / n : 0;
+  // الشريط row-reverse فأول خيار أقصى اليمين: الإزاحة تُعدّ من الطرف الآخر
+  const target = (n - 1 - index) * (cell + 4);
+  const x = useSharedValue(-1);
+  useEffect(() => {
+    if (cell <= 0) return;
+    if (x.value < 0) x.value = target; // أول قياس: يوضع مكانه بلا سفر
+    else x.value = withTiming(target, { duration: 240, easing: REasing.out(REasing.cubic) });
+  }, [target, cell, x]);
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: Math.max(0, x.value) }],
+  }));
+
   return (
-    <View style={styles.segment}>
+    <View style={styles.segment} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {cell > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.segmentThumb, { width: cell }, thumb]}
+        />
+      )}
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            style={[styles.segmentItem, active && styles.segmentItemActive]}
-          >
+          <Pressable key={o.value} onPress={() => onChange(o.value)} style={styles.segmentItem}>
             <Text
               style={{
                 fontFamily: active ? font.semibold : font.regular,
@@ -853,7 +883,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmentItemActive: { backgroundColor: palette.white, ...shadow.card },
+  /** القرص المسافر - خلف النصوص لا فوقها. */
+  segmentThumb: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    height: 38,
+    borderRadius: radius.sm,
+    backgroundColor: palette.white,
+    ...shadow.card,
+  },
   empty: {
     alignItems: 'center',
     gap: spacing.sm,

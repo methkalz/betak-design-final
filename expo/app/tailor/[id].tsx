@@ -1,13 +1,22 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CheckCircle2, CircleDashed, Scissors, TriangleAlert } from 'lucide-react-native';
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CircleDashed,
+  Scissors,
+  TriangleAlert,
+} from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { AdvanceButton } from '@/components/AdvanceButton';
 import {
   AppText,
   Banner,
   Button,
   Card,
+  ConfirmSheet,
   Divider,
   EmptyState,
   Field,
@@ -17,7 +26,7 @@ import {
   SectionHeader,
   Swatch,
 } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { font, palette, radius, spacing } from '@/constants/theme';
 import {
   CURTAIN_MODEL_LABELS,
   TAILOR_STAGE_LABELS,
@@ -27,12 +36,14 @@ import {
 import { round3 } from '@/domain/pricing';
 import { cm, formatDate, meters } from '@/lib/format';
 import { useStore } from '@/providers/store';
+import type { TailorStage } from '@/types/domain';
 
 export default function TailorAssignmentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { db, busy, advanceStage, consumeFabric } = useStore();
 
+  const [pending, setPending] = useState<{ to: TailorStage; back: boolean } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [quantity, setQuantity] = useState<string>('');
   const [reason, setReason] = useState<string>('');
@@ -64,6 +75,8 @@ export default function TailorAssignmentScreen() {
   const isOver = reservation ? qty > outstanding + 0.0001 : false;
 
   const stageIndex = TAILOR_STAGE_ORDER.indexOf(assignment.stage);
+  const nextStage = TAILOR_STAGE_ORDER[stageIndex + 1];
+  const prevStage = TAILOR_STAGE_ORDER[stageIndex - 1];
 
   const submitUsage = async () => {
     setError(null);
@@ -103,39 +116,93 @@ export default function TailorAssignmentScreen() {
       </Card>
 
       <Card>
-        <SectionHeader title="مراحل الإنتاج" subtitle="اضغط على المرحلة لتحديثها" />
+        {/* الخط الزمني للقراءة، والتقدّم بزرٍّ واحد صريح.
+            كان كل سطر قابلًا للضغط فيقفز الأمر إلى أي مرحلة بلا تأكيد - وهو
+            ما يترك مراحل بلا توقيت في السجل، فيصير «متوسط مدة الأمر»
+            و«التزام بالموعد» محسوبَين على تاريخ ناقص. */}
+        <SectionHeader title="مراحل الإنتاج" subtitle="المرحلة الحالية وما قبلها وما بعدها" />
         {TAILOR_STAGE_ORDER.map((stage, i) => {
           const done = i < stageIndex;
           const active = i === stageIndex;
-          const reachable = i <= stageIndex + 1;
+          const at = assignment.stageHistory.find((h) => h.stage === stage);
           return (
-            <Pressable
-              key={stage}
-              disabled={!reachable || active}
-              onPress={() => advanceStage(assignment.id, stage)}
-              style={{ paddingVertical: spacing.sm, minHeight: 48, justifyContent: 'center', opacity: reachable ? 1 : 0.4 }}
-            >
-              <Row gap={spacing.md}>
+            <View key={stage} style={{ opacity: done || active ? 1 : 0.45 }}>
+              <Row gap={spacing.md} style={{ paddingVertical: spacing.sm }}>
                 {done || active ? (
                   <CheckCircle2 size={22} color={active ? palette.terracotta : palette.success} />
                 ) : (
                   <CircleDashed size={22} color={palette.sandDeep} />
                 )}
                 <View style={{ flex: 1 }}>
-                  <AppText variant="label" color={active ? palette.charcoal : palette.muted}>
+                  <AppText
+                    variant={active ? 'label' : 'caption'}
+                    color={active ? palette.charcoal : palette.muted}
+                    style={active ? { fontFamily: font.bold } : undefined}
+                  >
                     {TAILOR_STAGE_LABELS[stage]}
                   </AppText>
-                  {assignment.stageHistory.find((h) => h.stage === stage) && (
+                  {!!at && (
                     <AppText variant="caption" color={palette.muted}>
-                      {formatDate(assignment.stageHistory.find((h) => h.stage === stage)!.at)}
+                      {formatDate(at.at)}
                     </AppText>
                   )}
                 </View>
               </Row>
-            </Pressable>
+            </View>
           );
         })}
+
+        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+          {!!nextStage && (
+            <AdvanceButton
+              label={TAILOR_STAGE_LABELS[nextStage]}
+              onPress={() => setPending({ to: nextStage, back: false })}
+            />
+          )}
+          {!!prevStage && (
+            <Pressable onPress={() => setPending({ to: prevStage, back: true })} style={styles.backStep}>
+              <AppText variant="caption" color={palette.muted} align="center">
+                رجوع إلى: {TAILOR_STAGE_LABELS[prevStage]}
+              </AppText>
+            </Pressable>
+          )}
+          {!nextStage && (
+            <Banner
+              tone="success"
+              title="اكتمل أمر الإنتاج"
+              body="انتقل المشروع إلى «جاهز للتركيب» ووصل الإشعار للعامل الميداني."
+            />
+          )}
+        </View>
       </Card>
+
+      <ConfirmSheet
+        visible={!!pending}
+        icon={
+          pending?.back ? (
+            <ChevronRight size={24} color={palette.muted} />
+          ) : (
+            <ChevronLeft size={24} color={palette.olive} />
+          )
+        }
+        title={pending?.back ? 'رجوع بالأمر خطوة' : 'نقل الأمر للمرحلة التالية'}
+        body={
+          pending?.to === 'ready'
+            ? 'سيُغلق أمر الإنتاج، وينتقل المشروع إلى «جاهز للتركيب»، ويصل الإشعار للعامل الميداني.'
+            : pending
+              ? `سيصبح الأمر في مرحلة "${TAILOR_STAGE_LABELS[pending.to]}"، ويظهر بها لكل الفريق.`
+              : undefined
+        }
+        confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل الأمر'}
+        onConfirm={() => {
+          if (pending) {
+            const res = advanceStage(assignment.id, pending.to);
+            if (!res.ok) setError(res.error);
+          }
+          setPending(null);
+        }}
+        onCancel={() => setPending(null)}
+      />
 
       <Card>
         <SectionHeader title="المقاسات" subtitle={`${windows.length} قطعة`} />
@@ -266,3 +333,8 @@ export default function TailorAssignmentScreen() {
     </ScrollScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  /** الرجوع خطوةً تصحيحٌ لا إجراء، فحضوره أهدأ من زر التقدّم. */
+  backStep: { minHeight: 44, justifyContent: 'center' },
+});
