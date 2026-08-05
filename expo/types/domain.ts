@@ -212,6 +212,13 @@ export interface FabricUsage {
   id: UUID;
   organizationId: UUID;
   projectId: UUID;
+  /**
+   * الشباك الذي استُهلك القماش لأجله.
+   * الاستهلاك يُسجَّل عند إنهاء شباك بعينه لا دفعةً على المشروع، فهذا الحقل
+   * هو ما يجعل «أُنجز هذا الشباك» واقعةً مسجَّلة لا خانةً تُعلَّم.
+   * `null` للسجلات القديمة السابقة على هذه القاعدة.
+   */
+  windowId: UUID | null;
   reservationId: UUID;
   rollId: UUID;
   plannedM: number;

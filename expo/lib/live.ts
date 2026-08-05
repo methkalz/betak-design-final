@@ -262,6 +262,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     id: s(u.usage_id),
     organizationId: s(u.organization_id),
     projectId: s(u.project_id),
+    // الخادم لا يحمل هذا العمود بعد - يُضاف مع شريحة الكتابة
+    windowId: u.window_id ? s(u.window_id) : null,
     reservationId: s(u.reservation_id),
     rollId: s(u.roll_id),
     plannedM: n(u.planned_m),

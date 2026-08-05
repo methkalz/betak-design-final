@@ -6,7 +6,13 @@
  */
 import { test, expect } from 'bun:test';
 
-import { pickRolls, projectFabricGaps, projectFabricPlan } from './fabricPlan';
+import {
+  finishedWindowIds,
+  pickRolls,
+  projectFabricGaps,
+  projectFabricPlan,
+  windowFabricNeed,
+} from './fabricPlan';
 import type { Database } from '@/data/seed';
 
 type Movement = { id: string; rollId: string; type: string; quantityM: number };
@@ -24,6 +30,7 @@ function makeDb(opts: {
     liningVariantId?: string | null;
   }[];
   reservations?: { id: string; rollId: string; quantityM: number; status?: string }[];
+  usages?: { id: string; windowId: string | null; actualM: number }[];
 }): Database {
   const movements: Movement[] = [];
   for (const r of opts.rolls) {
@@ -51,6 +58,7 @@ function makeDb(opts: {
       { id: 'v2', productId: 'pr1', colorName: 'زيتي' },
     ],
     fabricProducts: [{ id: 'pr1', name: 'كتان' }],
+    usages: (opts.usages ?? []).map((u) => ({ ...u, projectId: 'p1' })),
   } as unknown as Database;
 }
 
@@ -123,6 +131,47 @@ test('الخطة تجمع الشبابيك المتشابهة وتحسب الب�
   // 4 + 6 من الستائر + 2.5 من البطانة
   expect(v1?.meters).toBe(12.5);
   expect(v2?.meters).toBe(2.5);
+});
+
+test('حاجة الشباك من قماشه لا تشمل بطانته - البطانة صنف مستقلّ', () => {
+  const db = makeDb({
+    rolls: [],
+    windows: [
+      {
+        id: 'w1',
+        widthCm: 250,
+        quantity: 2,
+        fullness: 2,
+        fabricVariantId: 'v2',
+        hasLining: true,
+        liningVariantId: 'v1',
+      },
+    ],
+  });
+  // 2.5 م × قطعتين × مضاعف 2 = 10 - والبطانة لا تُضاف هنا
+  expect(windowFabricNeed(db, 'w1')).toBe(10);
+  expect(windowFabricNeed(db, 'لا-وجود-له')).toBe(0);
+});
+
+test('المنجز يُقرأ من سجل الاستهلاك لا من خانة على الشباك', () => {
+  const db = makeDb({
+    rolls: [],
+    windows: [
+      { id: 'w1', widthCm: 100, quantity: 1, fullness: 2, fabricVariantId: 'v1' },
+      { id: 'w2', widthCm: 100, quantity: 1, fullness: 2, fabricVariantId: 'v1' },
+    ],
+    // شريحتان لشباك واحد (رولان) تُحسبان مرة واحدة، والاستهلاك العام
+    // غير المنسوب لشباك لا يجعل أي شباك منجزًا
+    usages: [
+      { id: 'u1', windowId: 'w1', actualM: 1 },
+      { id: 'u2', windowId: 'w1', actualM: 1 },
+      { id: 'u3', windowId: null, actualM: 5 },
+    ],
+  });
+  const done = finishedWindowIds(db, 'p1');
+  expect(done.size).toBe(1);
+  expect(done.has('w1')).toBe(true);
+  expect(done.has('w2')).toBe(false);
 });
 
 test('الفجوة = المطلوب ناقص المحجوز، والحجز المفكوك لا يُحتسب', () => {

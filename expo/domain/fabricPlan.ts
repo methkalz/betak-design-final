@@ -44,6 +44,27 @@ export function projectFabricPlan(db: Database, projectId: UUID): FabricNeed[] {
   return Array.from(map.values());
 }
 
+/**
+ * ما يحتاجه شباك واحد من قماشه (دون البطانة).
+ *
+ * البطانة صنف مستقلّ في الخطة، والخياط يؤكّد استهلاك قماش الستارة عند
+ * إنهائها؛ فصلهما هنا يمنع أن تُحسب أمتار البطانة على رصيد القماش.
+ */
+export function windowFabricNeed(db: Database, windowId: UUID): number {
+  const w = db.windows.find((x) => x.id === windowId);
+  if (!w) return 0;
+  return round3((w.widthCm / 100) * w.quantity * w.fullness);
+}
+
+/** الشبابيك التي سُجِّل لها استهلاك - أي أنهاها الخياط فعلًا. */
+export function finishedWindowIds(db: Database, projectId: UUID): Set<UUID> {
+  return new Set(
+    db.usages
+      .filter((u) => u.projectId === projectId && u.windowId)
+      .map((u) => u.windowId as UUID),
+  );
+}
+
 export type FabricGap = {
   variantId: string;
   label: string;

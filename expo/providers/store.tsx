@@ -3,7 +3,13 @@ import createContextHook from '@nkzw/create-context-hook';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildSeed, SEED_VERSION, type Database } from '@/data/seed';
-import { projectFabricGaps, pickRolls, type FabricGap } from '@/domain/fabricPlan';
+import {
+  finishedWindowIds,
+  pickRolls,
+  projectFabricGaps,
+  windowFabricNeed,
+  type FabricGap,
+} from '@/domain/fabricPlan';
 import { canConsume, canReserve, rollBalance } from '@/domain/inventory';
 import {
   PROJECT_STATUS_LABELS,
@@ -1339,6 +1345,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           id: uid('use'),
           organizationId: draft.organization.id,
           projectId: r.projectId,
+          // استهلاك عام غير منسوب لشباك - المسار القديم الباقي للتصحيحات
+          windowId: null,
           reservationId: r.id,
           rollId: r.rollId,
           plannedM: planned,
@@ -1373,6 +1381,146 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       return okVoid;
     },
     [guard, requireOnline, db.reservations, db.stockMovements, mutate, addMovement, notify, audit, userId],
+  );
+
+  /**
+   * إنهاء شباك: تأكيدُ إنجازه هو نفسه تسجيلُ ما استُهلك له.
+   *
+   * الخياط لا يعلّم خانة ثم يسجّل استهلاكًا في مكان آخر - الأمران واقعة
+   * واحدة. ولهذا لا يوجد حقل «منجز» على الشباك: وجود سجلّ استهلاك له هو
+   * الإنجاز، فلا تنفصل العلامة عن الرقم ولا يمكن أن يوجد أحدهما بلا الآخر.
+   *
+   * الزيادة عن المخصَّص واقعة يومية لا خطأ: قصّة خاطئة أو تكرار نقشة يأكل
+   * أمتارًا. فهي مسموحة بسبب مكتوب وإشعار للأدمن، وتُقيَّد على الحجز الأخير
+   * لأن الأمتار الزائدة تخرج فعليًا من الرول نفسه. ما لا يُسمح به هو تجاوز
+   * الرصيد الفعلي للرول - ذاك ليس زيادةً بل رصيد سالب.
+   */
+  const completeWindow = useCallback(
+    async (windowId: UUID, actualM: number, reason: string): Promise<Result<void>> => {
+      const denied = guard('update_production');
+      if (denied) return denied;
+      const offline = requireOnline();
+      if (offline) return offline;
+
+      const win = db.windows.find((w) => w.id === windowId);
+      if (!win) return failWith('الشباك غير موجود.', 'validation');
+      if (db.usages.some((u) => u.windowId === windowId))
+        return failWith('هذا الشباك مسجَّل منجزًا بالفعل.', 'conflict');
+      if (!(actualM > 0)) return failWith('الكمية المستهلكة مطلوبة.', 'validation');
+
+      const planned = windowFabricNeed(db, windowId);
+      const over = actualM > planned + 0.0001;
+      if (over && !reason.trim())
+        return failWith(`الاستهلاك أعلى من المخطط (${planned} م) - اكتب السبب.`, 'validation');
+
+      // حجوزات المشروع من صنف هذا الشباك، بالأقدم فالأقدم
+      const mine = db.reservations
+        .filter((r) => {
+          if (r.projectId !== win.projectId || r.status === 'released') return false;
+          return db.fabricRolls.find((x) => x.id === r.rollId)?.variantId === win.fabricVariantId;
+        })
+        .slice()
+        .reverse();
+      if (mine.length === 0)
+        return failWith('لا يوجد قماش محجوز لهذا الشباك - راجع تبويب القماش.', 'validation');
+
+      // توزيع الكمية على الحجوزات، والبقية على الأخير
+      const slices: { reservationId: UUID; meters: number }[] = [];
+      let left = round3(actualM);
+      for (const r of mine) {
+        if (left <= 0) break;
+        const free = round3(Math.max(0, r.quantityM - r.consumedM));
+        if (free <= 0) continue;
+        const take = round3(Math.min(free, left));
+        slices.push({ reservationId: r.id, meters: take });
+        left = round3(left - take);
+      }
+      if (left > 0) {
+        const last = slices[slices.length - 1];
+        if (last) last.meters = round3(last.meters + left);
+        else slices.push({ reservationId: mine[mine.length - 1].id, meters: left });
+      }
+
+      // الرصيد الفعلي يُفحص قبل أي كتابة: لا يصير رول سالبًا
+      for (const s of slices) {
+        const res = db.reservations.find((r) => r.id === s.reservationId)!;
+        if (s.meters > rollBalance(res.rollId, db.stockMovements).onHandM)
+          return failWith('الكمية أكبر من الرصيد الفعلي للرول.', 'validation');
+      }
+
+      setBusy('consume');
+      await serverLatency();
+      setBusy(null);
+
+      mutate((draft) => {
+        let plannedLeft = planned;
+        for (const s of slices) {
+          const r = draft.reservations.find((x) => x.id === s.reservationId);
+          if (!r) continue;
+          addMovement(
+            draft,
+            r.rollId,
+            'consumption',
+            s.meters,
+            r.projectId,
+            r.id,
+            reason.trim() || `إنهاء ${win.name}`,
+          );
+          r.consumedM = round3(r.consumedM + s.meters);
+          r.status = r.consumedM >= r.quantityM ? 'consumed' : 'partially_consumed';
+          // المخطط يُوزَّع على الشرائح بالترتيب فيبقى مجموعه = مخطط الشباك،
+          // ويخرج الهدر صحيحًا على كل شريحة
+          const sharePlanned = round3(Math.min(plannedLeft, s.meters));
+          plannedLeft = round3(plannedLeft - sharePlanned);
+          draft.usages.unshift({
+            id: uid('use'),
+            organizationId: draft.organization.id,
+            projectId: r.projectId,
+            windowId,
+            reservationId: r.id,
+            rollId: r.rollId,
+            plannedM: sharePlanned,
+            actualM: s.meters,
+            wasteM: round3(Math.max(0, s.meters - sharePlanned)),
+            notes: reason.trim(),
+            createdBy: userId ?? 'system',
+            createdAt: new Date().toISOString(),
+          });
+        }
+        if (over) {
+          draft.profiles
+            .filter((p) => p.role === 'admin')
+            .forEach((admin) =>
+              notify(
+                draft,
+                admin.id,
+                'low_stock',
+                'استهلاك أعلى من المخطط',
+                `${win.name}: ${round3(actualM)} م بدل ${planned} م - ${reason.trim()}`,
+                `/project/${win.projectId}`,
+              ),
+            );
+        }
+        audit(
+          draft,
+          'production.window_done',
+          'window',
+          windowId,
+          `إنهاء ${win.name} باستهلاك ${round3(actualM)} م من ${planned} م مخططة`,
+        );
+      });
+      return okVoid;
+    },
+    [
+      guard,
+      requireOnline,
+      db,
+      mutate,
+      addMovement,
+      notify,
+      audit,
+      userId,
+    ],
   );
 
   const adjustStock = useCallback(
@@ -1608,6 +1756,16 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (to < 0) return failWith('مرحلة غير معروفة.', 'validation');
       if (Math.abs(to - from) !== 1)
         return failWith('المراحل تتقدّم خطوة واحدة في كل مرة.', 'validation');
+      // «جاهز» يُغلق الأمر ويُطلق التركيب، فلا يصحّ قبل أن يُنهى كل شباك.
+      // ولمّا كان تأكيد الإنهاء هو نفسه تسجيل الاستهلاك، فهذا الشرط يضمن
+      // أيضًا ألّا يُقفل أمرٌ وقماشه ما زال محجوزًا بلا حركة خروج.
+      if (stage === 'ready') {
+        const wins = db.windows.filter((w) => w.projectId === current.projectId);
+        const done = finishedWindowIds(db, current.projectId);
+        const left = wins.filter((w) => !done.has(w.id)).length;
+        if (left > 0)
+          return failWith(`بقي ${left} شباك بلا تأكيد إنهاء - أكّدها قبل الإقفال.`, 'validation');
+      }
       mutate((draft) => {
         const a = draft.tailorAssignments.find((x) => x.id === assignmentId);
         if (!a) return;
@@ -1644,7 +1802,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, db.tailorAssignments, mutate, notify, audit],
+    [guard, db, mutate, notify, audit],
   );
 
   const assignTailor = useCallback(
@@ -1870,6 +2028,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       autoReserveForProject,
       releaseReservation,
       consumeFabric,
+      completeWindow,
       adjustStock,
       saveFabricProduct,
       saveFabricVariant,
@@ -1926,6 +2085,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       autoReserveForProject,
       releaseReservation,
       consumeFabric,
+      completeWindow,
       adjustStock,
       saveFabricProduct,
       saveFabricVariant,
