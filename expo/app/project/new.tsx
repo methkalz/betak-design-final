@@ -42,9 +42,9 @@ export default function NewProjectScreen() {
   // نهائيًا حتى لا يمحو تبديلُ الزبون نصًّا كتبه بنفسه.
   const [titleEdited, setTitleEdited] = useState<boolean>(false);
   const [priority, setPriority] = useState<Priority>('normal');
-  const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(
-    db.profiles.find((p) => p.role === 'field' && p.isActive)?.id ?? null,
-  );
+  // لا اختيار تلقائيًا (M16): الإسناد قرار صريح، والمشروع بلا عامل يظهر
+  // للأدمن في اللوحة حتى يُسنَد - لا يُوزَّع خلسةً على أول اسم في القائمة
+  const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(null);
   const [tailorId, setTailorId] = useState<string | null>(null);
   const [measurementAt, setMeasurementAt] = useState<string>(inDays(1));
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);

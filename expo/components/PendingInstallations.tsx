@@ -37,9 +37,9 @@ export function PendingInstallations() {
       db.projects.filter(
         (p) =>
           p.status === 'ready_for_install' &&
-          // مشاريعه هو، أو مشروع بلا عامل مسنَد - وإلا ظهرت له مشاريع غيره،
-          // ولو اقتصرنا على المسنَد إليه لبقي المشروع اليتيم بلا من يجدوله
-          (p.fieldWorkerId === currentUser?.id || !p.fieldWorkerId) &&
+          // مشاريعه المسنَدة إليه فقط (M16): اليتيم بلا عامل يظهر للأدمن في
+          // بطاقة «بلا إسناد ميداني» على لوحته - لا يُعرض على أي ميداني
+          p.fieldWorkerId === currentUser?.id &&
           !db.fieldVisits.some(
             (v) => v.projectId === p.id && v.type === 'installation' && v.status !== 'completed',
           ),

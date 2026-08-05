@@ -430,6 +430,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   const setProjectStatus = useCallback(
     (id: UUID, status: ProjectStatus): Result<void> => {
+      // قرار المرحلة بيد الأدمن وحده - كانت الشاشة وحدها من يحرس
+      const denied = guard('manage_users');
+      if (denied) return denied;
       mutate((draft) => {
         const project = draft.projects.find((p) => p.id === id);
         if (!project) return;
@@ -456,7 +459,66 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [mutate, audit, notify],
+    [guard, mutate, audit, notify],
+  );
+
+  /**
+   * إسناد العامل الميداني لمشروع قائم (M16).
+   *
+   * الإسناد صار صريحًا بيد الأدمن - لا اختيار تلقائيًا لأول عامل - والمشروع
+   * بلا إسناد يظهر في لوحة الأدمن حتى يُسنَد، ولا يراه أي ميداني قبلها.
+   * الإسناد يفتح زيارة القياس إن كان موعدها محددًا ولا زيارة مفتوحة، فلا
+   * يضيع مشروع أُنشئ بلا عامل ثم أُسند بعد يوم.
+   */
+  const assignFieldWorker = useCallback(
+    (projectId: UUID, workerId: UUID): Result<void> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      const worker = db.profiles.find((p) => p.id === workerId);
+      if (!worker || worker.role !== 'field' || !worker.isActive)
+        return failWith('اختر عاملًا ميدانيًا مفعَّلًا.', 'validation');
+      mutate((draft) => {
+        const project = draft.projects.find((p) => p.id === projectId);
+        if (!project) return;
+        project.fieldWorkerId = workerId;
+        project.updatedAt = new Date().toISOString();
+        const hasOpenMeasurement = draft.fieldVisits.some(
+          (v) => v.projectId === projectId && v.type === 'measurement' && v.status !== 'completed',
+        );
+        if (
+          !hasOpenMeasurement &&
+          project.measurementDate &&
+          (project.status === 'new_request' || project.status === 'awaiting_measurement')
+        ) {
+          const visitId = uid('fv');
+          draft.fieldVisits.unshift({
+            id: visitId,
+            organizationId: draft.organization.id,
+            projectId,
+            assigneeId: workerId,
+            type: 'measurement',
+            status: 'scheduled',
+            scheduledAt: project.measurementDate,
+            startedAt: null,
+            completedAt: null,
+            notes: '',
+            checklist: { track: false, curtain: false, height: false, cleanliness: false },
+            customerSignedOff: false,
+          });
+        }
+        notify(
+          draft,
+          workerId,
+          'visit_assigned',
+          'مشروع أُسند إليك',
+          `${project.title} - ${project.code}`,
+          `/project/${projectId}`,
+        );
+        audit(draft, 'project.assign_field', 'project', projectId, `إسناد الميداني ${worker.fullName}`);
+      });
+      return okVoid;
+    },
+    [guard, db.profiles, mutate, notify, audit],
   );
 
   // ── Rooms & windows (offline-first) ───────────────────────────────────────
@@ -1013,6 +1075,18 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           const project = draft.projects.find((p) => p.id === q.projectId);
           if (project && decision === 'approved' && project.status === 'quotation') {
             project.status = 'customer_approved';
+          }
+          // M25: موافقة الزبون تعني ورشة قادمة - الخياط يعلم لحظتها لا حين
+          // يصادف الأمر في قائمته
+          if (project && decision === 'approved' && project.tailorId) {
+            notify(
+              draft,
+              project.tailorId,
+              'tailor_assignment',
+              'ورشة جديدة',
+              `${project.title} - وافق الزبون وسيصلك أمر الإنتاج.`,
+              `/project/${project.id}`,
+            );
           }
         }
         audit(
@@ -1824,6 +1898,21 @@ export const [StoreProvider, useStore] = createContextHook(() => {
                 `/project/${project.id}`,
               );
             }
+            // M18: الجاهزية تصل الإدارة تلقائيًا من غير أن يتصل الخياط
+            const tailorName =
+              draft.profiles.find((p) => p.id === a.tailorId)?.fullName ?? 'الخياط';
+            draft.profiles
+              .filter((p) => p.role === 'admin')
+              .forEach((admin) =>
+                notify(
+                  draft,
+                  admin.id,
+                  'ready_for_install',
+                  'الورشة جاهزة',
+                  `${tailorName} أنهى ${project.title} - جاهز للتركيب.`,
+                  `/project/${project.id}`,
+                ),
+              );
           }
         } else {
           const project = draft.projects.find((p) => p.id === a.projectId);
@@ -2045,6 +2134,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProject,
       updateProject,
       setProjectStatus,
+      assignFieldWorker,
       addRoom,
       deleteRoom,
       saveWindow,
@@ -2102,6 +2192,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProject,
       updateProject,
       setProjectStatus,
+      assignFieldWorker,
       addRoom,
       deleteRoom,
       saveWindow,

@@ -18,7 +18,7 @@ import {
   Scissors,
   UserPlus,
 } from 'lucide-react-native';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing as REasing,
@@ -333,6 +333,9 @@ function AdminDashboard() {
     const awaitingValue = awaiting.reduce((s, v) => s + v.totalAgorot, 0);
 
     const active = db.projects.filter((p) => p.status !== 'completed');
+    // M16: بلا إسناد = قياس لن يحدث؛ M20: مركَّب = ينتظر اعتماد الأدمن
+    const unassigned = active.filter((p) => !p.fieldWorkerId);
+    const installed = db.projects.filter((p) => p.status === 'installed');
 
     const reservedM = db.reservations
       .filter((r) => r.status === 'active' || r.status === 'partially_consumed')
@@ -378,6 +381,8 @@ function AdminDashboard() {
       reservedM,
       marginAvg,
       sixMonths,
+      unassigned,
+      installed,
     };
   }, [db.quotationVersions, db.projects, db.reservations]);
 
@@ -703,6 +708,36 @@ function AdminDashboard() {
           </Enter>
         )}
 
+        {/* مشاريع بلا عامل ميداني: الإسناد إلزامي (M16) ويُنجز من البطاقة */}
+        {stats.unassigned.length > 0 && (
+          <Enter delay={ENTER.attention + 20}>
+            <SectionHeader
+              title="بلا إسناد ميداني"
+              subtitle={`${stats.unassigned.length} مشروع ينتظر من يقيسه`}
+            />
+            <View style={{ gap: spacing.md }}>
+              {stats.unassigned.slice(0, 4).map((p) => (
+                <UnassignedProjectCard key={p.id} projectId={p.id} />
+              ))}
+            </View>
+          </Enter>
+        )}
+
+        {/* تركيبات مكتملة تنتظر اعتماد الأدمن (M20) - الاعتماد من اللوحة */}
+        {stats.installed.length > 0 && (
+          <Enter delay={ENTER.attention + 30}>
+            <SectionHeader
+              title="بانتظار اعتمادك"
+              subtitle={`${stats.installed.length} تركيب مكتمل`}
+            />
+            <View style={{ gap: spacing.md }}>
+              {stats.installed.slice(0, 4).map((p) => (
+                <InstalledApprovalCard key={p.id} projectId={p.id} />
+              ))}
+            </View>
+          </Enter>
+        )}
+
         {/* عروض تنتظر رد الزبون: القرار يُسجَّل من هنا مباشرة بدل الدخول
             إلى كل عرض على حدة - وهي أكثر حالة تتكرر يوميًا عند المالك */}
         {stats.awaiting.length > 0 && (
@@ -809,6 +844,127 @@ function AwaitingQuoteCard({ versionId }: { versionId: string }) {
           onEdit={() => router.push(`/quotation/${quotation.id}`)}
         />
       </View>
+    </Glass>
+  );
+}
+
+/**
+ * مشروع بلا عامل ميداني (M16): لا يظهر لأي ميداني حتى يُسنَد، فبقاؤه بلا
+ * إسناد يعني قياسًا لن يحدث. الإسناد من البطاقة نفسها بلمسة على الاسم.
+ */
+function UnassignedProjectCard({ projectId }: { projectId: string }) {
+  const { db, assignFieldWorker } = useStore();
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const project = db.projects.find((p) => p.id === projectId);
+  const customer = db.customers.find((c) => c.id === project?.customerId);
+  const workers = db.profiles.filter((p) => p.role === 'field' && p.isActive);
+  if (!project) return null;
+
+  return (
+    <Glass inner={{ padding: spacing.lg }}>
+      <Pressable onPress={() => router.push(`/project/${project.id}`)}>
+        <Row justify="space-between" align="flex-start" gap={spacing.md}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+              {project.title}
+            </AppText>
+            <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+              {project.code} • {customer?.fullName}
+              {project.measurementDate ? ` • قياس ${formatDate(project.measurementDate)}` : ''}
+            </AppText>
+          </View>
+          <UserPlus size={18} color={palette.warning} />
+        </Row>
+      </Pressable>
+      <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
+        {workers.map((w) => (
+          <Pressable
+            key={w.id}
+            onPress={() => {
+              const res = assignFieldWorker(project.id, w.id);
+              if (!res.ok) setError(res.error);
+            }}
+            style={({ pressed }) => [styles.assignChip, pressed && { backgroundColor: palette.sand }]}
+          >
+            <AppText variant="caption" color={palette.oliveDark}>
+              {w.fullName}
+            </AppText>
+          </Pressable>
+        ))}
+        {workers.length === 0 && (
+          <AppText variant="caption" color={palette.muted}>
+            لا عمال ميدانيين مفعَّلين - أضف حسابًا من الطاقم.
+          </AppText>
+        )}
+      </Row>
+      {!!error && (
+        <AppText variant="caption" color={palette.danger} style={{ marginTop: spacing.sm }}>
+          {error}
+        </AppText>
+      )}
+    </Glass>
+  );
+}
+
+/**
+ * تركيب مكتمل بانتظار اعتماد الأدمن (M20): الميداني أنهى ووقّع الزبون،
+ * والاعتماد يُسجَّل من اللوحة مباشرة - لا دخول إلى المشروع لأجل ضغطة.
+ */
+function InstalledApprovalCard({ projectId }: { projectId: string }) {
+  const { db, setProjectStatus } = useStore();
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const project = db.projects.find((p) => p.id === projectId);
+  const customer = db.customers.find((c) => c.id === project?.customerId);
+  const visit = db.fieldVisits.find(
+    (v) => v.projectId === projectId && v.type === 'installation' && v.status === 'completed',
+  );
+  const worker = db.profiles.find((p) => p.id === visit?.assigneeId);
+  if (!project) return null;
+
+  return (
+    <Glass inner={{ padding: spacing.lg }}>
+      <Pressable onPress={() => router.push(`/project/${project.id}`)}>
+        <Row justify="space-between" align="flex-start" gap={spacing.md}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+              {project.title}
+            </AppText>
+            <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+              {customer?.fullName} • ركّبه {worker?.fullName ?? '-'}
+              {visit?.completedAt ? ` • ${formatDate(visit.completedAt)}` : ''}
+            </AppText>
+            {!!visit?.customerSignedOff && (
+              <Row gap={5} style={{ marginTop: 2 }}>
+                <CheckCircle2 size={13} color={palette.success} />
+                <AppText variant="caption" color={palette.success}>
+                  وقّع الزبون على الاستلام
+                </AppText>
+              </Row>
+            )}
+          </View>
+        </Row>
+      </Pressable>
+      <View style={{ marginTop: spacing.md }}>
+        <Pressable
+          onPress={() => {
+            const res = setProjectStatus(project.id, 'completed');
+            if (!res.ok) setError(res.error);
+          }}
+          style={({ pressed }) => [styles.assignChip, { alignSelf: 'stretch', minHeight: 44, justifyContent: 'center' }, pressed && { backgroundColor: palette.sand }]}
+        >
+          <Row gap={6} justify="center">
+            <CheckCircle2 size={16} color={palette.success} />
+            <AppText variant="caption">اعتماد الإنجاز والانتقال للتحصيل</AppText>
+          </Row>
+        </Pressable>
+      </View>
+      {!!error && (
+        <AppText variant="caption" color={palette.danger} style={{ marginTop: spacing.sm }}>
+          {error}
+        </AppText>
+      )}
     </Glass>
   );
 }
@@ -1196,6 +1352,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     minHeight: 64,
+  },
+  /** رقاقة إسناد/اعتماد هادئة - اللون في الأيقونة كنمط أزرار القرار. */
+  assignChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1.4,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
   },
   attentionIcon: {
     width: 36,
