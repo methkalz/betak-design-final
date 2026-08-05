@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
@@ -138,9 +139,13 @@ function buildHtml(params: {
 export default function QuotationPdfScreen() {
   const { versionId } = useLocalSearchParams<{ versionId: string }>();
   const { db } = useStore();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'pdf' | 'share' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // ارتفاع الشريط يُقاس ولا يُخمَّن: كان المحتوى يُحجب خلفه بمقدار يختلف من
+  // جهاز لآخر ومن لغة زر لأخرى
+  const [barHeight, setBarHeight] = useState(0);
 
   const version = db.quotationVersions.find((v) => v.id === versionId) ?? null;
   const quotation = db.quotations.find((q) => q.id === version?.quotationId) ?? null;
@@ -217,7 +222,11 @@ export default function QuotationPdfScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 160 }}
+        contentContainerStyle={{
+          padding: spacing.lg,
+          gap: spacing.lg,
+          paddingBottom: barHeight + spacing.lg,
+        }}
         showsVerticalScrollIndicator={false}
       >
         <Card style={{ backgroundColor: palette.white }}>
@@ -326,7 +335,12 @@ export default function QuotationPdfScreen() {
         </AppText>
       </ScrollView>
 
-      <View style={styles.sticky}>
+      {/* الحشوة السفلية كانت رقمًا ثابتًا (28) يُخمّن شريط الإيماءات، فيقع
+          الزران تحته على الأجهزة الحديثة. المقاس الحقيقي يأتي من النظام. */}
+      <View
+        style={[styles.sticky, { paddingBottom: insets.bottom + spacing.lg }]}
+        onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+      >
         <Row gap={spacing.sm}>
           <Button
             label="تصدير PDF ومشاركة"
@@ -359,7 +373,6 @@ const styles = {
     left: 0,
     right: 0,
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
     backgroundColor: palette.white,
     borderTopWidth: 1,
     borderTopColor: palette.line,
