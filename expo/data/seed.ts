@@ -74,7 +74,7 @@ const organization: Organization = {
   id: ORG,
   name: 'بيتك ديزاين',
   phone: '054-9068709',
-  address: 'كفرمندا - شارع الشيخ حامد',
+  address: 'كفرمندا',
   vatPercent: 18,
 };
 
@@ -1385,4 +1385,10 @@ export function buildSeed(): Database {
   };
 }
 
-export const SEED_VERSION = 'baytak-seed-v1';
+/**
+ * مفتاح التخزين في `providers/store` مشتق من هذا الرقم، فالنسخة المحفوظة على
+ * الجهاز لا تُعاد بناؤها ما لم يتغيّر. لذلك ظلّ عنوان المحل القديم يظهر في
+ * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
+ * على البيانات التجريبية يستلزم زيادة الرقم هنا.
+ */
+export const SEED_VERSION = 'baytak-seed-v2';

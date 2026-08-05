@@ -12,7 +12,9 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
+import { useAndroidBackFallback } from '@/lib/nav';
 import { AuthProvider } from '@/providers/auth';
 import { StoreProvider } from '@/providers/store';
 
@@ -23,13 +25,15 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
+  useAndroidBackFallback();
+
   return (
     <Stack
       screenOptions={{
-        headerBackTitle: 'رجوع',
-        // كان يرث خط النظام وحده بينما العنوان بخط التطبيق - فيظهر السطر
-        // العلوي بخطين مختلفين
-        headerBackTitleStyle: { fontFamily: font.medium, fontSize: 16 },
+        // زر رجوع خاص بالتطبيق بدل زر الترويسة الأصلي: الأصلي يختفي حين يفرغ
+        // المكدّس فتصير الشاشة بلا مخرج، وهذا يظهر دائمًا ويقود إلى وجهة
+        // منطقية. وهو أيضًا بخط التطبيق لا بخط النظام.
+        headerLeft: () => <HeaderBack />,
         headerStyle: { backgroundColor: palette.ivory },
         headerTitleStyle: { fontFamily: font.semibold, fontSize: 18, color: palette.charcoal },
         headerTintColor: palette.olive,
