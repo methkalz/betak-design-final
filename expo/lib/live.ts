@@ -224,6 +224,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     location: s(r.location),
     initialMeters: n(r.initial_meters),
     isMiniRoll: Boolean(r.is_mini_roll),
+    // عمود الإسناد للخياط يصل الخادم مع شريحة الكتابة
+    assignedTailorId: r.assigned_tailor_id ? s(r.assigned_tailor_id) : null,
     createdAt: s(r.created_at),
   }));
 

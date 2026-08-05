@@ -183,8 +183,15 @@ export default function InventoryScreen() {
                       </AppText>
                     </Row>
                   </Row>
-                  <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                    رف {item.roll.location}
+                  {/* العهدة قبل الرف: أين البضاعة فعليًا أهم من موضعها على رفّ المعرض */}
+                  <AppText
+                    variant="caption"
+                    color={item.roll.assignedTailorId ? palette.terracotta : palette.muted}
+                    numberOfLines={1}
+                  >
+                    {item.roll.assignedTailorId
+                      ? `عند ${db.profiles.find((p) => p.id === item.roll.assignedTailorId)?.fullName ?? 'خياط'}`
+                      : `رف ${item.roll.location}`}
                   </AppText>
                 </Row>
               </Card>

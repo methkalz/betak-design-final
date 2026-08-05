@@ -35,7 +35,10 @@ export default function NewRollScreen() {
   const [metersIn, setMetersIn] = useState('');
   const [location, setLocation] = useState('');
   const [search, setSearch] = useState('');
+  const [tailorId, setTailorId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const tailors = db.profiles.filter((p) => p.role === 'tailor' && p.isActive);
 
   const variants = useMemo(() => {
     const q = normalizeArabic(search.trim());
@@ -52,7 +55,12 @@ export default function NewRollScreen() {
   const submit = () => {
     setError(null);
     if (!variantId) return setError('اختر لون القماش أولًا.');
-    const res = addFabricRoll({ variantId, meters: parseFloat(metersIn || '0'), location });
+    const res = addFabricRoll({
+      variantId,
+      meters: parseFloat(metersIn || '0'),
+      location,
+      assignedTailorId: tailorId,
+    });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/roll/[id]', params: { id: res.data } });
   };
@@ -142,6 +150,44 @@ export default function NewRollScreen() {
         </View>
       </Card>
 
+      {tailors.length > 0 && (
+        <Card>
+          {/* بضاعة أمانة (M24): المسنَدة لخياط تظهر في معمله وحده -
+              يراها قراءةً بإحصاءاتها، ولا يراها خياط غيره */}
+          <SectionHeader
+            title="مكان البضاعة"
+            subtitle="في مخزن المعرض، أو أمانة عند خياط"
+          />
+          <Row gap={spacing.sm} wrap>
+            <Pressable
+              onPress={() => setTailorId(null)}
+              style={[styles.tailorChip, tailorId === null && styles.tailorChipActive]}
+            >
+              <AppText
+                variant="caption"
+                color={tailorId === null ? palette.ivory : palette.charcoal}
+              >
+                مخزن المعرض
+              </AppText>
+            </Pressable>
+            {tailors.map((t) => (
+              <Pressable
+                key={t.id}
+                onPress={() => setTailorId(t.id)}
+                style={[styles.tailorChip, tailorId === t.id && styles.tailorChipActive]}
+              >
+                <AppText
+                  variant="caption"
+                  color={tailorId === t.id ? palette.ivory : palette.charcoal}
+                >
+                  عند {t.fullName}
+                </AppText>
+              </Pressable>
+            ))}
+          </Row>
+        </Card>
+      )}
+
       {!!error && <Banner tone="danger" title="تعذر التسجيل" body={error} />}
 
       <Button
@@ -164,4 +210,14 @@ const styles = {
     justifyContent: 'center' as const,
   },
   optionActive: { borderColor: palette.olive, backgroundColor: palette.sageSoft },
+  tailorChip: {
+    paddingHorizontal: spacing.lg,
+    minHeight: 42,
+    justifyContent: 'center' as const,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
+  },
+  tailorChipActive: { backgroundColor: palette.olive, borderColor: palette.olive },
 };

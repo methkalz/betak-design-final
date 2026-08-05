@@ -138,6 +138,11 @@ export interface FabricRoll {
   location: string;
   initialMeters: number;
   isMiniRoll: boolean;
+  /**
+   * بضاعة أمانة (M24): الرول المسنَد لخياط موجود فعليًا في معمله، يراه
+   * قراءةً مع إحصاءاته، ولا يظهر لغيره من الخياطين. `null` = في مخزن المعرض.
+   */
+  assignedTailorId: UUID | null;
   createdAt: string;
 }
 

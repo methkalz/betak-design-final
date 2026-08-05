@@ -94,6 +94,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="mystock"
+        options={{
+          title: 'بضاعتي',
+          href: isTailor ? '/mystock' : null,
+          tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Layers size={22} color={color} /></TabIcon>,
+        }}
+      />
+      <Tabs.Screen
         name="tasks"
         options={{
           title: 'أوامر الإنتاج',

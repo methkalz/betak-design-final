@@ -1763,12 +1763,19 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       location?: string;
       code?: string;
       dyeLot?: string;
+      /** بضاعة أمانة (M24): تُسنَد لخياط لحظة الاستلام فتظهر في معمله. */
+      assignedTailorId?: UUID | null;
     }): Result<string> => {
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
       const variant = db.fabricVariants.find((v) => v.id === input.variantId);
       if (!variant) return failWith('اللون غير موجود.', 'validation');
       if (!(input.meters > 0)) return failWith('الأمتار يجب أن تكون أكبر من صفر.', 'validation');
+      if (input.assignedTailorId) {
+        const t = db.profiles.find((p) => p.id === input.assignedTailorId);
+        if (!t || t.role !== 'tailor' || !t.isActive)
+          return failWith('اختر خياطًا مفعَّلًا.', 'validation');
+      }
 
       let code = (input.code ?? '').trim().toUpperCase();
       if (code && db.fabricRolls.some((r) => r.code.toUpperCase() === code))
@@ -1808,6 +1815,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           location: (input.location ?? '').trim() || '-',
           initialMeters: round3(input.meters),
           isMiniRoll: false,
+          assignedTailorId: input.assignedTailorId ?? null,
           createdAt: new Date().toISOString(),
         });
         addMovement(draft, id, 'receipt', input.meters, null, null, 'استلام بضاعة');
@@ -1842,6 +1850,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           location: source.location,
           initialMeters: round3(quantityM),
           isMiniRoll: true,
+          // البقايا تبقى حيث القصّ: عند الخياط نفسه إن كان الأصل مسنَدًا له
+          assignedTailorId: source.assignedTailorId,
           createdAt: new Date().toISOString(),
         });
         addMovement(draft, id, 'receipt', quantityM, null, null, `بقايا من ${source.code}`);

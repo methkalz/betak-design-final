@@ -304,6 +304,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'A-02',
     initialMeters: 86.6,
     isMiniRoll: false,
+    assignedTailorId: 'usr-abudani',
     createdAt: at(-120, 9),
   },
   {
@@ -315,6 +316,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'A-03',
     initialMeters: 22,
     isMiniRoll: false,
+    assignedTailorId: null,
     createdAt: at(-88, 9),
   },
   {
@@ -326,6 +328,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'B-01',
     initialMeters: 96,
     isMiniRoll: false,
+    assignedTailorId: 'usr-abudani',
     createdAt: at(-120, 9),
   },
   {
@@ -337,6 +340,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'B-02',
     initialMeters: 40,
     isMiniRoll: false,
+    assignedTailorId: null,
     createdAt: at(-70, 9),
   },
   {
@@ -348,6 +352,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'C-02',
     initialMeters: 42.3,
     isMiniRoll: false,
+    assignedTailorId: null,
     createdAt: at(-54, 9),
   },
   {
@@ -359,6 +364,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'C-05',
     initialMeters: 55,
     isMiniRoll: false,
+    assignedTailorId: null,
     createdAt: at(-40, 9),
   },
   {
@@ -370,6 +376,7 @@ const fabricRolls: FabricRoll[] = [
     location: 'A-09',
     initialMeters: 4.2,
     isMiniRoll: true,
+    assignedTailorId: null,
     createdAt: at(-12, 15),
   },
 ];
@@ -1411,4 +1418,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v3';
+export const SEED_VERSION = 'baytak-seed-v4';
