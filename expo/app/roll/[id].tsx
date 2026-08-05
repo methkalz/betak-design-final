@@ -26,14 +26,18 @@ import { useRollView } from '@/hooks/selectors';
 import { formatDateTime, meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-type Action = 'return' | 'damage' | 'adjustment_in' | 'adjustment_out';
+type Action = 'receipt' | 'return' | 'damage' | 'adjustment_in' | 'adjustment_out';
 
 const ACTIONS: { value: Action; label: string }[] = [
+  { value: 'receipt', label: 'استلام' },
   { value: 'return', label: 'إرجاع' },
   { value: 'damage', label: 'تلف' },
   { value: 'adjustment_in', label: 'تسوية +' },
   { value: 'adjustment_out', label: 'تسوية −' },
 ];
+
+/** السبب إلزامي حيث ينقص الرصيد أو يُوثَّق تلف؛ اختياري فيما يزيده. */
+const REASON_REQUIRED: Action[] = ['damage', 'adjustment_out'];
 
 export default function RollScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -162,7 +166,7 @@ export default function RollScreen() {
 
       {editable && (
         <Card>
-          <SectionHeader title="حركة يدوية" subtitle="كل حركة تحتاج سببًا وتُسجَّل بشكل دائم" />
+          <SectionHeader title="حركة يدوية" subtitle="كل حركة تُسجَّل في السجل الدائم" />
           <SegmentedControl value={action} onChange={setAction} options={ACTIONS} />
           <View style={{ marginTop: spacing.md, gap: spacing.md }}>
             <Field
@@ -172,7 +176,14 @@ export default function RollScreen() {
               keyboardType="decimal-pad"
               suffix="متر"
             />
-            <Field label="السبب" value={reason} onChangeText={setReason} placeholder="سبب الحركة" />
+            <Field
+              label={REASON_REQUIRED.includes(action) ? 'السبب' : 'ملاحظات (اختياري)'}
+              value={reason}
+              onChangeText={setReason}
+              placeholder={
+                REASON_REQUIRED.includes(action) ? 'سبب النقص أو التلف' : 'رقم الفاتورة، المورّد...'
+              }
+            />
             <Button label="تسجيل الحركة" full loading={busy === 'adjust'} onPress={submit} />
             {!!error && <Banner tone="danger" title="تعذر التسجيل" body={error} />}
             {!!info && <Banner tone="success" title={info} />}

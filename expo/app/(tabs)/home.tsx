@@ -7,14 +7,17 @@ import {
   ArrowUpRight,
   BadgePercent,
   Bell,
+  CheckCircle2,
   ChevronLeft,
   Clock3,
   FolderPlus,
   Layers,
   LayoutGrid,
   Package,
+  Pencil,
   Scissors,
   UserPlus,
+  XCircle,
 } from 'lucide-react-native';
 import React, { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -698,6 +701,22 @@ function AdminDashboard() {
           </Enter>
         )}
 
+        {/* عروض تنتظر رد الزبون: القرار يُسجَّل من هنا مباشرة بدل الدخول
+            إلى كل عرض على حدة - وهي أكثر حالة تتكرر يوميًا عند المالك */}
+        {stats.awaiting.length > 0 && (
+          <Enter delay={ENTER.attention + 40}>
+            <SectionHeader
+              title="بانتظار رد الزبون"
+              subtitle={`${stats.awaiting.length} عرض مرسل`}
+            />
+            <View style={{ gap: spacing.md }}>
+              {stats.awaiting.slice(0, 4).map((v) => (
+                <AwaitingQuoteCard key={v.id} versionId={v.id} />
+              ))}
+            </View>
+          </Enter>
+        )}
+
         <Enter delay={ENTER.pipeline}>
           <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
           <Glass>
@@ -728,6 +747,84 @@ function AdminDashboard() {
       </View>
     </ScrollView>
     </View>
+  );
+}
+
+/**
+ * بطاقة عرض ينتظر رد الزبون: القرار واقعة تُسجَّل، فالأزرار بيضاء هادئة
+ * واللون في الأيقونة وحدها - ولمس البطاقة نفسها يفتح العرض للتعديل.
+ */
+function AwaitingQuoteCard({ versionId }: { versionId: string }) {
+  const { db, decideVersion, busy } = useStore();
+  const router = useRouter();
+  const version = db.quotationVersions.find((v) => v.id === versionId);
+  const quotation = db.quotations.find((q) => q.id === version?.quotationId);
+  const project = db.projects.find((p) => p.id === quotation?.projectId);
+  const customer = db.customers.find((c) => c.id === project?.customerId);
+  if (!version || !quotation) return null;
+
+  const daysLeft = Math.ceil(
+    (new Date(version.validUntil).getTime() - Date.now()) / (24 * 60 * 60 * 1000),
+  );
+
+  return (
+    <Glass inner={{ padding: spacing.lg }}>
+      <Pressable onPress={() => router.push(`/quotation/${quotation.id}`)}>
+        <Row justify="space-between" align="flex-start" gap={spacing.md}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+              {customer?.fullName ?? ''}
+            </AppText>
+            <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+              {quotation.number} • {project?.title}
+            </AppText>
+          </View>
+          <View style={{ alignItems: 'flex-start' }}>
+            <AppText variant="number" style={{ fontSize: 17 }}>
+              {money(version.totalAgorot)}
+            </AppText>
+            <AppText
+              variant="caption"
+              color={daysLeft <= 3 ? palette.warning : palette.muted}
+            >
+              {daysLeft > 0 ? `تنتهي خلال ${daysLeft} يوم` : 'منتهية الصلاحية'}
+            </AppText>
+          </View>
+        </Row>
+      </Pressable>
+
+      <Row gap={spacing.sm} style={{ marginTop: spacing.md }}>
+        <Pressable
+          disabled={busy === 'decide-quote'}
+          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
+          onPress={() => decideVersion(version.id, 'approved')}
+        >
+          <Row gap={6} justify="center">
+            <CheckCircle2 size={17} color={palette.success} />
+            <AppText variant="caption">وافق</AppText>
+          </Row>
+        </Pressable>
+        <Pressable
+          disabled={busy === 'decide-quote'}
+          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
+          onPress={() => decideVersion(version.id, 'rejected')}
+        >
+          <Row gap={6} justify="center">
+            <XCircle size={17} color={palette.danger} />
+            <AppText variant="caption">رفض</AppText>
+          </Row>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
+          onPress={() => router.push(`/quotation/${quotation.id}`)}
+        >
+          <Row gap={6} justify="center">
+            <Pencil size={16} color={palette.olive} />
+            <AppText variant="caption">تعديل</AppText>
+          </Row>
+        </Pressable>
+      </Row>
+    </Glass>
   );
 }
 
@@ -988,6 +1085,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     minHeight: 64,
+  },
+  decideBtn: {
+    flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
   },
   attentionIcon: {
     width: 36,

@@ -64,6 +64,17 @@ import type { ProjectStatus } from '@/types/domain';
 
 type Tab = 'overview' | 'rooms' | 'quote' | 'production' | 'money' | 'media';
 
+/** أسماء غرف شائعة في البيوت هنا - اقتراح لا حصر. */
+const ROOM_SUGGESTIONS = [
+  'الصالون',
+  'غرفة الأهل',
+  'غرفة الأولاد',
+  'غرفة البنات',
+  'غرفة الضيوف',
+  'المطبخ',
+  'المكتب',
+] as const;
+
 const TABS: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'نظرة عامة' },
   { value: 'rooms', label: 'الغرف والشبابيك' },
@@ -433,7 +444,20 @@ function RoomsTab({ projectId }: { projectId: string }) {
         <Card>
           <AppText variant="heading">إضافة غرفة</AppText>
           <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-            <Field label="اسم الغرفة" value={newRoom} onChangeText={setNewRoom} placeholder="صالون الضيوف" />
+            <Field label="اسم الغرفة" value={newRoom} onChangeText={setNewRoom} placeholder="الصالون" />
+            {/* أسماء الغرف تتكرر في كل بيت تقريبًا - لمسة واحدة بدل الكتابة،
+                وما يُضاف منها للمشروع يختفي من الاقتراحات فلا يُكرَّر */}
+            <Row gap={spacing.sm} wrap>
+              {ROOM_SUGGESTIONS.filter(
+                (s) => !db.rooms.some((r) => r.projectId === projectId && r.name === s),
+              ).map((s) => (
+                <Pressable key={s} onPress={() => setNewRoom(s)} style={styles.suggestChip}>
+                  <AppText variant="caption" color={palette.oliveDark}>
+                    {s}
+                  </AppText>
+                </Pressable>
+              ))}
+            </Row>
             <Button
               label="إضافة"
               icon={<Plus size={16} color={palette.ivory} />}
@@ -998,6 +1022,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backStep: { paddingVertical: spacing.sm },
+  suggestChip: {
+    paddingHorizontal: spacing.md,
+    height: 36,
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.sand,
+  },
   windowRow: {
     borderRadius: radius.md,
     padding: spacing.sm,

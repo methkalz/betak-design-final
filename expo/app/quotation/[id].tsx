@@ -10,7 +10,7 @@ import {
   XCircle,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import {
   AppText,
@@ -329,12 +329,12 @@ export default function QuotationScreen() {
       )}
 
       {can(role, 'create_quotation') && version.status === 'sent' && (
+        /* قرار الزبون واقعة تُسجَّل لا فعلٌ نُغري به: أزرار بيضاء هادئة
+           واللون في الأيقونة وحدها - أخضر للموافقة وأحمر للرفض. الأزرار
+           الليلكية الممتلئة كانت تصرخ بثلاثة نداءات متساوية في شاشة واحدة. */
         <Row gap={spacing.sm}>
-          <Button
-            label="الزبون وافق"
-            style={{ flex: 1 }}
-            loading={busy === 'decide-quote'}
-            icon={<CheckCircle2 size={18} color={palette.ivory} />}
+          <Pressable
+            style={({ pressed }) => [styles.decision, pressed && { backgroundColor: palette.sand }]}
             onPress={async () => {
               const res = await decideVersion(version.id, 'approved');
               if (!res.ok) setError(res.error);
@@ -343,16 +343,24 @@ export default function QuotationScreen() {
                   { text: 'تمام' },
                 ]);
             }}
-          />
-          <Button
-            label="مرفوض"
-            variant="ghost"
-            icon={<XCircle size={18} color={palette.danger} />}
+          >
+            <Row gap={spacing.sm} justify="center">
+              <CheckCircle2 size={19} color={palette.success} />
+              <AppText variant="label">الزبون وافق</AppText>
+            </Row>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.decision, pressed && { backgroundColor: palette.sand }]}
             onPress={async () => {
               const res = await decideVersion(version.id, 'rejected');
               if (!res.ok) setError(res.error);
             }}
-          />
+          >
+            <Row gap={spacing.sm} justify="center">
+              <XCircle size={19} color={palette.danger} />
+              <AppText variant="label">رفض العرض</AppText>
+            </Row>
+          </Pressable>
         </Row>
       )}
     </ScrollScreen>
@@ -379,3 +387,16 @@ function SummaryRow({
     </Row>
   );
 }
+
+const styles = StyleSheet.create({
+  /** زر قرار هادئ: سطح أبيض وحدّ رفيع، واللون في الأيقونة وحدها. */
+  decision: {
+    flex: 1,
+    minHeight: 52,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1.4,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
+  },
+});

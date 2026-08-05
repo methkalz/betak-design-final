@@ -24,6 +24,14 @@ import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
 
+/** تسميات ترتيبية شائعة للشبابيك. */
+const WINDOW_SUGGESTIONS = [
+  'الشباك الرئيسي',
+  'الشباك الأول',
+  'الشباك الثاني',
+  'الشباك الثالث',
+] as const;
+
 interface Props {
   projectId: string;
   roomId: string;
@@ -138,6 +146,16 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         <AppText variant="heading">القياس</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
           <Field label="اسم الشباك" value={name} onChangeText={setName} placeholder="الشباك الرئيسي" />
+          {/* التسمية هنا ترتيبية بطبعها، فالاقتراح يوفّر كتابتها في كل شباك */}
+          <Row gap={spacing.sm} wrap>
+            {WINDOW_SUGGESTIONS.map((s) => (
+              <Pressable key={s} onPress={() => setName(s)} style={suggestChip}>
+                <AppText variant="caption" color={palette.oliveDark}>
+                  {s}
+                </AppText>
+              </Pressable>
+            ))}
+          </Row>
           <Row gap={spacing.md}>
             <View style={{ flex: 1 }}>
               <Field
@@ -385,6 +403,15 @@ const chipStyle = {
   backgroundColor: palette.white,
 };
 const chipActive = { backgroundColor: palette.olive, borderColor: palette.olive };
+const suggestChip = {
+  paddingHorizontal: spacing.md,
+  height: 36,
+  justifyContent: 'center' as const,
+  borderRadius: radius.pill,
+  borderWidth: 1,
+  borderColor: palette.line,
+  backgroundColor: palette.sand,
+};
 const swatchCard = {
   flexDirection: 'row-reverse' as const,
   alignItems: 'center' as const,

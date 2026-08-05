@@ -1224,7 +1224,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline;
       if (!(quantityM > 0)) return failWith('الكمية يجب أن تكون أكبر من صفر.', 'validation');
-      if (!reason.trim()) return failWith('السبب إلزامي لكل حركة يدوية.', 'validation');
+      // السبب إلزامي لما يُنقص الرصيد أو يوثّق تلفًا (أثر تدقيقي لا غنى عنه)،
+      // واختياري لما يزيده: الاستلام والإرجاع روتين يومي، وإلزام تبريره
+      // يُنتج أسبابًا صورية تُفسد التقارير بدل أن تُثريها
+      const needsReason = type === 'damage' || type === 'adjustment_out';
+      if (needsReason && !reason.trim()) {
+        return failWith('حركات التلف والتسوية بالنقصان تحتاج سببًا مسجَّلًا.', 'validation');
+      }
       const balance = rollBalance(rollId, db.stockMovements);
       if ((type === 'damage' || type === 'adjustment_out') && quantityM > balance.onHandM)
         return failWith('لا يمكن أن يصبح الرصيد سالبًا.', 'validation');
