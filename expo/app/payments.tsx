@@ -22,13 +22,18 @@ import { projectFinance } from '@/hooks/selectors';
 import { formatDate, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-type Tab = 'due' | 'log';
+type Tab = 'debts' | 'settled' | 'log';
 
 export default function PaymentsScreen() {
   const { db, role } = useStore();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>('due');
+  const [tab, setTab] = useState<Tab>('debts');
 
+  /**
+   * فصل الديون عن المسدَّد (M10): كانا قائمة واحدة تُفرز، فالمسدَّد يشغل
+   * الشاشة التي جاء صاحبها يطارد ديونًا. تبويبان يعكسان سؤالين مختلفين:
+   * «من عليه؟» و«ماذا أُغلق؟».
+   */
   const rows = useMemo(
     () =>
       db.projects
@@ -36,6 +41,13 @@ export default function PaymentsScreen() {
         .filter((r) => r.finance.totalAgorot > 0)
         .sort((a, b) => b.finance.dueAgorot - a.finance.dueAgorot),
     [db],
+  );
+  const shown = useMemo(
+    () =>
+      tab === 'debts'
+        ? rows.filter((r) => r.finance.dueAgorot > 0)
+        : rows.filter((r) => r.finance.dueAgorot === 0),
+    [rows, tab],
   );
 
   const totals = useMemo(() => {
@@ -91,13 +103,22 @@ export default function PaymentsScreen() {
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'due', label: 'حالة التحصيل' },
-          { value: 'log', label: 'سجل الدفعات' },
+          { value: 'debts', label: 'الديون' },
+          { value: 'settled', label: 'المسدَّد' },
+          { value: 'log', label: 'السجل' },
         ]}
       />
 
-      {tab === 'due' &&
-        rows.map(({ project, finance }) => {
+      {tab !== 'log' && shown.length === 0 && (
+        <EmptyState
+          icon={<Wallet size={26} color={palette.olive} />}
+          title={tab === 'debts' ? 'لا ديون قائمة' : 'لا مشاريع مسدَّدة بعد'}
+          body={tab === 'debts' ? 'كل المشاريع المعتمدة حُصّلت بالكامل.' : 'حين يُسدَّد مشروع بالكامل ينتقل إلى هنا.'}
+        />
+      )}
+
+      {tab !== 'log' &&
+        shown.map(({ project, finance }) => {
           const customer = db.customers.find((c) => c.id === project.customerId);
           return (
             <Card key={project.id} onPress={() => router.push(`/project/${project.id}`)}>
