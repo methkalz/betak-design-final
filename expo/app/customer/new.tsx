@@ -62,7 +62,7 @@ export default function NewCustomerScreen() {
         onPress={submit}
       />
       <AppText variant="caption" color={palette.muted} align="center">
-        يتم حفظ الزبون داخل مؤسستك فقط، ولا تراه أي مؤسسة أخرى.
+        يُحفظ الزبون في معرضك وحده، ولا يراه أي معرض آخر.
       </AppText>
     </ScrollScreen>
   );

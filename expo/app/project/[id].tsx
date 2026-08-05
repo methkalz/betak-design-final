@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  AlertTriangle,
   ArrowRight,
   Banknote,
   Camera,
@@ -15,7 +16,7 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react-native';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing as REasing,
@@ -42,6 +43,7 @@ import {
   SectionHeader,
   Swatch,
 } from '@/components/ui';
+import { QuotationDecision } from '@/components/QuotationDecision';
 import { font, gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
@@ -56,7 +58,7 @@ import {
 } from '@/domain/labels';
 import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
-import { currentVersion, projectFabricPlan, projectFinance, useProject } from '@/hooks/selectors';
+import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
@@ -85,15 +87,41 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 export default function ProjectStudioScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, justCreated, tab: tabParam } = useLocalSearchParams<{
+    id: string;
+    justCreated?: string;
+    tab?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { db, role } = useStore();
   const project = useProject(id);
   const goBack = useGoBack('/projects');
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() =>
+    TABS.some((t) => t.value === tabParam) ? (tabParam as Tab) : 'overview',
+  );
   const tabsRef = useRef<ScrollView>(null);
   const tabsPinned = useRef(false);
+  const bodyRef = useRef<ScrollView>(null);
+
+  /**
+   * بعد إنشاء المشروع تنتقل الشاشة إلى الغرف من نفسها.
+   *
+   * المهلة مقصودة لا كسل: الانتقال الفوري يبتلع اللحظة التي يتأكد فيها
+   * المستخدم أن المشروع أُنشئ فعلًا فيبدو كأن شيئًا قفز أمامه، وما يتجاوز
+   * الثانية يقطع تسلسل التفكير (حدّ نيلسن المعروف). 700 مللي ثانية تقع بين
+   * الحدّين: يرى العنوان والزبون، ثم يجد نفسه حيث الخطوة التالية.
+   */
+  useEffect(() => {
+    if (justCreated !== '1') return;
+    const t = setTimeout(() => setTab('rooms'), 700);
+    return () => clearTimeout(t);
+  }, [justCreated]);
+
+  /** تمرير جسم الصفحة إلى بطاقة بعينها - تستعمله الغرف بعد الإضافة. */
+  const focusCard = useCallback((y: number) => {
+    bodyRef.current?.scrollTo({ y: Math.max(0, y - spacing.lg), animated: true });
+  }, []);
 
   if (!project) {
     return (
@@ -194,13 +222,14 @@ export default function ProjectStudioScreen() {
       </View>
 
       <ScrollView
+        ref={bodyRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140, gap: spacing.lg }}
         showsVerticalScrollIndicator={false}
       >
         {tab === 'overview' && <OverviewTab projectId={project.id} statusColor={c.fg} />}
-        {tab === 'rooms' && <RoomsTab projectId={project.id} />}
-        {tab === 'quote' && <QuoteTab projectId={project.id} />}
+        {tab === 'rooms' && <RoomsTab projectId={project.id} onFocusCard={focusCard} />}
+        {tab === 'quote' && <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />}
         {tab === 'production' && <ProductionTab projectId={project.id} />}
         {tab === 'money' && <MoneyTab projectId={project.id} />}
         {tab === 'media' && <MediaTab projectId={project.id} />}
@@ -217,7 +246,15 @@ export default function ProjectStudioScreen() {
  * ليقول «اضغط هنا للانتقال»، وهي إشارة الإمكانية (affordance) التي كانت
  * غائبة حين كان النقل مخبوءًا في نقطة ملوّنة.
  */
-function AdvanceButton({ label, onPress }: { label: string; onPress: () => void }) {
+function AdvanceButton({
+  label,
+  onPress,
+  caption = 'المرحلة التالية',
+}: {
+  label: string;
+  onPress: () => void;
+  caption?: string;
+}) {
   // سهمان يتتابعان لا قرص يتحرك: الحركة يجب أن تكون في الرمز الدال على
   // الاتجاه نفسه. التأخير بين السهمين يصنع إحساس التدفق نحو الأمام.
   const x1 = useSharedValue(0);
@@ -244,7 +281,7 @@ function AdvanceButton({ label, onPress }: { label: string; onPress: () => void 
       <Row justify="space-between" style={{ flex: 1 }}>
         <View>
           <AppText variant="caption" color="rgba(255,255,255,0.75)">
-            المرحلة التالية
+            {caption}
           </AppText>
           <AppText variant="heading" color={palette.white}>
             {label}
@@ -430,13 +467,45 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 /* ───────────────────────── Rooms ───────────────────────── */
 
-function RoomsTab({ projectId }: { projectId: string }) {
-  const { db, role, addRoom, deleteRoom } = useStore();
+/**
+ * توهّج الترحيب بالبطاقة الجديدة.
+ *
+ * الغرفة تُضاف من نموذج أعلى الصفحة فتظهر بطاقتها تحت ما هو معروض أحيانًا،
+ * فيتساءل المستخدم هل حُفظت. حلقةٌ تلمع ثم تنطفئ تجيب عن السؤال دون كلمة،
+ * وهي فوق البطاقة لا حولها فلا تزحزح شيئًا من التخطيط.
+ */
+function NewCardGlow({ active }: { active: boolean }) {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    if (!active) return;
+    glow.value = 1;
+    glow.value = withDelay(320, withTiming(0, { duration: 1500, easing: REasing.out(REasing.quad) }));
+  }, [active, glow]);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  if (!active) return null;
+  return (
+    <Animated.View pointerEvents="none" style={[styles.newGlow, style]}>
+      <View style={styles.newGlowWash} />
+    </Animated.View>
+  );
+}
+
+function RoomsTab({
+  projectId,
+  onFocusCard,
+}: {
+  projectId: string;
+  onFocusCard: (y: number) => void;
+}) {
+  const { db, role, addRoom, deleteRoom, createQuotation } = useStore();
   const router = useRouter();
   const [newRoom, setNewRoom] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const rooms = db.rooms.filter((r) => r.projectId === projectId).sort((a, b) => a.sortOrder - b.sortOrder);
   const editable = can(role, 'enter_measurements');
+  const windows = db.windows.filter((w) => w.projectId === projectId);
+  const quotation = db.quotations.find((q) => q.projectId === projectId);
 
   return (
     <>
@@ -466,6 +535,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
                 if (!res.ok) return setError(res.error);
                 setNewRoom('');
                 setError(null);
+                setJustAdded(res.data);
               }}
             />
             {!!error && <Banner tone="danger" title={error} />}
@@ -482,15 +552,24 @@ function RoomsTab({ projectId }: { projectId: string }) {
       )}
 
       {rooms.map((room) => {
-        const windows = db.windows.filter((w) => w.roomId === room.id);
-        const totalRunning = windows.reduce((s, w) => s + (w.widthCm / 100) * w.quantity, 0);
+        const roomWindows = db.windows.filter((w) => w.roomId === room.id);
+        const totalRunning = roomWindows.reduce((s, w) => s + (w.widthCm / 100) * w.quantity, 0);
+        const fresh = justAdded === room.id;
         return (
-          <Card key={room.id}>
+          <Card
+            key={room.id}
+            onLayout={
+              fresh
+                ? (e) => onFocusCard(e.nativeEvent.layout.y)
+                : undefined
+            }
+          >
+            <NewCardGlow active={fresh} />
             <Row justify="space-between">
               <View style={{ flex: 1 }}>
                 <AppText variant="heading">{room.name}</AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {windows.length} شباك • {meters(round3(totalRunning))} متر طولي
+                  {roomWindows.length} شباك • {meters(round3(totalRunning))} متر طولي
                 </AppText>
               </View>
               {editable && (
@@ -511,7 +590,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
             <Divider />
 
             <View style={{ gap: spacing.sm }}>
-              {windows.map((w) => {
+              {roomWindows.map((w) => {
                 const variant = db.fabricVariants.find((v) => v.id === w.fabricVariantId);
                 return (
                   <Pressable
@@ -533,7 +612,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
                   </Pressable>
                 );
               })}
-              {windows.length === 0 && (
+              {roomWindows.length === 0 && (
                 <AppText variant="caption" color={palette.muted}>
                   لا توجد شبابيك في هذه الغرفة بعد.
                 </AppText>
@@ -556,13 +635,34 @@ function RoomsTab({ projectId }: { projectId: string }) {
           </Card>
         );
       })}
+
+      {/* أول شباك يكفي لتسعير المشروع، فالدعوة تظهر هنا لا في تبويب آخر
+          يتطلب البحث عنه - وهي تفتح العرض نفسه مباشرة لا التبويب. */}
+      {windows.length > 0 && can(role, 'create_quotation') && (
+        <AdvanceButton
+          caption={quotation ? 'العرض جاهز' : 'القياسات كافية'}
+          label={quotation ? 'فتح عرض السعر' : 'إنشاء عرض السعر'}
+          onPress={() => {
+            if (quotation) return router.push(`/quotation/${quotation.id}`);
+            const res = createQuotation(projectId);
+            if (res.ok) router.push(`/quotation/${res.data}`);
+            else Alert.alert('تعذر الإنشاء', res.error);
+          }}
+        />
+      )}
     </>
   );
 }
 
 /* ───────────────────────── Quotation ───────────────────────── */
 
-function QuoteTab({ projectId }: { projectId: string }) {
+function QuoteTab({
+  projectId,
+  onGoToProduction,
+}: {
+  projectId: string;
+  onGoToProduction: () => void;
+}) {
   const { db, role, createQuotation } = useStore();
   const router = useRouter();
   const quotation = db.quotations.find((q) => q.projectId === projectId);
@@ -601,6 +701,17 @@ function QuoteTab({ projectId }: { projectId: string }) {
 
   return (
     <>
+      {/* القرار حيث العرض: من هنا كان المستخدم يرى النسخة بلا أزرار فيظنّها
+          عرضًا آخر غير الذي رآه من اللوحة. المكوّن واحد في الموضعين. */}
+      {can(role, 'create_quotation') && version.status === 'sent' && (
+        <QuotationDecision
+          versionId={version.id}
+          projectId={projectId}
+          onApproved={onGoToProduction}
+          onEdit={() => router.push(`/quotation/${quotation.id}`)}
+        />
+      )}
+
       <Card onPress={() => router.push(`/quotation/${quotation.id}`)}>
         <Row justify="space-between">
           <View>
@@ -677,55 +788,86 @@ function QuoteTab({ projectId }: { projectId: string }) {
 /* ───────────────────────── Production ───────────────────────── */
 
 function ProductionTab({ projectId }: { projectId: string }) {
-  const { db, role } = useStore();
+  const { db, role, busy, autoReserveForProject } = useStore();
   const router = useRouter();
-  const plan = projectFabricPlan(db, projectId);
+  const gaps = projectFabricGaps(db, projectId);
   const reservations = db.reservations.filter((r) => r.projectId === projectId);
   const assignment = db.tailorAssignments.find((a) => a.projectId === projectId);
   const usages = db.usages.filter((u) => u.projectId === projectId);
 
+  // ناقص = لا يكفي مخزونه فلم يُحجز منه شيء؛ متاح = يمكن حجزه الآن
+  const short = gaps.filter((g) => g.remaining > 0 && g.available < g.remaining);
+  const ready = gaps.filter((g) => g.remaining > 0 && g.available >= g.remaining);
+
   return (
     <>
       <Card>
-        <SectionHeader title="خطة القماش" subtitle="محسوبة من القياسات والمضاعف" />
-        {plan.map((p) => {
-          const reserved = reservations
-            .filter((r) => {
-              const roll = db.fabricRolls.find((x) => x.id === r.rollId);
-              return roll?.variantId === p.variantId && r.status !== 'released';
-            })
-            .reduce((s, r) => s + r.quantityM, 0);
-          const variant = db.fabricVariants.find((v) => v.id === p.variantId);
-          const ok = reserved >= p.meters;
+        <SectionHeader
+          title="خطة القماش"
+          subtitle="تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك"
+        />
+        {gaps.map((g) => {
+          const variant = db.fabricVariants.find((v) => v.id === g.variantId);
+          const done = g.remaining === 0;
+          const blocked = g.remaining > 0 && g.available < g.remaining;
           return (
-            <View key={p.variantId} style={{ gap: 6, marginBottom: spacing.md }}>
+            <View key={g.variantId} style={{ gap: 6, marginBottom: spacing.md }}>
               <Row justify="space-between">
                 <Row gap={spacing.sm}>
                   <Swatch color={variant?.colorHex ?? palette.sand} size={22} />
-                  <AppText variant="label">{p.label}</AppText>
+                  <AppText variant="label">{g.label}</AppText>
                 </Row>
-                <AppText variant="caption" color={ok ? palette.success : palette.terracotta}>
-                  {meters(reserved)} / {meters(p.meters)}
+                <AppText
+                  variant="caption"
+                  color={done ? palette.success : blocked ? palette.danger : palette.terracotta}
+                >
+                  {meters(g.reserved)} / {meters(g.required)}
                 </AppText>
               </Row>
               <ProgressBar
-                value={p.meters > 0 ? reserved / p.meters : 0}
-                color={ok ? palette.success : palette.terracotta}
+                value={g.required > 0 ? g.reserved / g.required : 0}
+                color={done ? palette.success : blocked ? palette.danger : palette.terracotta}
               />
+              {blocked && (
+                <AppText variant="caption" color={palette.danger}>
+                  ينقص {meters(round3(g.remaining - g.available))} - المتاح في المخزون{' '}
+                  {meters(g.available)} فقط
+                </AppText>
+              )}
             </View>
           );
         })}
-        {plan.length === 0 && (
+        {gaps.length === 0 && (
           <AppText variant="caption" color={palette.muted}>
             لا توجد أقمشة محددة على الشبابيك بعد.
           </AppText>
         )}
-        {can(role, 'reserve_fabric') && (
+
+        {short.length > 0 && (
+          <Banner
+            tone="danger"
+            title="المخزون لا يكفي - لم يُحجز شيء من هذه الأقمشة"
+            body="الحجز الجزئي يقضم المتاح دون أن يُطلق الإنتاج، فيُترك الصنف كما هو حتى تزيد الكمية. زد المخزون ثم اضغط «احجز الآن»."
+            icon={<AlertTriangle size={16} color={palette.danger} />}
+          />
+        )}
+
+        {can(role, 'reserve_fabric') && ready.length > 0 && (
           <Button
-            label="حجز قماش من المخزون"
+            label="احجز الآن"
             full
-            variant="secondary"
-            icon={<Layers size={16} color={palette.oliveDark} />}
+            loading={busy === 'reserve'}
+            icon={<Layers size={16} color={palette.ivory} />}
+            style={{ marginTop: spacing.md }}
+            onPress={() => autoReserveForProject(projectId)}
+          />
+        )}
+        {can(role, 'reserve_fabric') && gaps.some((g) => g.remaining > 0) && (
+          <Button
+            label="حجز يدوي من رول معيّن"
+            variant="ghost"
+            small
+            full
             style={{ marginTop: spacing.sm }}
             onPress={() => router.push(`/reserve/${projectId}`)}
           />
@@ -1000,6 +1142,15 @@ function MediaTab({ projectId }: { projectId: string }) {
 }
 
 const styles = StyleSheet.create({
+  /** حلقة ترحيب فوق البطاقة الجديدة - لا تزحزح التخطيط لأنها طبقة مطلقة. */
+  newGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.xl,
+    borderWidth: 2,
+    borderColor: palette.olive,
+    overflow: 'hidden',
+  },
+  newGlowWash: { flex: 1, backgroundColor: palette.olive, opacity: 0.07 },
   backBtn: {
     width: 44,
     height: 44,

@@ -249,7 +249,12 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       <Card>
-        <SectionHeader title="القماش" subtitle="اختر اللون من مكتبة الأقمشة" />
+        {/* لم يعد اختياريًا: عليه يقوم السعر والحجز التلقائي بعد الاعتماد.
+            يُقال هنا قبل الحفظ لا في رسالة خطأ بعده. */}
+        <SectionHeader
+          title="القماش"
+          subtitle={fabricVariantId ? 'اختر اللون من مكتبة الأقمشة' : 'مطلوب - عليه يقوم السعر والحجز'}
+        />
         <Row gap={spacing.sm} wrap>
           {fabricVariants.map((v) => {
             const p = db.fabricProducts.find((x) => x.id === v.productId);

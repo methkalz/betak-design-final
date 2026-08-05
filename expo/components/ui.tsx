@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
@@ -123,15 +124,20 @@ export function Card({
   onPress,
   padded = true,
   testID,
+  onLayout,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   padded?: boolean;
   testID?: string;
+  /** موضع البطاقة داخل الصفحة - يلزم للتمرير إليها بعد إنشائها. */
+  onLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const content = (
-    <View style={[styles.card, padded && { padding: spacing.lg }, style]}>{children}</View>
+    <View onLayout={onLayout} style={[styles.card, padded && { padding: spacing.lg }, style]}>
+      {children}
+    </View>
   );
   if (!onPress) return content;
   return (

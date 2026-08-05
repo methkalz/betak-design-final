@@ -90,36 +90,9 @@ export function projectFinance(db: Database, projectId: UUID): ProjectFinance {
   };
 }
 
-export function projectFabricPlan(db: Database, projectId: UUID) {
-  const windows = db.windows.filter((w) => w.projectId === projectId);
-  const map = new Map<string, { variantId: string; meters: number; label: string }>();
-  for (const w of windows) {
-    const fabric = round3((w.widthCm / 100) * w.quantity * w.fullness);
-    if (w.fabricVariantId) {
-      const v = db.fabricVariants.find((x) => x.id === w.fabricVariantId);
-      const p = db.fabricProducts.find((x) => x.id === v?.productId);
-      const key = w.fabricVariantId;
-      const prev = map.get(key);
-      map.set(key, {
-        variantId: key,
-        meters: round3((prev?.meters ?? 0) + fabric),
-        label: `${p?.name ?? ''} ${v?.colorName ?? ''}`.trim(),
-      });
-    }
-    if (w.hasLining && w.liningVariantId) {
-      const v = db.fabricVariants.find((x) => x.id === w.liningVariantId);
-      const p = db.fabricProducts.find((x) => x.id === v?.productId);
-      const key = w.liningVariantId;
-      const prev = map.get(key);
-      map.set(key, {
-        variantId: key,
-        meters: round3((prev?.meters ?? 0) + fabric),
-        label: `${p?.name ?? ''} ${v?.colorName ?? ''}`.trim(),
-      });
-    }
-  }
-  return Array.from(map.values());
-}
+// الخطة صارت في `domain/fabricPlan` لأن المخزن يحتاجها للحجز التلقائي؛ تُعاد
+// هنا لتبقى نقطة الاستيراد واحدة لمن كان يستوردها من قبل.
+export { projectFabricGaps, projectFabricPlan } from '@/domain/fabricPlan';
 
 export function unreadCount(db: Database, userId: UUID | null | undefined): number {
   if (!userId) return 0;

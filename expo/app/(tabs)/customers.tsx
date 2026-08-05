@@ -4,10 +4,11 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/Avatar';
 import { AppText, Card, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
 import { projectFinance } from '@/hooks/selectors';
-import { initials, money, phone } from '@/lib/format';
+import { money, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function CustomersScreen() {
@@ -76,11 +77,7 @@ export default function CustomersScreen() {
                النظرة نفسها بلا أن يقرأها أحد. */
             <Card onPress={() => router.push(`/customer/${item.id}`)} style={{ padding: spacing.xl }}>
               <Row gap={spacing.md} align="center">
-                <View style={styles.avatar}>
-                  <AppText variant="label" color={palette.olive}>
-                    {initials(item.fullName)}
-                  </AppText>
-                </View>
+                <Avatar id={item.id} name={item.fullName} size={46} />
                 <View style={{ flex: 1 }}>
                   <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
                     {item.fullName}
@@ -131,13 +128,5 @@ export default function CustomersScreen() {
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: palette.sand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   dueDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: palette.terracotta },
 });

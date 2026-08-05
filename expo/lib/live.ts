@@ -59,7 +59,7 @@ async function selectPrivileged(view: string): Promise<Row[]> {
 export async function fetchIdentity(): Promise<LiveIdentity> {
   const { data, error } = await supabase.from('me').select('*').single();
   if (error || !data) {
-    throw new Error('حسابك غير مربوط بأي مؤسسة نشطة - راجع الأدمن.');
+    throw new Error('حسابك غير مربوط بأي معرض نشط - راجع الأدمن.');
   }
   const row = data as Row;
   return {

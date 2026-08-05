@@ -17,7 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Banner, Row } from '@/components/ui';
 import { font, palette, radius, shadow, spacing } from '@/constants/theme';
 import { ROLE_LABELS } from '@/domain/permissions';
-import { initials, phone } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
+import { phone } from '@/lib/format';
 import { fetchLiveDatabase } from '@/lib/live';
 import { useAuth } from '@/providers/auth';
 import { useStore } from '@/providers/store';
@@ -245,11 +246,9 @@ export default function LoginScreen() {
                 ]}
               >
                 <Row gap={spacing.md}>
-                  <View style={[styles.avatar, isActive && { backgroundColor: palette.terracotta }]}>
-                    <AppText variant="heading" color={palette.ivory}>
-                      {initials(p.fullName)}
-                    </AppText>
-                  </View>
+                  {/* شاشة الدخول فوق تدرّج داكن: الزجاج الأبيض أوضح من
+                      ألوان الهوية، والمستخدم يعرف نفسه من الاسم لا من اللون */}
+                  <Avatar id={p.id} name={p.fullName} size={48} onDark />
                   <View style={{ flex: 1 }}>
                     <AppText variant="heading" color={isActive ? palette.ivory : palette.ivory}>
                       {p.fullName}
@@ -369,14 +368,6 @@ const styles = StyleSheet.create({
   userCardActive: {
     borderColor: palette.sage,
     backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   pinPanel: {
     backgroundColor: palette.ivory,

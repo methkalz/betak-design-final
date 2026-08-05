@@ -18,7 +18,8 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { can } from '@/domain/permissions';
 import { projectFinance, useCustomer } from '@/hooks/selectors';
-import { formatDate, initials, money, phone } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
+import { formatDate, money, phone } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
@@ -87,11 +88,7 @@ export default function CustomerScreen() {
     <ScrollScreen>
       <Card>
         <Row gap={spacing.md}>
-          <View style={styles.avatar}>
-            <AppText variant="title" color={palette.oliveDark}>
-              {initials(customer.fullName)}
-            </AppText>
-          </View>
+          <Avatar id={customer.id} name={customer.fullName} size={60} />
           <View style={{ flex: 1 }}>
             <AppText variant="title">{customer.fullName}</AppText>
             <AppText variant="caption" color={palette.muted}>
@@ -227,14 +224,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = {
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: palette.sageSoft,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
   tile: {
     flex: 1,
     borderRadius: radius.lg,

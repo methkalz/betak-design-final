@@ -3,6 +3,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildSeed, SEED_VERSION, type Database } from '@/data/seed';
+import { projectFabricGaps, pickRolls, type FabricGap } from '@/domain/fabricPlan';
 import { canConsume, canReserve, rollBalance } from '@/domain/inventory';
 import {
   PROJECT_STATUS_LABELS,
@@ -512,6 +513,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         return failWith('الارتفاع أكبر من 500 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
       if (input.fullness < 1.5 || input.fullness > 4)
         return failWith('المضاعف يجب أن يكون بين 1.5 و 4.', 'validation');
+      // القماش لم يعد اختياريًا: الحجز صار يجري تلقائيًا عند اعتماد العرض،
+      // وهو يقرأ اختيار الشباك. شباكٌ بلا قماش يعني بندًا بلا سعر وحجزًا
+      // لا يمكن تنفيذه - فيتوقف الخط كله عند أول اعتماد.
+      if (!input.fabricVariantId)
+        return failWith('اختر القماش - عليه يقوم السعر والحجز التلقائي.', 'validation');
+      if (input.hasLining && !input.liningVariantId)
+        return failWith('اخترت «مع بطانة» - فحدّد قماش البطانة أو ألغِ الخيار.', 'validation');
       const id = input.id ?? uid('win');
       mutate((draft) => {
         const existing = draft.windows.find((w) => w.id === id);
@@ -1104,6 +1112,76 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     [guard, requireOnline, db.stockMovements, mutate, addMovement, audit, userId],
   );
 
+  /**
+   * الحجز التلقائي بعد اعتماد العرض.
+   *
+   * الطاقم لا يختار رولًا ولا يكتب كمية: الاختيار مسجَّل أصلًا على كل شباك،
+   * والكمية محسوبة من القياس والمضاعف. كل ضغطة بعد ذلك تكرارٌ لما تعرفه
+   * القاعدة سلفًا.
+   *
+   * والقاعدة الحاكمة: صنفٌ لا يكفي مخزونه يُترك كله بلا حجز. الحجز الجزئي
+   * يقضم المتاح ويوهم بالتقدّم بينما الإنتاج ما زال متوقفًا، ويجعل حجم النقص
+   * أصعب قراءةً مما لو بقي الصنف كما هو.
+   */
+  const autoReserveForProject = useCallback(
+    async (projectId: UUID): Promise<Result<{ reserved: number; short: FabricGap[] }>> => {
+      const denied = guard('reserve_fabric');
+      if (denied) return denied as Result<{ reserved: number; short: FabricGap[] }>;
+      const offline = requireOnline();
+      if (offline) return offline as Result<{ reserved: number; short: FabricGap[] }>;
+
+      const gaps = projectFabricGaps(db, projectId).filter((g) => g.remaining > 0);
+      const short = gaps.filter((g) => g.available < g.remaining);
+      const doable = gaps.filter((g) => g.available >= g.remaining);
+      if (doable.length === 0) return { ok: true, data: { reserved: 0, short } };
+
+      setBusy('reserve');
+      await serverLatency();
+      setBusy(null);
+
+      let reserved = 0;
+      mutate((draft) => {
+        for (const gap of doable) {
+          // يُعاد الاختيار داخل المعاملة على الرصيد الطازج - نظير إعادة الفحص
+          // في reserveFabric، فالمخزون قد يكون تغيّر أثناء انتظار الخادم.
+          for (const pick of pickRolls(draft, gap.variantId, gap.remaining)) {
+            const fresh = rollBalance(pick.rollId, draft.stockMovements);
+            if (pick.meters > fresh.availableM) continue;
+            const resId = uid('res');
+            draft.reservations.unshift({
+              id: resId,
+              organizationId: draft.organization.id,
+              projectId,
+              rollId: pick.rollId,
+              quantityM: round3(pick.meters),
+              consumedM: 0,
+              status: 'active',
+              createdBy: userId ?? 'system',
+              createdAt: new Date().toISOString(),
+            });
+            addMovement(draft, pick.rollId, 'reservation', pick.meters, projectId, resId, 'حجز تلقائي بعد اعتماد العرض');
+            reserved += 1;
+            const roll = draft.fabricRolls.find((r) => r.id === pick.rollId);
+            audit(
+              draft,
+              'inventory.reserve',
+              'fabric_reservation',
+              resId,
+              `حجز تلقائي ${round3(pick.meters)} م من ${roll?.code ?? ''}`,
+            );
+          }
+        }
+        const project = draft.projects.find((p) => p.id === projectId);
+        // المرحلة تتقدّم فقط حين لا ينقص شيء - وإلا بقي المشروع معلنًا حاجته
+        if (project && project.status === 'customer_approved' && short.length === 0) {
+          project.status = 'fabric_allocated';
+        }
+      });
+      return { ok: true, data: { reserved, short } };
+    },
+    [guard, requireOnline, db, mutate, addMovement, audit, userId],
+  );
+
   const releaseReservation = useCallback(
     async (reservationId: UUID, reason: string): Promise<Result<void>> => {
       const denied = guard('reserve_fabric');
@@ -1549,6 +1627,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       requestDiscount,
       decideDiscount,
       reserveFabric,
+      autoReserveForProject,
       releaseReservation,
       consumeFabric,
       adjustStock,
@@ -1599,6 +1678,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       requestDiscount,
       decideDiscount,
       reserveFabric,
+      autoReserveForProject,
       releaseReservation,
       consumeFabric,
       adjustStock,

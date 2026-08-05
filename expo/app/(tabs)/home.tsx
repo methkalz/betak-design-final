@@ -7,17 +7,14 @@ import {
   ArrowUpRight,
   BadgePercent,
   Bell,
-  CheckCircle2,
   ChevronLeft,
   Clock3,
   FolderPlus,
   Layers,
   LayoutGrid,
   Package,
-  Pencil,
   Scissors,
   UserPlus,
-  XCircle,
 } from 'lucide-react-native';
 import React, { useEffect, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -48,7 +45,9 @@ import {
 import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { useRollViews } from '@/hooks/selectors';
-import { formatDate, initials, isSameDay, money } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
+import { QuotationDecision } from '@/components/QuotationDecision';
+import { formatDate, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 /* لوحة 2026: خلفية لافندرية بتوهجات، بطاقة بطل متدرّجة بهالة ملوّنة،
@@ -485,11 +484,11 @@ function AdminDashboard() {
         {/* التحية - على الصفحة مباشرة، لا شريط ملوّن */}
         <Row justify="space-between">
           <Row gap={spacing.md}>
-            <View style={styles.avatar}>
-              <AppText variant="label" color={palette.oliveDark}>
-                {initials(currentUser?.fullName ?? '')}
-              </AppText>
-            </View>
+            <Avatar
+              id={currentUser?.id ?? 'anon'}
+              name={currentUser?.fullName ?? ''}
+              size={46}
+            />
             <View>
               <AppText variant="caption" color={palette.muted}>
                 {hello}
@@ -755,7 +754,7 @@ function AdminDashboard() {
  * واللون في الأيقونة وحدها - ولمس البطاقة نفسها يفتح العرض للتعديل.
  */
 function AwaitingQuoteCard({ versionId }: { versionId: string }) {
-  const { db, decideVersion, busy } = useStore();
+  const { db } = useStore();
   const router = useRouter();
   const version = db.quotationVersions.find((v) => v.id === versionId);
   const quotation = db.quotations.find((q) => q.id === version?.quotationId);
@@ -793,37 +792,20 @@ function AwaitingQuoteCard({ versionId }: { versionId: string }) {
         </Row>
       </Pressable>
 
-      <Row gap={spacing.sm} style={{ marginTop: spacing.md }}>
-        <Pressable
-          disabled={busy === 'decide-quote'}
-          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
-          onPress={() => decideVersion(version.id, 'approved')}
-        >
-          <Row gap={6} justify="center">
-            <CheckCircle2 size={17} color={palette.success} />
-            <AppText variant="caption">وافق</AppText>
-          </Row>
-        </Pressable>
-        <Pressable
-          disabled={busy === 'decide-quote'}
-          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
-          onPress={() => decideVersion(version.id, 'rejected')}
-        >
-          <Row gap={6} justify="center">
-            <XCircle size={17} color={palette.danger} />
-            <AppText variant="caption">رفض</AppText>
-          </Row>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.decideBtn, pressed && { backgroundColor: palette.sand }]}
-          onPress={() => router.push(`/quotation/${quotation.id}`)}
-        >
-          <Row gap={6} justify="center">
-            <Pencil size={16} color={palette.olive} />
-            <AppText variant="caption">تعديل</AppText>
-          </Row>
-        </Pressable>
-      </Row>
+      <View style={{ marginTop: spacing.md }}>
+        <QuotationDecision
+          compact
+          versionId={version.id}
+          projectId={quotation.projectId}
+          onApproved={() =>
+            router.push({
+              pathname: '/project/[id]',
+              params: { id: quotation.projectId, tab: 'production' },
+            })
+          }
+          onEdit={() => router.push(`/quotation/${quotation.id}`)}
+        />
+      </View>
     </Glass>
   );
 }
@@ -974,16 +956,6 @@ function TailorDashboard() {
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: palette.sand,
-    borderWidth: 1.5,
-    borderColor: palette.sandDeep,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   bellBtn: {
     width: 44,
     height: 44,
@@ -1085,15 +1057,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     minHeight: 64,
-  },
-  decideBtn: {
-    flex: 1,
-    minHeight: 44,
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.line,
-    backgroundColor: palette.white,
   },
   attentionIcon: {
     width: 36,

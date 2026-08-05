@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CalendarPlus, Check, UserPlus } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
@@ -16,7 +16,8 @@ import {
 import { DateTimeSheet } from '@/components/DateTimeSheet';
 import { palette, radius, spacing } from '@/constants/theme';
 import { PRIORITY_LABELS } from '@/domain/labels';
-import { formatDate, formatTime, initials, phone } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
+import { formatDate, formatTime, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { Priority } from '@/types/domain';
 
@@ -36,6 +37,10 @@ export default function NewProjectScreen() {
   const [customerId, setCustomerId] = useState<string>(params.customerId ?? '');
   const [search, setSearch] = useState<string>('');
   const [title, setTitle] = useState<string>('');
+  // العنوان يُكتب نفسه من اسم الزبون - وهو ما يكتبه المستخدم يدويًا في كل
+  // مرة تقريبًا. يبقى قابلًا للتعديل، وأول حرف يكتبه المستخدم يوقف التوليد
+  // نهائيًا حتى لا يمحو تبديلُ الزبون نصًّا كتبه بنفسه.
+  const [titleEdited, setTitleEdited] = useState<boolean>(false);
   const [priority, setPriority] = useState<Priority>('normal');
   const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(
     db.profiles.find((p) => p.role === 'field')?.id ?? null,
@@ -55,6 +60,12 @@ export default function NewProjectScreen() {
   const fieldWorkers = db.profiles.filter((p) => p.role === 'field');
   const tailors = db.profiles.filter((p) => p.role === 'tailor');
 
+  const chosen = customers.find((c) => c.id === customerId) ?? null;
+  useEffect(() => {
+    if (titleEdited) return;
+    setTitle(chosen ? `بيت ${chosen.fullName}` : '');
+  }, [chosen, titleEdited]);
+
   const submit = () => {
     setError(null);
     if (!customerId) return setError('اختر الزبون صاحب المشروع أولًا.');
@@ -68,7 +79,9 @@ export default function NewProjectScreen() {
       notes,
     });
     if (!res.ok) return setError(res.error);
-    router.replace(`/project/${res.data}`);
+    // `justCreated` تقود الشاشة إلى تبويب الغرف من نفسها: الخطوة التالية بعد
+    // إنشاء المشروع هي تسجيل الغرف دائمًا، فلا معنى لانتظار ضغطة إضافية.
+    router.replace({ pathname: '/project/[id]', params: { id: res.data, justCreated: '1' } });
   };
 
   /**
@@ -93,11 +106,7 @@ export default function NewProjectScreen() {
       {preset ? (
         <Card>
           <Row gap={spacing.md} align="center">
-            <View style={styles.presetAvatar}>
-              <AppText variant="label" color={palette.olive}>
-                {initials(preset.fullName)}
-              </AppText>
-            </View>
+            <Avatar id={preset.id} name={preset.fullName} size={46} />
             <View style={{ flex: 1 }}>
               <AppText variant="caption" color={palette.muted}>
                 مشروع جديد للزبون
@@ -172,8 +181,11 @@ export default function NewProjectScreen() {
           <Field
             label="عنوان المشروع"
             value={title}
-            onChangeText={setTitle}
-            placeholder="مثال: بيت مثقال - كفرمندا"
+            onChangeText={(t) => {
+              setTitleEdited(true);
+              setTitle(t);
+            }}
+            placeholder="مثال: بيت مثقال"
           />
           <View style={{ gap: 6 }}>
             <AppText variant="label" color={palette.muted}>
@@ -287,14 +299,6 @@ const styles = {
     backgroundColor: palette.white,
   },
   chipActive: { backgroundColor: palette.olive, borderColor: palette.olive },
-  presetAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: palette.sand,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
   dateBtn: {
     marginTop: spacing.sm,
     borderRadius: radius.md,

@@ -7,10 +7,9 @@ import {
   Send,
   Share2,
   ShieldAlert,
-  XCircle,
 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import {
   AppText,
@@ -26,7 +25,8 @@ import {
   SectionHeader,
 } from '@/components/ui';
 import { DiscountSlider } from '@/components/DiscountSlider';
-import { palette, radius, spacing } from '@/constants/theme';
+import { QuotationDecision } from '@/components/QuotationDecision';
+import { palette, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
 import { checkDiscount, computeTotals } from '@/domain/pricing';
@@ -43,7 +43,6 @@ export default function QuotationScreen() {
     busy,
     createVersion,
     sendVersion,
-    decideVersion,
     requestDiscount,
   } = useStore();
 
@@ -289,9 +288,10 @@ export default function QuotationScreen() {
                 ? 'إرسال طلب خصم للأدمن'
                 : 'إنشاء نسخة جديدة بالخصم'
             }
+            variant="secondary"
             full
             style={{ marginTop: spacing.md }}
-            icon={<BadgePercent size={18} color={palette.ivory} />}
+            icon={<BadgePercent size={18} color={palette.oliveDark} />}
             onPress={applyDiscount}
           />
         </Card>
@@ -300,25 +300,14 @@ export default function QuotationScreen() {
       {!!error && <Banner tone="danger" title="تعذر التنفيذ" body={error} />}
       {!!info && <Banner tone="success" title={info} />}
 
-      <Row gap={spacing.sm}>
-        <Button
-          label="معاينة PDF ومشاركة"
-          full
-          style={{ flex: 1 }}
-          icon={<Share2 size={18} color={palette.ivory} />}
-          onPress={() =>
-            router.push({ pathname: '/quotation/pdf', params: { versionId: version.id } })
-          }
-        />
-      </Row>
-
+      {/* إرسال العرض هو الفعل الذي يحرّك الشغل، فهو وحده الملوّن. المعاينة
+          والمشاركة خدمةٌ مساعدة، ولو تساوت معه في الحضور لتساوت في النداء. */}
       {can(role, 'create_quotation') && version.status === 'draft' && (
         <Button
           label="إرسال العرض للزبون"
-          variant="accent"
           full
           loading={busy === 'send-quote'}
-          icon={<Send size={18} color={palette.white} />}
+          icon={<Send size={18} color={palette.ivory} />}
           onPress={async () => {
             setError(null);
             const res = await sendVersion(version.id);
@@ -328,40 +317,33 @@ export default function QuotationScreen() {
         />
       )}
 
+      <Button
+        label="معاينة ومشاركة PDF"
+        variant="secondary"
+        full
+        icon={<Share2 size={18} color={palette.oliveDark} />}
+        onPress={() =>
+          router.push({ pathname: '/quotation/pdf', params: { versionId: version.id } })
+        }
+      />
+
       {can(role, 'create_quotation') && version.status === 'sent' && (
-        /* قرار الزبون واقعة تُسجَّل لا فعلٌ نُغري به: أزرار بيضاء هادئة
-           واللون في الأيقونة وحدها - أخضر للموافقة وأحمر للرفض. الأزرار
-           الليلكية الممتلئة كانت تصرخ بثلاثة نداءات متساوية في شاشة واحدة. */
-        <Row gap={spacing.sm}>
-          <Pressable
-            style={({ pressed }) => [styles.decision, pressed && { backgroundColor: palette.sand }]}
-            onPress={async () => {
-              const res = await decideVersion(version.id, 'approved');
-              if (!res.ok) setError(res.error);
-              else
-                Alert.alert('تم الاعتماد', 'انتقل المشروع إلى مرحلة تخصيص القماش.', [
-                  { text: 'تمام' },
-                ]);
-            }}
-          >
-            <Row gap={spacing.sm} justify="center">
-              <CheckCircle2 size={19} color={palette.success} />
-              <AppText variant="label">الزبون وافق</AppText>
-            </Row>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.decision, pressed && { backgroundColor: palette.sand }]}
-            onPress={async () => {
-              const res = await decideVersion(version.id, 'rejected');
-              if (!res.ok) setError(res.error);
-            }}
-          >
-            <Row gap={spacing.sm} justify="center">
-              <XCircle size={19} color={palette.danger} />
-              <AppText variant="label">رفض العرض</AppText>
-            </Row>
-          </Pressable>
-        </Row>
+        <QuotationDecision
+          versionId={version.id}
+          projectId={quotation.projectId}
+          onApproved={() =>
+            router.replace({
+              pathname: '/project/[id]',
+              params: { id: quotation.projectId, tab: 'production' },
+            })
+          }
+          onEdit={() =>
+            router.replace({
+              pathname: '/project/[id]',
+              params: { id: quotation.projectId, tab: 'rooms' },
+            })
+          }
+        />
       )}
     </ScrollScreen>
   );
@@ -387,16 +369,3 @@ function SummaryRow({
     </Row>
   );
 }
-
-const styles = StyleSheet.create({
-  /** زر قرار هادئ: سطح أبيض وحدّ رفيع، واللون في الأيقونة وحدها. */
-  decision: {
-    flex: 1,
-    minHeight: 52,
-    justifyContent: 'center',
-    borderRadius: radius.md,
-    borderWidth: 1.4,
-    borderColor: palette.line,
-    backgroundColor: palette.white,
-  },
-});
