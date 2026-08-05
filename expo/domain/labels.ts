@@ -105,10 +105,8 @@ export const CURTAIN_MODEL_LABELS: Record<CurtainModel, string> = {
 };
 
 export const TRACK_LABELS: Record<TrackType, string> = {
-  ceiling_rail: 'مسار سقف',
-  wall_rod: 'قضيب حائط',
+  standard: 'مسار عادي',
   motorized: 'مسار كهربائي',
-  double_rail: 'مسار مزدوج',
 };
 
 export const TAILOR_STAGE_ORDER: TailorStage[] = [

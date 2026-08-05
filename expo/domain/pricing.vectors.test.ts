@@ -79,7 +79,7 @@ test('height above 500cm gets no automatic price (requiresAdminPricing)', () => 
   const win: WindowUnit = {
     id: 'w1', organizationId: 'org-1', projectId: 'pr1', roomId: 'rm1',
     name: 'شباك عالٍ', widthCm: 200, heightCm: 520, model: 'wave',
-    hasLining: true, track: 'ceiling_rail', fullness: 3,
+    hasLining: true, track: 'standard', fullness: 3,
     fabricVariantId: 'v1', liningVariantId: null, quantity: 1,
     notes: '', measuredAt: null, measuredBy: null,
   };

@@ -92,7 +92,12 @@ export interface Room {
 }
 
 export type CurtainModel = 'wave' | 'pinch_pleat' | 'eyelet' | 'roman' | 'sheer_panel';
-export type TrackType = 'ceiling_rail' | 'wall_rod' | 'motorized' | 'double_rail';
+/**
+ * نوعان لا أربعة (قرار المالك 6.8.2026): عادي أو كهربائي.
+ * ما كان يُعرض من «قضيب حائط» و«مسار مزدوج» تفاصيل تركيب لا أنواع مسار،
+ * وحضورها في الاختيار كان يُبطئ الإدخال بقرارٍ لا وجود له في المحل.
+ */
+export type TrackType = 'standard' | 'motorized';
 
 export interface WindowUnit {
   id: UUID;

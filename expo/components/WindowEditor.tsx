@@ -62,7 +62,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
   const [model, setModel] = useState<CurtainModel>(existing?.model ?? 'wave');
-  const [track, setTrack] = useState<TrackType>(existing?.track ?? 'ceiling_rail');
+  const [track, setTrack] = useState<TrackType>(existing?.track ?? 'standard');
   const [hasLining, setHasLining] = useState<boolean>(existing?.hasLining ?? true);
   const [fullness, setFullness] = useState<number>(existing?.fullness ?? 3);
   const [fabricVariantId, setFabricVariantId] = useState<string | null>(
@@ -253,15 +253,16 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           <AppText variant="label" color={palette.muted}>
             المسار
           </AppText>
-          <Row gap={spacing.sm} wrap>
-            {(Object.keys(TRACK_LABELS) as TrackType[]).map((t) => (
-              <Pressable key={t} onPress={() => setTrack(t)} style={[chipStyle, track === t && chipActive]}>
-                <AppText variant="label" color={track === t ? palette.ivory : palette.charcoal}>
-                  {TRACK_LABELS[t]}
-                </AppText>
-              </Pressable>
-            ))}
-          </Row>
+          {/* خياران اثنان: الشريط المقسوم أسرع من رقاقات متناثرة، ويُظهر
+              البديل حاضرًا بدل أن يُطلب البحث عنه */}
+          <SegmentedControl
+            value={track}
+            onChange={setTrack}
+            options={(Object.keys(TRACK_LABELS) as TrackType[]).map((t) => ({
+              value: t,
+              label: TRACK_LABELS[t],
+            }))}
+          />
 
           <AppText variant="label" color={palette.muted}>
             المضاعف (Fullness)
