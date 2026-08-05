@@ -115,6 +115,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     quotationValidityDays: n(st.quotation_validity_days),
     vatPercent: n(st.vat_percent),
     currency: 'ILS',
+    // عمود أجرة الزيارة يصل الخادم مع شريحة الكتابة
+    fieldVisitWageAgorot: n(st.field_visit_wage_agorot),
   };
 
   const profiles: Profile[] = members.map((m) => ({
@@ -393,6 +395,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     tailorAssignments: [],
     fieldVisits: [],
     payments: [],
+    staffLedger: [],
     attachments: [],
     notifications: [],
     auditLogs: [],

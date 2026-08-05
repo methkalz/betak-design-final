@@ -11,7 +11,7 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { CalendarClock, ChevronLeft, Phone, ShieldCheck, UserX } from 'lucide-react-native';
+import { Banknote, CalendarClock, ChevronLeft, Phone, ShieldCheck, UserX } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -19,10 +19,12 @@ import { Avatar } from '@/components/Avatar';
 import {
   AppText,
   Banner,
+  Button,
   Card,
   ConfirmSheet,
   Divider,
   EmptyState,
+  Field,
   Pill,
   Row,
   ScrollScreen,
@@ -31,7 +33,8 @@ import {
 import { gradients, palette, radius, spacing } from '@/constants/theme';
 import { can, ROLE_LABELS } from '@/domain/permissions';
 import { staffDossier, type StaffMetric } from '@/domain/staff';
-import { formatDate, formatDateTime, phone as fmtPhone } from '@/lib/format';
+import { fieldAccruals, staffBalance, tailorAccruals } from '@/domain/staffLedger';
+import { formatDate, formatDateTime, money, phone as fmtPhone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function StaffDossierScreen() {
@@ -174,6 +177,10 @@ export default function StaffDossierScreen() {
         </Row>
       </Card>
 
+      {(profile.role === 'tailor' || profile.role === 'field') && (
+        <StaffFinanceCard profileId={profile.id} role={profile.role} isAdmin={isAdmin} />
+      )}
+
       <Card>
         <SectionHeader
           title="آخر ما فعل"
@@ -236,6 +243,174 @@ export default function StaffDossierScreen() {
         onCancel={() => setConfirm(false)}
       />
     </ScrollScreen>
+  );
+}
+
+/**
+ * حساب الموظف (M8/M14/M15/M26).
+ *
+ * الرصيد جارٍ لا شهري: مستحقٌّ منذ البداية ناقص مدفوع منذ البداية.
+ * السالب سلفة لصالح المعرض ويُقال بلسانه لا برقم سالب صامت. الاستحقاقات
+ * مشتقة من الورشات/الزيارات فلا تفترق عن مصدرها، والدفعات وحدها تُقيَّد.
+ */
+function StaffFinanceCard({
+  profileId,
+  role,
+  isAdmin,
+}: {
+  profileId: string;
+  role: 'tailor' | 'field';
+  isAdmin: boolean;
+}) {
+  const { db, busy, recordStaffPayout } = useStore();
+  const router = useRouter();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const balance = useMemo(() => staffBalance(db, profileId, role), [db, profileId, role]);
+  const accruals = useMemo(
+    () => (role === 'tailor' ? tailorAccruals(db, profileId) : []),
+    [db, profileId, role],
+  );
+  const fieldItems = useMemo(
+    () => (role === 'field' ? fieldAccruals(db, profileId) : []),
+    [db, profileId, role],
+  );
+  const payouts = db.staffLedger.filter((e) => e.staffId === profileId).slice(0, 6);
+  const negative = balance.balanceAgorot < 0;
+
+  const pay = async () => {
+    setError(null);
+    setInfo(null);
+    const res = await recordStaffPayout(
+      profileId,
+      Math.round(parseFloat(amount || '0')) * 100,
+      note,
+    );
+    if (!res.ok) return setError(res.error);
+    setAmount('');
+    setNote('');
+    setInfo('سُجّلت الدفعة ووصل الإشعار للموظف.');
+  };
+
+  return (
+    <Card>
+      <SectionHeader
+        title="الحساب"
+        subtitle={role === 'tailor' ? 'رصيد جارٍ - لا يعرف الشهر' : 'أجرة الزيارات الميدانية'}
+      />
+      <Row gap={spacing.sm} wrap>
+        <MetricTile
+          metric={{
+            label: role === 'tailor' ? `مستحق عن ${balance.itemsCount} ورشة` : `مستحق عن ${balance.itemsCount} زيارة`,
+            value: money(balance.accruedAgorot),
+          }}
+        />
+        <MetricTile metric={{ label: 'دُفع له', value: money(balance.paidAgorot) }} />
+      </Row>
+      <View
+        style={{
+          marginTop: spacing.sm,
+          borderRadius: radius.md,
+          padding: spacing.md,
+          backgroundColor: negative ? palette.warningSoft : palette.sageSoft,
+        }}
+      >
+        <AppText variant="numberLarge">
+          {money(Math.abs(balance.balanceAgorot))}
+        </AppText>
+        <AppText variant="caption" color={palette.muted}>
+          {negative ? 'سلفة لصالح المعرض - دُفع له مقدَّمًا' : 'الرصيد المستحق له الآن'}
+        </AppText>
+      </View>
+
+      {role === 'tailor' && accruals.length > 0 && (
+        <View style={{ marginTop: spacing.md }}>
+          <AppText variant="label" color={palette.muted}>
+            مستحقّه عن كل ورشة
+          </AppText>
+          {accruals.slice(0, 6).map((a) => {
+            const project = db.projects.find((p) => p.id === a.projectId);
+            return (
+              <Pressable
+                key={a.assignmentId}
+                onPress={() => router.push({ pathname: '/project/[id]', params: { id: a.projectId } })}
+                style={({ pressed }) => [
+                  { paddingVertical: spacing.sm, borderRadius: radius.sm },
+                  pressed && { backgroundColor: palette.ivoryDeep },
+                ]}
+              >
+                <Row justify="space-between" gap={spacing.md}>
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="caption" numberOfLines={1}>
+                      {project?.title ?? 'مشروع'}
+                    </AppText>
+                    <AppText variant="caption" color={palette.muted}>
+                      {formatDate(a.completedAt)} • {a.metersM} متر
+                    </AppText>
+                  </View>
+                  <AppText variant="label">{money(a.feeAgorot)}</AppText>
+                </Row>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {role === 'field' && fieldItems.length > 0 && (
+        <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.sm }}>
+          {fieldItems.length} زيارة مكتملة × {money(db.settings.fieldVisitWageAgorot)} للزيارة
+        </AppText>
+      )}
+
+      {payouts.length > 0 && (
+        <View style={{ marginTop: spacing.md }}>
+          <AppText variant="label" color={palette.muted}>
+            آخر الدفعات
+          </AppText>
+          {payouts.map((e) => (
+            <Row key={e.id} justify="space-between" style={{ paddingVertical: 4 }}>
+              <AppText variant="caption" color={palette.muted}>
+                {formatDate(e.createdAt)}
+                {e.note ? ` • ${e.note}` : ''}
+              </AppText>
+              <AppText variant="caption">{money(e.amountAgorot)}</AppText>
+            </Row>
+          ))}
+        </View>
+      )}
+
+      {isAdmin && (
+        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+          <Divider />
+          <Row gap={spacing.md} align="flex-end">
+            <View style={{ flex: 1 }}>
+              <Field
+                label="دفعة له الآن"
+                value={amount}
+                onChangeText={(t) => setAmount(t.replace(/\D/g, ''))}
+                keyboardType="numeric"
+                suffix="₪"
+                placeholder="0"
+              />
+            </View>
+            <Button
+              label="سجّل الدفعة"
+              small
+              loading={busy === 'payout'}
+              disabled={!(parseInt(amount || '0', 10) > 0)}
+              icon={<Banknote size={15} color={palette.ivory} />}
+              onPress={pay}
+            />
+          </Row>
+          <Field label="ملاحظة" value={note} onChangeText={setNote} placeholder="مثال: سلفة، تصفية ورشات تموز" />
+          {!!error && <Banner tone="danger" title="تعذر التسجيل" body={error} />}
+          {!!info && <Banner tone="success" title={info} />}
+        </View>
+      )}
+    </Card>
   );
 }
 

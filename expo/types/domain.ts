@@ -265,6 +265,8 @@ export interface BusinessSettings {
   quotationValidityDays: number;
   vatPercent: number;
   currency: 'ILS';
+  /** أجرة الزيارة الميدانية بالأغورة (M26) - تُستحق مع إكمال كل زيارة. */
+  fieldVisitWageAgorot: number;
   /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
   timezone?: string;
 }
@@ -425,6 +427,10 @@ export interface Payment {
   amountAgorot: number;
   kind: PaymentKind;
   method: PaymentMethod;
+  /** للشيكات: تاريخ الصرف. الدفعة تُسجَّل يوم استلام الشيك وتُصرف في موعده. */
+  dueAt?: string | null;
+  /** صورة الشيك (اختيارية) - تُضغط webp/jpeg لتصغير الحجم وتسهيل المعاينة. */
+  photoUri?: string | null;
   reference: string;
   note: string;
   reversedPaymentId: UUID | null;
@@ -453,6 +459,21 @@ export interface Attachment {
   createdAt: string;
   /** Local-first: photos live on device until the upload queue drains. */
   uploaded: boolean;
+}
+
+/**
+ * قيد دفتر الطاقم: دفعةٌ من المعرض لموظف (M8/M26).
+ * الاستحقاقات لا تُخزَّن هنا - تُشتق من الورشات والزيارات (انظر staffLedger).
+ */
+export interface StaffLedgerEntry {
+  id: UUID;
+  organizationId: UUID;
+  staffId: UUID;
+  /** بالأغورة، موجب دائمًا: مبلغ خرج من المعرض للموظف. */
+  amountAgorot: number;
+  note: string;
+  createdBy: UUID;
+  createdAt: string;
 }
 
 export type NotificationKind =

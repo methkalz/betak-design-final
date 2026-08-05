@@ -47,6 +47,7 @@ import {
 } from '@/components/ui';
 import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { staffBalance } from '@/domain/staffLedger';
 import { useRollViews } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
 import { QuotationDecision } from '@/components/QuotationDecision';
@@ -1076,6 +1077,10 @@ function FieldDashboard() {
           </Enter>
         )}
 
+        <Enter delay={ENTER.quick + 40}>
+          <StaffBalanceCard role="field" />
+        </Enter>
+
         <Enter delay={ENTER.tiles}>
           <PendingInstallations />
         </Enter>
@@ -1196,6 +1201,10 @@ function TailorDashboard() {
           </Enter>
         )}
 
+        <Enter delay={ENTER.quick + 40}>
+          <StaffBalanceCard role="tailor" />
+        </Enter>
+
         <Enter delay={ENTER.tiles}>
           <View style={{ gap: spacing.md }}>
             <SectionHeader title="أوامر الإنتاج" subtitle="مشاريعك فقط" />
@@ -1234,6 +1243,53 @@ function TailorDashboard() {
         </Enter>
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * رصيد الموظف على لوحته (M8/M26): كم استحق، كم قُبض، وما بقي - والسلفة
+ * تُقال بلسانها. سجل الحساب الكامل في ملفه بلمسة.
+ */
+function StaffBalanceCard({ role }: { role: 'tailor' | 'field' }) {
+  const { db, currentUser } = useStore();
+  const router = useRouter();
+  const balance = useMemo(
+    () => (currentUser ? staffBalance(db, currentUser.id, role) : null),
+    [db, currentUser, role],
+  );
+  const lastPayout = db.staffLedger.find((e) => e.staffId === currentUser?.id);
+  if (!balance) return null;
+  const negative = balance.balanceAgorot < 0;
+
+  return (
+    <Glass inner={{ padding: spacing.lg }}>
+      <Pressable
+        onPress={() =>
+          currentUser && router.push({ pathname: '/team/[id]', params: { id: currentUser.id } })
+        }
+      >
+        <Row justify="space-between" align="center" gap={spacing.md}>
+          <View style={{ flex: 1 }}>
+            <AppText variant="caption" color={palette.muted}>
+              {negative
+                ? 'سلفة عليك لصالح المعرض'
+                : role === 'tailor'
+                  ? `رصيدك عن ${balance.itemsCount} ورشة منجزة`
+                  : `رصيدك عن ${balance.itemsCount} زيارة مكتملة`}
+            </AppText>
+            <AppText variant="numberLarge" color={negative ? palette.warning : palette.charcoal}>
+              {money(Math.abs(balance.balanceAgorot))}
+            </AppText>
+            <AppText variant="caption" color={palette.muted}>
+              {lastPayout
+                ? `آخر دفعة ${money(lastPayout.amountAgorot)} في ${formatDate(lastPayout.createdAt)}`
+                : 'لم تُسجَّل دفعات بعد'}
+            </AppText>
+          </View>
+          <ChevronLeft size={18} color={palette.muted} />
+        </Row>
+      </Pressable>
+    </Glass>
   );
 }
 

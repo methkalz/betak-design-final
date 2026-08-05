@@ -48,6 +48,18 @@ import type {
 } from '@/types/domain';
 
 const DB_KEY = `baytak.db.${SEED_VERSION}`;
+
+/**
+ * إماهة محصَّنة: اللقطة المخزَّنة تُدمج فوق شكل البذرة الطازج، فأي مصفوفة
+ * أُضيفت إلى النموذج بعد حفظ اللقطة تمتلئ بقيمتها الابتدائية بدل أن تصل
+ * `undefined` وتُسقط أول شاشة تقرؤها. بدون هذا، نسيان رفع SEED_VERSION مع
+ * إضافة حقل = تطبيق لا يفتح عند كل من يحمل لقطة قديمة.
+ */
+function reviveDb(raw: string): Database {
+  const fresh = buildSeed();
+  const parsed = JSON.parse(raw) as Partial<Database>;
+  return { ...fresh, ...parsed } as Database;
+}
 const SESSION_KEY = 'baytak.session';
 
 export type Result<T = void> =
@@ -89,8 +101,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         ]);
         if (cancelled) return;
         if (rawDb) {
-          const parsed = JSON.parse(rawDb) as Database;
-          setDb(parsed);
+          setDb(reviveDb(rawDb));
         }
         if (rawSession) setUserId(JSON.parse(rawSession) as string);
       } catch (e) {
@@ -273,7 +284,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     setUserId(null);
     try {
       const rawDb = await AsyncStorage.getItem(DB_KEY);
-      setDb(rawDb ? (JSON.parse(rawDb) as Database) : buildSeed());
+      setDb(rawDb ? reviveDb(rawDb) : buildSeed());
     } catch {
       setDb(buildSeed());
     }
@@ -1986,6 +1997,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       method: PaymentMethod;
       reference: string;
       note: string;
+      dueAt?: string | null;
+      photoUri?: string | null;
     }): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
@@ -2020,6 +2033,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           amountAgorot: input.amountAgorot,
           kind: input.kind,
           method: input.method,
+          dueAt: input.dueAt ?? null,
+          photoUri: input.photoUri ?? null,
           reference: input.reference,
           note: input.note,
           reversedPaymentId: null,
@@ -2038,6 +2053,129 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       return okVoid;
     },
     [guard, requireOnline, mutate, audit, userId],
+  );
+
+  /**
+   * سلسلة شيكات دفعةً واحدة (M6).
+   *
+   * الشيكات تُستلم رزمةً في جلسة توقيع واحدة، فإدخالها واحدًا واحدًا خطأٌ
+   * ينتظر من يرتكبه. التسلسل مرجع واحد CHK i/N فيُقرأ في كشف الدفعات أنها
+   * رزمة، وقاعدة «لا دفعة قبل عرض معتمد» تسري عليها كما تسري على النقد.
+   */
+  const recordCheckSeries = useCallback(
+    async (input: {
+      projectId: UUID;
+      checks: { amountAgorot: number; dueAt: string }[];
+      note: string;
+      photoUri?: string | null;
+    }): Promise<Result<void>> => {
+      const denied = guard('record_payment');
+      if (denied) return denied;
+      const offline = requireOnline();
+      if (offline) return offline;
+      if (input.checks.length === 0) return failWith('أدخل شيكًا واحدًا على الأقل.', 'validation');
+      if (input.checks.some((c) => !(c.amountAgorot > 0)))
+        return failWith('كل شيك يجب أن يكون مبلغه أكبر من صفر.', 'validation');
+      const approved = db.quotationVersions.some(
+        (v) =>
+          v.status === 'approved' &&
+          db.quotations.some((q) => q.id === v.quotationId && q.projectId === input.projectId),
+      );
+      if (!approved)
+        return failWith(
+          'لا يمكن تسجيل دفعة قبل اعتماد الزبون لعرض السعر - لا يوجد مبلغ متفق عليه بعد.',
+          'conflict',
+        );
+      setBusy('payment');
+      await serverLatency();
+      setBusy(null);
+      mutate((draft) => {
+        const total = input.checks.length;
+        input.checks.forEach((c, i) => {
+          const id = uid('pay');
+          draft.payments.unshift({
+            id,
+            organizationId: draft.organization.id,
+            projectId: input.projectId,
+            amountAgorot: c.amountAgorot,
+            kind: 'milestone',
+            method: 'check',
+            dueAt: c.dueAt,
+            // الصورة على الشيك الأول: هي صورة الرزمة الموقَّعة لا كل ورقة
+            photoUri: i === 0 ? (input.photoUri ?? null) : null,
+            reference: `CHK ${i + 1}/${total}`,
+            note: input.note.trim(),
+            reversedPaymentId: null,
+            createdBy: userId ?? 'system',
+            createdAt: new Date().toISOString(),
+          });
+        });
+        const project = draft.projects.find((p) => p.id === input.projectId);
+        const sum = input.checks.reduce((s, c) => s + c.amountAgorot, 0);
+        audit(
+          draft,
+          'payment.checks',
+          'payment',
+          input.projectId,
+          `تسجيل ${total} شيكات بمجموع ${Math.round(sum / 100)}₪ على ${project?.code ?? ''}`,
+        );
+      });
+      return okVoid;
+    },
+    [guard, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
+  );
+
+  /**
+   * دفعة لموظف (M8/M26): القيد الوحيد المخزَّن في دفتر الطاقم.
+   *
+   * الاستحقاق يُشتق من الورشات والزيارات ولا يُخزَّن، فالدفتر لا يفترق عن
+   * مصدره. السلفة دفعةٌ عادية تسبق الاستحقاق فيهبط الرصيد تحت الصفر (M15) -
+   * بلا معاملة خاصة. والموظف يصله إشعار بكل دفعة.
+   */
+  const recordStaffPayout = useCallback(
+    async (staffId: UUID, amountAgorot: number, note: string): Promise<Result<void>> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      const offline = requireOnline();
+      if (offline) return offline;
+      const staff = db.profiles.find((p) => p.id === staffId);
+      if (!staff) return failWith('الموظف غير موجود.', 'validation');
+      if (!(amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
+      if (amountAgorot % 100 !== 0)
+        return failWith('المبلغ بالشيكل الصحيح - لا أغورة.', 'validation');
+      setBusy('payout');
+      await serverLatency();
+      setBusy(null);
+      mutate((draft) => {
+        const id = uid('slg');
+        draft.staffLedger.unshift({
+          id,
+          organizationId: draft.organization.id,
+          staffId,
+          amountAgorot,
+          note: note.trim(),
+          createdBy: userId ?? 'system',
+          createdAt: new Date().toISOString(),
+        });
+        notify(
+          draft,
+          staffId,
+          'payment',
+          'دفعة جديدة',
+          `استلمت ${Math.round(amountAgorot / 100)}₪ من إدارة بيتك ديزاين${note.trim() ? ` - ${note.trim()}` : ''}.`,
+          null,
+        );
+        audit(
+          draft,
+          'staff.payout',
+          'staff_ledger',
+          id,
+          `دفعة ${Math.round(amountAgorot / 100)}₪ إلى ${staff.fullName}`,
+        );
+      });
+      return okVoid;
+    },
+    [guard, requireOnline, db.profiles, mutate, notify, audit, userId],
   );
 
   const reversePayment = useCallback(
@@ -2174,6 +2312,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       advanceStage,
       assignTailor,
       recordPayment,
+      recordCheckSeries,
+      recordStaffPayout,
       reversePayment,
       markNotificationRead,
       markAllRead,
@@ -2232,6 +2372,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       advanceStage,
       assignTailor,
       recordPayment,
+      recordCheckSeries,
+      recordStaffPayout,
       reversePayment,
       markNotificationRead,
       markAllRead,

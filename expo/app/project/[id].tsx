@@ -42,8 +42,10 @@ import {
   ProgressBar,
   Row,
   SectionHeader,
+  SegmentedControl,
   Swatch,
 } from '@/components/ui';
+import { CheckWizard } from '@/components/CheckWizard';
 import { QuotationDecision } from '@/components/QuotationDecision';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
@@ -1021,6 +1023,8 @@ function MoneyTab({ projectId }: { projectId: string }) {
     [db.quotationVersions, db.quotations, projectId],
   );
   const [amount, setAmount] = useState<string>('');
+  const [method, setMethod] = useState<'cash' | 'check'>('cash');
+  const [checksOpen, setChecksOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -1032,7 +1036,7 @@ function MoneyTab({ projectId }: { projectId: string }) {
       projectId,
       amountAgorot: value,
       kind: finance.paidAgorot === 0 ? 'deposit' : finance.dueAgorot - value <= 0 ? 'final' : 'milestone',
-      method: 'cash',
+      method,
       reference: '',
       note: '',
     });
@@ -1073,6 +1077,15 @@ function MoneyTab({ projectId }: { projectId: string }) {
           <Card>
             <AppText variant="heading">تسجيل دفعة</AppText>
             <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+              {/* M6: طريقة الدفع اختيار صريح - نقدًا أو شيك */}
+              <SegmentedControl
+                value={method}
+                onChange={(m) => setMethod(m)}
+                options={[
+                  { value: 'cash', label: 'نقدًا' },
+                  { value: 'check', label: 'شيك' },
+                ]}
+              />
               <Field
                 label="المبلغ"
                 value={amount}
@@ -1082,12 +1095,30 @@ function MoneyTab({ projectId }: { projectId: string }) {
                 placeholder="0"
               />
               <Button
-                label="تسجيل الدفعة"
+                label={method === 'check' ? 'تسجيل شيك واحد' : 'تسجيل الدفعة'}
                 full
                 loading={busy === 'payment'}
                 icon={<Banknote size={18} color={palette.ivory} />}
                 onPress={submit}
               />
+              {method === 'check' && (
+                <Button
+                  label={checksOpen ? 'إخفاء رزمة الشيكات' : 'رزمة شيكات متعددة...'}
+                  variant="secondary"
+                  small
+                  full
+                  onPress={() => setChecksOpen((s) => !s)}
+                />
+              )}
+              {method === 'check' && checksOpen && (
+                <CheckWizard
+                  projectId={projectId}
+                  onDone={() => {
+                    setChecksOpen(false);
+                    setSuccess('سُجّلت رزمة الشيكات بمواعيد صرفها.');
+                  }}
+                />
+              )}
               {!!error && <Banner tone="danger" title="تعذر تسجيل الدفعة" body={error} />}
               {!!success && <Banner tone="success" title={success} />}
             </View>
@@ -1112,9 +1143,22 @@ function MoneyTab({ projectId }: { projectId: string }) {
         {payments.map((p) => (
           <Row key={p.id} justify="space-between" style={{ paddingVertical: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <AppText variant="label">{money(p.amountAgorot)}</AppText>
+              <Row gap={spacing.sm}>
+                <AppText variant="label">{money(p.amountAgorot)}</AppText>
+                {p.method === 'check' && (
+                  <Pill
+                    label={p.reference || 'شيك'}
+                    bg={palette.infoSoft}
+                    fg={palette.info}
+                    small
+                  />
+                )}
+              </Row>
               <AppText variant="caption" color={palette.muted}>
-                {formatDate(p.createdAt)} • {p.note || 'بدون ملاحظة'}
+                {p.method === 'check' && p.dueAt
+                  ? `يُصرف ${formatDate(p.dueAt)} • `
+                  : `${formatDate(p.createdAt)} • `}
+                {p.note || 'بدون ملاحظة'}
               </AppText>
             </View>
             {p.kind !== 'reversal' && role === 'admin' && (

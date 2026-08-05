@@ -29,6 +29,7 @@ import type {
   QuotationItem,
   QuotationVersion,
   Room,
+  StaffLedgerEntry,
   StockMovement,
   TailorAssignment,
   WindowUnit,
@@ -55,6 +56,7 @@ export interface Database {
   tailorAssignments: TailorAssignment[];
   fieldVisits: FieldVisit[];
   payments: Payment[];
+  staffLedger: StaffLedgerEntry[];
   attachments: Attachment[];
   notifications: AppNotification[];
   auditLogs: AuditLog[];
@@ -90,6 +92,7 @@ const settings: BusinessSettings = {
   quotationValidityDays: 14,
   vatPercent: 18,
   currency: 'ILS',
+  fieldVisitWageAgorot: 15000,
 };
 
 const profiles: Profile[] = [
@@ -1405,6 +1408,7 @@ export function buildSeed(): Database {
     tailorAssignments,
     fieldVisits,
     payments,
+    staffLedger: [],
     attachments,
     notifications,
     auditLogs,
@@ -1418,4 +1422,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v4';
+export const SEED_VERSION = 'baytak-seed-v5';

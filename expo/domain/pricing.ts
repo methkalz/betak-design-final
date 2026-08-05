@@ -52,7 +52,7 @@ function divRoundHalfAway(numer: number, denom: number): number {
  * الزبون أبدًا أكثر مما تُظهره الحسبة. تُطبَّق على كل مرحلة لا على الإجمالي
  * وحده، وإلا لم يعد مجموع البنود المعروضة مساويًا للإجمالي المعروض.
  */
-function floorToShekel(agorot: number): number {
+export function floorToShekel(agorot: number): number {
   return Math.floor(agorot / 100) * 100;
 }
 
