@@ -1,12 +1,13 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, Layers, Package, Scissors } from 'lucide-react-native';
+import { AlertTriangle, Layers, Package, PackagePlus, Plus, Scissors } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
+  Button,
   Card,
   EmptyState,
   Pill,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { can } from '@/domain/permissions';
 import { useRollViews } from '@/hooks/selectors';
 import { meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -29,6 +31,7 @@ export default function InventoryScreen() {
   const [tab, setTab] = useState<Tab>('rolls');
   const rolls = useRollViews();
   const showCost = role === 'admin';
+  const canManage = can(role, 'manage_fabrics');
 
   const totals = useMemo(() => {
     const available = rolls.reduce((s, r) => s + r.balance.availableM, 0);
@@ -81,6 +84,24 @@ export default function InventoryScreen() {
             { value: 'library', label: 'مكتبة الأقمشة' },
           ]}
         />
+        {/* الإضافة تتبع ما ينظر إليه المستخدم: شحنة وهو في الرولات، قماش
+            وهو في المكتبة - لا زرّ واحد يسأل «أيّهما تقصد؟» */}
+        {canManage && (
+          <Button
+            label={tab === 'rolls' ? 'استلام شحنة' : 'قماش جديد'}
+            variant="secondary"
+            full
+            small
+            icon={
+              tab === 'rolls' ? (
+                <PackagePlus size={15} color={palette.oliveDark} />
+              ) : (
+                <Plus size={15} color={palette.oliveDark} />
+              )
+            }
+            onPress={() => router.push(tab === 'rolls' ? '/roll/new' : '/fabric/new')}
+          />
+        )}
       </View>
 
       {tab === 'rolls' ? (

@@ -431,6 +431,7 @@ export function Field({
   error,
   editable = true,
   testID,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
@@ -442,6 +443,8 @@ export function Field({
   error?: string | null;
   editable?: boolean;
   testID?: string;
+  /** أرقام الرولات ودفعات الصبغ والرموز المخزنية تُكتب لاتينية كبيرة. */
+  autoCapitalize?: 'none' | 'characters' | 'words' | 'sentences';
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -460,6 +463,7 @@ export function Field({
           testID={testID}
           value={value}
           onChangeText={onChangeText}
+          autoCapitalize={autoCapitalize}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}
           keyboardType={keyboardType ?? 'default'}

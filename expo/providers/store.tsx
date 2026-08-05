@@ -19,6 +19,9 @@ import type {
   AttachmentKind,
   ClientOperation,
   Customer,
+  FabricKind,
+  FabricProduct,
+  FabricVariant,
   FieldVisit,
   MovementType,
   NotificationKind,
@@ -1395,6 +1398,149 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     [guard, requireOnline, db.stockMovements, mutate, addMovement, audit],
   );
 
+  /* ── مكتبة الأقمشة ─────────────────────────────────────────────────
+     ثلاث طبقات لا واحدة: القماش (نوع ومورّد وعرض)، ثم اللون (تكلفة ورمز
+     مخزني)، ثم الرول (شحنة فعلية بدفعة صبغ ورقم). الخلط بينها هو ما يجعل
+     دفعتَي صبغ تلتقيان في ستارة واحدة. */
+
+  const saveFabricProduct = useCallback(
+    (input: {
+      id?: UUID;
+      name: string;
+      kind: FabricKind;
+      supplier: string;
+      widthCm: number;
+      composition: string;
+    }): Result<string> => {
+      const denied = guard('manage_fabrics');
+      if (denied) return denied as Result<string>;
+      if (!input.name.trim()) return failWith('اسم القماش مطلوب.', 'validation');
+      if (!(input.widthCm > 0)) return failWith('عرض القماش يجب أن يكون أكبر من صفر.', 'validation');
+      const id = input.id ?? uid('prd');
+      mutate((draft) => {
+        const existing = draft.fabricProducts.find((p) => p.id === id);
+        const record: FabricProduct = {
+          id,
+          organizationId: draft.organization.id,
+          name: input.name.trim(),
+          kind: input.kind,
+          supplier: input.supplier.trim(),
+          widthCm: input.widthCm,
+          composition: input.composition.trim(),
+          imageUrl: existing?.imageUrl ?? '',
+        };
+        if (existing) Object.assign(existing, record);
+        else draft.fabricProducts.push(record);
+        enqueue(draft, 'fabric.product.save', `${existing ? 'تعديل' : 'إضافة'} قماش: ${record.name}`, id);
+        audit(
+          draft,
+          existing ? 'fabric.product.update' : 'fabric.product.create',
+          'fabric_product',
+          id,
+          `${existing ? 'تعديل' : 'إضافة'} قماش ${record.name}`,
+        );
+      });
+      return { ok: true, data: id };
+    },
+    [guard, mutate, enqueue, audit],
+  );
+
+  const saveFabricVariant = useCallback(
+    (input: {
+      id?: UUID;
+      productId: UUID;
+      colorName: string;
+      colorHex: string;
+      sku: string;
+      costPerMeterAgorot: number;
+    }): Result<string> => {
+      const denied = guard('manage_fabrics');
+      if (denied) return denied as Result<string>;
+      if (!input.colorName.trim()) return failWith('اسم اللون مطلوب.', 'validation');
+      if (!/^#[0-9a-fA-F]{6}$/.test(input.colorHex))
+        return failWith('رمز اللون يجب أن يكون بصيغة ‎#RRGGBB.', 'validation');
+      if (!(input.costPerMeterAgorot > 0))
+        return failWith('تكلفة المتر مطلوبة - عليها يقوم الهامش.', 'validation');
+      const sku = input.sku.trim().toUpperCase();
+      if (
+        sku &&
+        db.fabricVariants.some((v) => v.id !== input.id && v.sku.toUpperCase() === sku)
+      )
+        return failWith('الرمز المخزني مستعمل للون آخر.', 'conflict');
+      const id = input.id ?? uid('var');
+      mutate((draft) => {
+        const existing = draft.fabricVariants.find((v) => v.id === id);
+        const record: FabricVariant = {
+          id,
+          organizationId: draft.organization.id,
+          productId: input.productId,
+          colorName: input.colorName.trim(),
+          colorHex: input.colorHex,
+          sku,
+          costPerMeterAgorot: Math.round(input.costPerMeterAgorot),
+          imageUrl: existing?.imageUrl ?? '',
+        };
+        if (existing) Object.assign(existing, record);
+        else draft.fabricVariants.push(record);
+        const product = draft.fabricProducts.find((p) => p.id === input.productId);
+        enqueue(draft, 'fabric.variant.save', `${existing ? 'تعديل' : 'إضافة'} لون: ${record.colorName}`, id);
+        audit(
+          draft,
+          existing ? 'fabric.variant.update' : 'fabric.variant.create',
+          'fabric_variant',
+          id,
+          `${existing ? 'تعديل' : 'إضافة'} لون ${record.colorName} على ${product?.name ?? ''}`,
+        );
+      });
+      return { ok: true, data: id };
+    },
+    [guard, db.fabricVariants, mutate, enqueue, audit],
+  );
+
+  /**
+   * شحنة جديدة = رول جديد، لا زيادة على رول قائم.
+   *
+   * إضافة الأمتار إلى رولٍ موجود تدمج دفعتَي صبغ تحت رقم واحد، فيختفي
+   * التحذير الذي بُني عليه كل منطق الدفعات في التطبيق. الاستلام هنا يفتح
+   * رولًا مستقلًا بدفعته ورقمه، والحركة الأولى عليه هي رصيده الافتتاحي.
+   */
+  const addFabricRoll = useCallback(
+    (input: {
+      variantId: UUID;
+      code: string;
+      dyeLot: string;
+      location: string;
+      meters: number;
+    }): Result<string> => {
+      const denied = guard('manage_fabrics');
+      if (denied) return denied as Result<string>;
+      const code = input.code.trim().toUpperCase();
+      if (!code) return failWith('رقم الرول مطلوب.', 'validation');
+      if (db.fabricRolls.some((r) => r.code.toUpperCase() === code))
+        return failWith('رقم الرول مستعمل - لكل رول رقم واحد.', 'conflict');
+      if (!input.dyeLot.trim()) return failWith('دفعة الصبغ مطلوبة.', 'validation');
+      if (!(input.meters > 0)) return failWith('الأمتار يجب أن تكون أكبر من صفر.', 'validation');
+      const id = uid('roll');
+      mutate((draft) => {
+        draft.fabricRolls.push({
+          id,
+          organizationId: draft.organization.id,
+          variantId: input.variantId,
+          code,
+          dyeLot: input.dyeLot.trim(),
+          location: input.location.trim() || '-',
+          initialMeters: round3(input.meters),
+          isMiniRoll: false,
+          createdAt: new Date().toISOString(),
+        });
+        addMovement(draft, id, 'receipt', input.meters, null, null, 'استلام شحنة جديدة');
+        audit(draft, 'inventory.roll.create', 'fabric_roll', id, `استلام رول ${code} بـ${round3(input.meters)} م`);
+      });
+      return { ok: true, data: id };
+    },
+    [guard, db.fabricRolls, mutate, addMovement, audit],
+  );
+
   const createMiniRoll = useCallback(
     async (sourceRollId: UUID, quantityM: number): Promise<Result<void>> => {
       const denied = guard('reserve_fabric');
@@ -1697,6 +1843,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       releaseReservation,
       consumeFabric,
       adjustStock,
+      saveFabricProduct,
+      saveFabricVariant,
+      addFabricRoll,
       createMiniRoll,
       advanceStage,
       assignTailor,
@@ -1750,6 +1899,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       releaseReservation,
       consumeFabric,
       adjustStock,
+      saveFabricProduct,
+      saveFabricVariant,
+      addFabricRoll,
       createMiniRoll,
       advanceStage,
       assignTailor,
