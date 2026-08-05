@@ -173,7 +173,7 @@ export default function FabricScreen() {
 
             {editable && (
               <Button
-                label="استلام شحنة"
+                label="استلام بضاعة"
                 variant="ghost"
                 full
                 small

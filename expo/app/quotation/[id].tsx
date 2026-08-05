@@ -29,7 +29,7 @@ import { QuotationDecision } from '@/components/QuotationDecision';
 import { palette, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
-import { checkDiscount, computeTotals } from '@/domain/pricing';
+import { checkDiscount, computeTotals, round3 } from '@/domain/pricing';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
@@ -80,6 +80,7 @@ export default function QuotationScreen() {
   const statusColor = quotationStatusColor(version.status);
   const activeDiscount = discount ?? version.discountPercent;
   const preview = computeTotals(version.items, activeDiscount, db.settings);
+  const totalMeters = version.items.reduce((s, i) => s + i.runningMeters, 0);
   const check = checkDiscount(version.items, activeDiscount, db.settings);
   const expired = new Date(version.validUntil).getTime() < Date.now() && version.status === 'sent';
 
@@ -190,7 +191,7 @@ export default function QuotationScreen() {
                   {item.description}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر طولي •{' '}
+                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر طولي •{' '}
                   {item.band === 'standard' ? 'حتى 329 سم' : '330–500 سم'}
                 </AppText>
               </View>
@@ -206,6 +207,9 @@ export default function QuotationScreen() {
       </Card>
 
       <Card style={{ backgroundColor: palette.oliveDeepest, borderColor: palette.oliveDeepest }}>
+        {/* مجموع الأمتار قبل المال: هو ما يُطلب من المخزن ويُسلَّم للخياط،
+            وغيابه كان يُلزم جمعه يدويًا من البنود */}
+        <SummaryRow label="مجموع الأمتار الطولية" value={meters(round3(totalMeters))} />
         <SummaryRow label="المجموع قبل الخصم" value={money(preview.subtotalAgorot)} />
         <SummaryRow
           label={`الخصم (${percent(activeDiscount)})`}
@@ -221,17 +225,54 @@ export default function QuotationScreen() {
             {money(preview.totalAgorot)}
           </AppText>
         </Row>
-        {showCost && (
-          <View style={{ marginTop: spacing.md, gap: 4 }}>
-            <SummaryRow label="التكلفة الداخلية" value={money(preview.internalCostAgorot)} muted />
-            <SummaryRow
-              label="هامش الربح"
-              value={`${money(preview.marginAgorot)} (${percent(preview.marginPercent)})`}
-              muted
-            />
-          </View>
-        )}
       </Card>
+
+      {showCost && (
+        /* بطاقة شفافية الهامش (M4): الرقم كان يُتَّهم بالخطأ لأنه لا يشرح
+           نفسه. هنا سلسلة الحساب كاملة: البيع شامل الضريبة، الضريبة
+           المستخرَجة، الإيراد الصافي، التكلفة، الربح - ثم النسبة بالتعريفين:
+           على الصافي (تعريف المحرك والحد الأدنى) وعلى السعر الشامل (القراءة
+           الشائعة). الفرق بينهما هو الضريبة لا خطأ حسابيًا. */
+        <Card>
+          <SectionHeader title="حساب الهامش" subtitle="للأدمن وحده - سلسلة الحساب كاملة" />
+          <View style={{ gap: 4 }}>
+            <CalcRow label="البيع للزبون (شامل الضريبة)" value={money(preview.totalAgorot)} />
+            <CalcRow
+              label={`الضريبة المستخرَجة (${db.settings.vatPercent}%)`}
+              value={`- ${money(preview.vatAgorot)}`}
+            />
+            <CalcRow
+              label="الإيراد الصافي"
+              value={money(preview.totalAgorot - preview.vatAgorot)}
+              strong
+            />
+            <CalcRow
+              label="التكلفة الكاملة (قماش، بطانة، خياطة، سكة، توصيل، قياس وتركيب)"
+              value={`- ${money(preview.internalCostAgorot)}`}
+            />
+            <CalcRow label="الربح" value={money(preview.marginAgorot)} strong />
+          </View>
+          <Divider />
+          <Row justify="space-between">
+            <AppText variant="caption" color={palette.muted}>
+              الهامش على الإيراد الصافي (المعتمد للحد الأدنى)
+            </AppText>
+            <AppText variant="label">{percent(preview.marginPercent)}</AppText>
+          </Row>
+          <Row justify="space-between" style={{ marginTop: 4 }}>
+            <AppText variant="caption" color={palette.muted}>
+              الهامش على السعر الشامل
+            </AppText>
+            <AppText variant="label">
+              {percent(
+                preview.totalAgorot > 0
+                  ? Math.round((preview.marginAgorot / preview.totalAgorot) * 10000) / 100
+                  : 0,
+              )}
+            </AppText>
+          </Row>
+        </Card>
+      )}
 
       {can(role, 'create_quotation') && (
         <Card>
@@ -346,6 +387,18 @@ export default function QuotationScreen() {
         />
       )}
     </ScrollScreen>
+  );
+}
+
+/** سطر في سلسلة حساب الهامش - على سطح أبيض لا على البطاقة الداكنة. */
+function CalcRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <Row justify="space-between" gap={spacing.md} align="flex-start">
+      <AppText variant="caption" color={palette.muted} style={{ flex: 1 }}>
+        {label}
+      </AppText>
+      <AppText variant={strong ? 'label' : 'caption'}>{value}</AppText>
+    </Row>
   );
 }
 

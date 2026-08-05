@@ -37,6 +37,7 @@ function buildHtml(params: {
     projectTitle,
     vatPercent,
   } = params;
+  const totalMeters = Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000;
   const rows = version.items
     .map(
       (i, idx) => `
@@ -121,6 +122,7 @@ function buildHtml(params: {
   </table>
 
   <div class="totals">
+    <div><span>مجموع الأمتار الطولية</span><span>${totalMeters} م</span></div>
     <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
     <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
     <div><span>ض.ق.م ${vatPercent}%</span><span>${money(version.vatAgorot)}</span></div>
@@ -275,7 +277,10 @@ export default function QuotationPdfScreen() {
               </AppText>
               <AppText variant="label">{project?.title}</AppText>
               <AppText variant="caption" color={palette.muted}>
-                {version.items.length} بند
+                {version.items.length} بند •{' '}
+                {meters(
+                  Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000,
+                )}
               </AppText>
             </View>
           </Row>

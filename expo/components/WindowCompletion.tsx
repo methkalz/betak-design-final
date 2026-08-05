@@ -195,7 +195,7 @@ export function WindowCompletion({ projectId }: { projectId: string }) {
                 <Banner
                   tone="warning"
                   title={`زيادة ${meters(round3(qty - planned))} عن المخطط`}
-                  body="مقبولة، لكنها تُسجَّل بسببها ويصل إشعار للأدمن."
+                  body="مقبولة، لكنها تُسجَّل بسببها ويصل إشعار لإدارة بيتك ديزاين."
                   icon={<TriangleAlert size={16} color={palette.warning} />}
                 />
                 <Field

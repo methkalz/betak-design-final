@@ -172,7 +172,7 @@ export default function LoginScreen() {
         {mode === 'live' && (
           <View style={styles.pinPanel}>
             <AppText variant="label" color={palette.muted}>
-              الدخول إلى نظام مؤسستك
+              الدخول إلى نظام معرضك
             </AppText>
             <TextInput
               value={email}
@@ -218,7 +218,7 @@ export default function LoginScreen() {
               />
             )}
             <AppText variant="caption" color={palette.muted} align="center">
-              تدخل إلى بيانات مؤسستك الحية للاطلاع - التعديل من التطبيق يصلك في تحديث قريب.
+              تدخل إلى بيانات معرضك الحية للاطلاع - التعديل من التطبيق يصلك في تحديث قريب.
             </AppText>
           </View>
         )}

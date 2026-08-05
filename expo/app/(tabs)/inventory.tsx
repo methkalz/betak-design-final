@@ -88,7 +88,7 @@ export default function InventoryScreen() {
             وهو في المكتبة - لا زرّ واحد يسأل «أيّهما تقصد؟» */}
         {canManage && (
           <Button
-            label={tab === 'rolls' ? 'استلام شحنة' : 'قماش جديد'}
+            label={tab === 'rolls' ? 'استلام بضاعة' : 'قماش جديد'}
             variant="secondary"
             full
             small

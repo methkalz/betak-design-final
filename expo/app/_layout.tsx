@@ -55,7 +55,7 @@ function RootLayoutNav() {
       <Stack.Screen name="quotation/pdf" options={{ title: 'معاينة العرض', presentation: 'modal' }} />
       <Stack.Screen name="reserve/[projectId]" options={{ title: 'حجز القماش', presentation: 'modal' }} />
       <Stack.Screen name="roll/[id]" options={{ title: 'تفاصيل الرول' }} />
-      <Stack.Screen name="roll/new" options={{ title: 'استلام شحنة', presentation: 'modal' }} />
+      <Stack.Screen name="roll/new" options={{ title: 'استلام بضاعة', presentation: 'modal' }} />
       <Stack.Screen name="fabric/[id]" options={{ title: 'القماش' }} />
       <Stack.Screen name="fabric/new" options={{ title: 'قماش', presentation: 'modal' }} />
       <Stack.Screen name="fabric/color" options={{ title: 'لون القماش', presentation: 'modal' }} />

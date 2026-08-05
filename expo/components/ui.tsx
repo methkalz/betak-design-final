@@ -55,12 +55,19 @@ interface AppTextProps {
  * الأساسي ≥16، لا شيء تحت 13، وأسطر ≈1.65 لأن العربية تحتاج تنفسًا رأسيًا.
  */
 const TEXT_STYLES: Record<TextVariant, TextStyle> = {
+  /*
+   * مراجعة تكبير الخط (M9/M12) - رفعٌ مدروس لا قفزة: caption هو الأكثر
+   * انتشارًا (كل السطور الثانوية والتقارير) فرُفع نصف نقطة مع سطره، وbody
+   * وlabel نصفًا كذلك. العناوين والأرقام الكبيرة لم تُمسّ - كبرها كافٍ،
+   * وتضخيمها يكسر بطاقات مضبوطة على مقاسها. Cairo عريض العين أصلًا،
+   * والقفز فوق ذلك يفكّ تراصف الصفوف المحسوبة بارتفاع أدنى 44-52.
+   */
   display: { fontFamily: font.bold, fontSize: 32, lineHeight: 46 },
   title: { fontFamily: font.bold, fontSize: 24, lineHeight: 38 },
-  heading: { fontFamily: font.semibold, fontSize: 18.5, lineHeight: 29 },
-  body: { fontFamily: font.regular, fontSize: 16, lineHeight: 27 },
-  label: { fontFamily: font.medium, fontSize: 14.5, lineHeight: 24 },
-  caption: { fontFamily: font.regular, fontSize: 13, lineHeight: 21 },
+  heading: { fontFamily: font.semibold, fontSize: 19, lineHeight: 30 },
+  body: { fontFamily: font.regular, fontSize: 16.5, lineHeight: 28 },
+  label: { fontFamily: font.medium, fontSize: 15, lineHeight: 25 },
+  caption: { fontFamily: font.regular, fontSize: 13.5, lineHeight: 22 },
   number: { fontFamily: font.semibold, fontSize: 20, lineHeight: 28 },
   numberLarge: { fontFamily: font.bold, fontSize: 30, lineHeight: 42 },
 };

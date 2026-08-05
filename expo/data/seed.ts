@@ -963,7 +963,27 @@ const stockMovements: StockMovement[] = [
   })),
 ];
 
-const usages: FabricUsage[] = [];
+/**
+ * الأمر «جاهز» لا يصحّ بلا تأكيد إنهاء كل شباك (يُقرأ من سجل الاستهلاك) -
+ * فالمشروع التاريخي المُقفل يحمل سجلّه وإلا ناقضت البذرةُ القاعدة أمام
+ * المستخدم. الحجز الأصلي حُرّر قديمًا فمعرّفه توثيقي لا يُشتق منه شيء.
+ */
+const usages: FabricUsage[] = [
+  {
+    id: 'use-1040-1',
+    organizationId: ORG,
+    projectId: 'prj-1040',
+    windowId: 'win-1040-1',
+    reservationId: 'res-1040-archived',
+    rollId: 'roll-cr102',
+    plannedM: 6.5,
+    actualM: 6.5,
+    wasteM: 0,
+    notes: '',
+    createdBy: 'usr-abudani',
+    createdAt: at(-31, 12),
+  },
+];
 
 const tailorAssignments: TailorAssignment[] = [
   {
@@ -1391,4 +1411,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v2';
+export const SEED_VERSION = 'baytak-seed-v3';

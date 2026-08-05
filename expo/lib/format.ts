@@ -35,19 +35,23 @@ export function shekelToAgorot(shekel: number): number {
 /**
  * `₪1,240` — الرمز قبل المبلغ (قرار مالك: على يسار الرقم، وهو العُرف
  * المتبع في إسرائيل)، ومعزول اتجاهيًا فيظهر بالشكل ذاته في كل موضع من
- * التطبيق مهما كان النص المحيط. بلا كسور إن كان المبلغ صحيحًا، وإلا خانتان.
+ * التطبيق مهما كان النص المحيط.
+ *
+ * شيكل صحيح دائمًا - هذا آخر خط دفاع لقاعدة «لا أغورة»: المحرك يُقعّد كل
+ * مبلغ مخزَّن، لكن القيم العابرة (عدّاد متحرك يمرّ بكسور مثلًا) كانت تُعرض
+ * بمنزلتين فتكبر خانات الرقم أثناء الحركة ثم تنكمش عند الاستقرار. البتر هنا
+ * يجعل الكسر مستحيل الظهور من أي مسار، حاضرًا أو قادمًا.
  */
 export function money(agorot: number, opts?: { compact?: boolean }): string {
-  const value = agorotToShekel(agorot);
+  const shekel = agorotToShekel(agorot);
+  // بترٌ نحو الصفر لا تقريب: التقريب يرفع 1,999.5 إلى 2,000 فيدّعي العرضُ
+  // شيكلًا لم يُقبض، والسالب يُبتر نحو الصفر كذلك فلا يُضخَّم دَين
+  const value = shekel < 0 ? Math.ceil(shekel) : Math.floor(shekel);
   if (opts?.compact && Math.abs(value) >= 1000) {
     const k = (value / 1000).toFixed(value % 1000 === 0 ? 0 : 1);
     return isolate(`₪${k}k`);
   }
-  const hasFraction = Math.abs(value % 1) > 0.001;
-  const text = value.toLocaleString('en-US', {
-    minimumFractionDigits: hasFraction ? 2 : 0,
-    maximumFractionDigits: 2,
-  });
+  const text = value.toLocaleString('en-US', { maximumFractionDigits: 0 });
   return isolate(`₪${text}`);
 }
 

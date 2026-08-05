@@ -787,10 +787,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           return failWith('أكمل قائمة التحقق قبل إنهاء التركيب.', 'validation');
         if (!visit.customerSignedOff)
           return failWith('يلزم تأكيد الزبون قبل إنهاء التركيب.', 'validation');
-        const after = db.attachments.filter(
-          (a) => a.visitId === id && a.kind === 'after_install',
-        ).length;
-        if (after === 0) return failWith('أضف صورة بعد التركيب.', 'validation');
+        // الصور اختيارية بقرار المالك: قائمة التحقق وتوقيع الزبون هما
+        // الإثبات الملزم، والصورة توثيق إضافي لمن أراده
       }
       mutate((draft) => {
         const v = draft.fieldVisits.find((x) => x.id === id);
@@ -1221,23 +1219,32 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline as Result<{ reserved: number; short: FabricGap[] }>;
 
-      const gaps = projectFabricGaps(db, projectId).filter((g) => g.remaining > 0);
-      const short = gaps.filter((g) => g.available < g.remaining);
-      const doable = gaps.filter((g) => g.available >= g.remaining);
-      if (doable.length === 0) return { ok: true, data: { reserved: 0, short } };
-
       setBusy('reserve');
       await serverLatency();
       setBusy(null);
 
+      // القرار كله داخل المعاملة على النسخة الطازجة. حسابُه قبل الانتظار كان
+      // يسمح بكتابة «القماش مخصَّص» على مشروعٍ لم يُحجز له شيء إذا تغيّر
+      // المخزون أثناء انتظار الخادم - حالة كاذبة لا مجرد سباق نظري.
       let reserved = 0;
+      let short: FabricGap[] = [];
       mutate((draft) => {
-        for (const gap of doable) {
-          // يُعاد الاختيار داخل المعاملة على الرصيد الطازج - نظير إعادة الفحص
-          // في reserveFabric، فالمخزون قد يكون تغيّر أثناء انتظار الخادم.
-          for (const pick of pickRolls(draft, gap.variantId, gap.remaining)) {
-            const fresh = rollBalance(pick.rollId, draft.stockMovements);
-            if (pick.meters > fresh.availableM) continue;
+        const gaps = projectFabricGaps(draft, projectId).filter((g) => g.remaining > 0);
+        short = gaps.filter((g) => g.available < g.remaining);
+
+        for (const gap of gaps.filter((g) => g.available >= g.remaining)) {
+          const picks = pickRolls(draft, gap.variantId, gap.remaining);
+          // الصنف كله أو لا شيء: شريحة واحدة لا تصمد على الرصيد تُسقط الصنف
+          // بكامله إلى قائمة النقص. القفز فوقها وحدها كان يُنتج حجزًا جزئيًا -
+          // نقيض القاعدة المعلنة، يقضم المتاح دون أن يُطلق الإنتاج.
+          const fits =
+            picks.length > 0 &&
+            picks.every((p) => p.meters <= rollBalance(p.rollId, draft.stockMovements).availableM);
+          if (!fits) {
+            short.push(gap);
+            continue;
+          }
+          for (const pick of picks) {
             const resId = uid('res');
             draft.reservations.unshift({
               id: resId,
@@ -1263,14 +1270,15 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           }
         }
         const project = draft.projects.find((p) => p.id === projectId);
-        // المرحلة تتقدّم فقط حين لا ينقص شيء - وإلا بقي المشروع معلنًا حاجته
+        // المرحلة تتقدّم فقط حين لا ينقص شيء - والحكم من النسخة نفسها التي جرى
+        // عليها الحجز، لا من لقطة سبقت الانتظار
         if (project && project.status === 'customer_approved' && short.length === 0) {
           project.status = 'fabric_allocated';
         }
       });
       return { ok: true, data: { reserved, short } };
     },
-    [guard, requireOnline, db, mutate, addMovement, audit, userId],
+    [guard, requireOnline, mutate, addMovement, audit, userId],
   );
 
   const releaseReservation = useCallback(

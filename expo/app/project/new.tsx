@@ -43,7 +43,7 @@ export default function NewProjectScreen() {
   const [titleEdited, setTitleEdited] = useState<boolean>(false);
   const [priority, setPriority] = useState<Priority>('normal');
   const [fieldWorkerId, setFieldWorkerId] = useState<string | null>(
-    db.profiles.find((p) => p.role === 'field')?.id ?? null,
+    db.profiles.find((p) => p.role === 'field' && p.isActive)?.id ?? null,
   );
   const [tailorId, setTailorId] = useState<string | null>(null);
   const [measurementAt, setMeasurementAt] = useState<string>(inDays(1));
@@ -57,8 +57,9 @@ export default function NewProjectScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const customers = useMemo(() => db.customers.filter((c) => !c.archivedAt), [db.customers]);
-  const fieldWorkers = db.profiles.filter((p) => p.role === 'field');
-  const tailors = db.profiles.filter((p) => p.role === 'tailor');
+  // المعطَّل لا يُسنَد إليه عمل - شاشة الطاقم وعدت بذلك، والقائمة هنا تفي به
+  const fieldWorkers = db.profiles.filter((p) => p.role === 'field' && p.isActive);
+  const tailors = db.profiles.filter((p) => p.role === 'tailor' && p.isActive);
 
   const chosen = customers.find((c) => c.id === customerId) ?? null;
   useEffect(() => {
