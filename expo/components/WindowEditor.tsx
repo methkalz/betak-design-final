@@ -1,5 +1,5 @@
 import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import {
@@ -11,6 +11,7 @@ import {
   Field,
   Pill,
   Row,
+  RTL_ROW,
   ScrollScreen,
   SectionHeader,
   SegmentedControl,
@@ -18,11 +19,11 @@ import {
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { TRACK_LABELS } from '@/domain/labels';
-import { priceWindow, resolveBand } from '@/domain/pricing';
+import { priceWindow, resolveBand, TALL_BAND_MAX_CM } from '@/domain/pricing';
 import { meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
-import type { TrackType, WindowUnit } from '@/types/domain';
+import type { FabricVariant, TrackType, WindowUnit } from '@/types/domain';
 
 /**
  * التسمية الترتيبية تكتب نفسها (M1): أول شباك في الغرفة يُقترح «الشباك
@@ -95,6 +96,36 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const widthCm = parseFloat(width || '0');
   const heightCm = parseFloat(height || '0');
   const showCost = role === 'admin';
+
+  /**
+   * سعر المتر لكل بديل بطانة، محسوبًا بمحرك التسعير نفسه.
+   *
+   * إلغاء البطانة لا يحذف بندًا بل يغيّر فئة التسعير كلها، و100% تزيد على
+   * المتر. فبدل أن يُقال ذلك كلامًا يُعرض رقمه على الخيار لحظة النظر إليه -
+   * فلا يُكتشف فرق السعر في الإجمالي بعد الحفظ.
+   */
+  const unitPriceFor = useCallback(
+    (lining: FabricVariant | null): number | null => {
+      if (!fabricVariantId || !(heightCm > 0) || heightCm > TALL_BAND_MAX_CM) return null;
+      const variant = db.fabricVariants.find((v) => v.id === fabricVariantId) ?? null;
+      const product = db.fabricProducts.find((p) => p.id === variant?.productId) ?? null;
+      return priceWindow({
+        window: {
+          id: 'probe', organizationId: db.organization.id, projectId, roomId, name,
+          widthCm: widthCm > 0 ? widthCm : 100, heightCm,
+          hasLining: !!lining, track, fullness: FULLNESS,
+          fabricVariantId, liningVariantId: lining?.id ?? null,
+          quantity: 1, notes: '', measuredAt: null, measuredBy: null,
+        },
+        product,
+        variant,
+        liningVariant: lining,
+        rules: db.pricingRules,
+        settings: db.settings,
+      }).unitPriceAgorot;
+    },
+    [db, fabricVariantId, heightCm, widthCm, track, projectId, roomId, name],
+  );
 
   const preview = useMemo(() => {
     if (!(widthCm > 0) || !(heightCm > 0)) return null;
@@ -242,11 +273,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       <Card>
-        <AppText variant="heading">المسار والبطانة</AppText>
-        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-          <AppText variant="label" color={palette.muted}>
-            المسار
-          </AppText>
+        <AppText variant="heading">المسار</AppText>
+        <View style={{ marginTop: spacing.md }}>
           {/* خياران اثنان: الشريط المقسوم أسرع من رقاقات متناثرة، ويُظهر
               البديل حاضرًا بدل أن يُطلب البحث عنه */}
           <SegmentedControl
@@ -257,19 +285,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               label: TRACK_LABELS[t],
             }))}
           />
-
-          <Divider />
-          <Row justify="space-between">
-            <AppText variant="label">بطانة</AppText>
-            <SegmentedControl
-              value={hasLining ? 'yes' : 'no'}
-              onChange={(v) => setHasLining(v === 'yes')}
-              options={[
-                { value: 'yes', label: 'مع بطانة' },
-                { value: 'no', label: 'بدون' },
-              ]}
-            />
-          </Row>
         </View>
       </Card>
 
@@ -303,48 +318,59 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           })}
         </Row>
 
-        {hasLining && (
-          <>
-            <Divider />
-            {/* البطانة درجة تغطية لا لونًا (قرار المالك). وما يُكتب تحت كل
-                درجة هو ما يفرّقها فعلًا: كم مترًا تستهلك لكل متر طولي، وكم
-                تزيد على الزبون. «ضمن السعر» كانت تُقرأ «بلا تكلفة» - والبطانة
-                70% تكلّف المحل 27 لكل متر طولي وإن لم يدفعها الزبون منفصلة. */}
-            <AppText variant="label" color={palette.muted}>
-              درجة تغطية البطانة
-            </AppText>
-            <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
-              {liningVariants.map((v) => {
-                const active = liningVariantId === v.id;
-                const extra = v.customerSurchargePerMeterAgorot ?? 0;
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => setLiningVariantId(v.id)}
-                    style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
-                  >
-                    <Swatch color={v.colorHex} size={32} />
-                    <View>
-                      <AppText variant="caption">{v.colorName}</AppText>
-                      {v.metersPerRunningMeter > 0 && (
-                        <AppText variant="caption" color={palette.muted}>
-                          {meters(v.metersPerRunningMeter)} لكل متر طولي
-                        </AppText>
-                      )}
-                      <AppText
-                        variant="caption"
-                        color={extra > 0 ? palette.terracotta : palette.muted}
-                      >
-                        {extra > 0 ? `+${money(extra)} للمتر` : 'بلا زيادة على الزبون'}
-                      </AppText>
-                    </View>
-                    {active && <Check size={16} color={palette.olive} />}
-                  </Pressable>
-                );
-              })}
-            </Row>
-          </>
-        )}
+        <Divider />
+        {/* سؤالٌ واحد بثلاثة أجوبة، لا مفتاح «مع/بدون» ثم قائمة درجاتٍ تظهر
+            بعده. البطانة عند المالك ثلاث حالات لا اثنتان، وتقسيمها على
+            بطاقتين كان يُخفي الدرجة عمّن اختار «بدون» ثم عاد.
+            وتحت كل حالة ما يفرّقها فعلًا: كم تستهلك، وبكم تُحاسب. */}
+        <AppText variant="label">البطانة</AppText>
+        <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+          {[null, ...liningVariants].map((v) => {
+            const active = v ? hasLining && liningVariantId === v.id : !hasLining;
+            const extra = v?.customerSurchargePerMeterAgorot ?? 0;
+            const unit = unitPriceFor(v);
+            return (
+              <Pressable
+                key={v?.id ?? 'none'}
+                role="radio"
+                // تُمرَّر صريحةً: `accessibilityState.checked` لا تصل إلى
+                // `aria-checked` على الويب هنا - فحصتُها في المتصفح فوجدتها
+                // فارغة، فيصير الصفّ زرَّ اختيارٍ لا يُعرف أيّه مختار
+                aria-checked={active}
+                onPress={() => {
+                  setHasLining(!!v);
+                  if (v) setLiningVariantId(v.id);
+                }}
+                style={[optionRow, active && optionRowActive]}
+              >
+                <View style={[radio, active && radioActive]}>
+                  {active && <Check size={13} color={palette.white} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="label">
+                    {v ? `بطانة ${v.colorName.replace('تغطية ', '')}` : 'بدون بطانة'}
+                  </AppText>
+                  <AppText variant="caption" color={palette.muted}>
+                    {v
+                      ? `${meters(v.metersPerRunningMeter)} لكل متر طولي` +
+                        (extra > 0 ? ` • +${money(extra)} على سعر المتر` : ' • ضمن سعر المتر')
+                      : 'ستارة بطبقة واحدة'}
+                  </AppText>
+                </View>
+                {unit != null && (
+                  <View style={{ alignItems: 'flex-start' }}>
+                    <AppText variant="label" color={active ? palette.oliveDark : palette.charcoal}>
+                      {money(unit)}
+                    </AppText>
+                    <AppText variant="caption" color={palette.muted}>
+                      للمتر
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
       </Card>
 
       {!preview && widthCm > 0 && heightCm > 0 && !fabricVariantId && (
@@ -473,6 +499,38 @@ function PreviewRow({
     </Row>
   );
 }
+
+/**
+ * صفُّ اختيارٍ كامل العرض بدل رقاقة ضيّقة: القرار له ثلاثة بدائل لكلٍّ منها
+ * سطرُ شرحٍ ورقمُ سعر، ولا يتّسع لذلك عرضُ ثلثِ شاشة.
+ */
+const optionRow = {
+  // اصطلاح التطبيق للصفوف: يبدأ الصفّ من اليمين حيث تبدأ القراءة
+  flexDirection: RTL_ROW,
+  alignItems: 'center' as const,
+  gap: spacing.md,
+  minHeight: 56,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.sm,
+  borderRadius: radius.md,
+  borderWidth: 1,
+  borderColor: palette.line,
+  backgroundColor: palette.white,
+};
+const optionRowActive = {
+  borderColor: palette.olive,
+  backgroundColor: palette.sageSoft,
+};
+const radio = {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  borderWidth: 1.5,
+  borderColor: palette.line,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
+const radioActive = { backgroundColor: palette.olive, borderColor: palette.olive };
 
 const suggestChip = {
   paddingHorizontal: spacing.md,
