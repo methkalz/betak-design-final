@@ -17,7 +17,9 @@
     <div class="pleats" aria-hidden="true"></div>
     <div class="verdict">
       <div class="lead">
-        <span class="k">الإجمالي للزبون</span>
+        <button type="button" class="vat-switch" id="vat-switch" aria-pressed="true">
+          <span id="vat-label">المطلوب כולל מע"מ</span> ⇄
+        </button>
         <span class="v v-cust" id="v-customer">₪0</span>
       </div>
       <div>
@@ -76,8 +78,8 @@
     <p class="sub">سعر المتر مضروبًا في الأمتار الطولية، ثم ما يُضاف للستارة.</p>
     <div class="ledger" id="lg-customer"></div>
     <p class="note">
-      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار شاملة الضريبة،
-      فالضريبة تُستخرَج من المبلغ ولا تُضاف فوقه.
+      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار كلها
+      לפני מע"מ، والضريبة تُضاف على المجموع في آخر الحساب.
     </p>
   </section>
 
@@ -108,7 +110,7 @@
           <tr>
             <th>القماش</th><th>البطانة</th><th>المسار</th>
             <th style="text-align:end">للمتر</th>
-            <th style="text-align:end">للزبون</th>
+            <th style="text-align:end">לפני מע"מ</th>
             <th style="text-align:end">التكلفة</th>
             <th style="text-align:end">الهامش</th>
           </tr>
@@ -134,7 +136,6 @@
     أي فرق - ولو شيكل واحد - يعني خللًا يجب تصحيحه قبل إصدار أي عرض.
   </footer>
 </div>
-
 <script src="app.js"></script>
 </body>
 </html>

@@ -160,15 +160,21 @@
     };
   }
 
-  /** التجميع: الإجمالي هو الصافي، والضريبة تُستخرَج منه لا تُضاف عليه. */
+  /**
+   * التجميع: الأسعار قبل מע"מ، والضريبة تُضاف على المجموع لا تُستخرَج منه.
+   * والنِّسَب تُسقط كسرها إسقاطًا واحدًا، كما في المحرك و SQL حرفًا.
+   */
   function totals(subtotal, cost, discountPercent) {
     var pct = Math.round(discountPercent * 100);
-    var vat = Math.round(S.vatPercent * 100);
-    var discount = floorToShekel(divRoundHalfAway(subtotal * pct, 10000));
-    var net = subtotal - discount;
-    var revenue = floorToShekel(divRoundHalfAway(net * 10000, 10000 + vat));
+    var vatPct = Math.round(S.vatPercent * 100);
+    var drop = function (amount, hundredths) {
+      return Math.floor((amount * hundredths) / 1000000) * 100;
+    };
+    var discount = drop(subtotal, pct);
+    var revenue = subtotal - discount;
+    var vat = drop(revenue, vatPct);
     return {
-      discount: discount, net: net, vat: net - revenue, revenue: revenue,
+      discount: discount, revenue: revenue, vat: vat, net: revenue + vat,
       profit: revenue - cost,
       marginPercent: revenue > 0
         ? divRoundHalfAway((revenue - cost) * 10000, revenue) / 100
@@ -204,6 +210,13 @@
   * فلا تُعرض سؤالًا. البطانة وحدها لها نسبتها الخاصة بدرجتها.
   */
   var FULLNESS = 3;
+
+  /**
+   * أيُّ الرقمين يُعرض كبيرًا: المطلوب من الزبون أم المجموع قبل الضريبة.
+   * الاثنان في ورقة النتيجة على كل حال، فالمفتاح إبرازٌ لا إخفاء - وبعض
+   * الزبائن يسأل عن هذا وبعضهم عن ذاك.
+   */
+  var inclVat = true;
 
   var state = {
     widthCm: 100, heightCm: 280, quantity: 1,
@@ -320,7 +333,10 @@
     document.getElementById('band-note').textContent =
       p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
-    setAmount(document.getElementById('v-customer'), money(t.net));
+    setAmount(document.getElementById('v-customer'), money(inclVat ? t.net : t.revenue));
+    document.getElementById('vat-label').textContent =
+      inclVat ? 'المطلوب כולל מע"מ' : 'المجموع לפני מע"מ';
+    document.getElementById('vat-switch').setAttribute('aria-pressed', String(inclVat));
     setAmount(document.getElementById('v-cost'), money(p.internalCost));
 
     // ─── ورقة الزبون
@@ -387,9 +403,9 @@
     if (t.discount > 0) {
       line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
-    line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum rev');
-    line(F, 'الضريبة المستخرَجة', S.vatPercent + '%', '−' + money(t.vat), 'muted');
-    line(F, 'الإيراد الصافي', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'المجموع לפני מע"מ', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'מע"מ', S.vatPercent + '%', '+' + money(t.vat), 'muted');
+    line(F, 'المطلوب من الزبون', 'כולל מע"מ', money(t.net), 'sum rev');
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
     line(F, 'الربح', '', money(t.profit), 'sum profit');
 
@@ -408,7 +424,7 @@
     // ─── تفصيل الربح: الإيراد ثم كل بند تكلفة على حدة حتى الربح
     var D = document.getElementById('lg-detail');
     D.textContent = '';
-    line(D, 'الإيراد الصافي', 'بعد استخراج الضريبة ' + S.vatPercent + '%', money2(t.revenue));
+    line(D, 'الإيراد', 'سعر البيع לפני מע"מ', money2(t.revenue));
     p.costItems.forEach(function (it) {
       line(D, it.label, it.work, '−' + money2(it.amount));
     });
@@ -472,7 +488,7 @@
             td.textContent = txt;
             tr.appendChild(td);
           });
-          [money(pp.unitPrice), money(tt.net), money(pp.internalCost),
+          [money(pp.unitPrice), money(tt.revenue), money(pp.internalCost),
            tt.marginPercent.toFixed(1) + '%'].forEach(function (txt, ci) {
             var td = document.createElement('td');
             // الهامش دون الحد الأدنى يُلوَّن: العمود طويل، والعين تمسحه
@@ -498,6 +514,11 @@
   bindNumber('w', 'widthCm', 1);
   bindNumber('h', 'heightCm', 1);
   bindNumber('q', 'quantity', 1);
+
+  document.getElementById('vat-switch').addEventListener('click', function () {
+    inclVat = !inclVat;
+    render();
+  });
 
   var d = document.getElementById('d');
   d.addEventListener('input', function () {

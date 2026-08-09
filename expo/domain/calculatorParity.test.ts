@@ -143,13 +143,15 @@ function pagePrice(o: {
 
 function pageTotals(subtotal: number, cost: number, discountPercent: number) {
   const pct = Math.round(discountPercent * 100);
-  const vat = Math.round(S.vatPercent * 100);
-  const discount = floorToShekel(divRoundHalfAway(subtotal * pct, 10_000));
-  const net = subtotal - discount;
-  const revenue = floorToShekel(divRoundHalfAway(net * 10_000, 10_000 + vat));
+  const vatPct = Math.round(S.vatPercent * 100);
+  const drop = (amount: number, hundredths: number) =>
+    Math.floor((amount * hundredths) / 1_000_000) * 100;
+  const discount = drop(subtotal, pct);
+  const revenue = subtotal - discount;
+  const vat = drop(revenue, vatPct);
   return {
-    net,
-    vat: net - revenue,
+    net: revenue + vat,
+    vat,
     revenue,
     marginPercent:
       revenue > 0 ? divRoundHalfAway((revenue - cost) * 10_000, revenue) / 100 : 0,

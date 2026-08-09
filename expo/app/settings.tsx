@@ -38,7 +38,7 @@ export default function SettingsScreen() {
         <Divider />
         <Row justify="space-between">
           <AppText variant="caption" color={palette.muted}>
-            ضريبة القيمة المضافة
+            מע"מ
           </AppText>
           <AppText variant="label">{percent(db.settings.vatPercent)}</AppText>
         </Row>

@@ -2,14 +2,16 @@
 <!--
   حاسبة تدقيق الأسعار - صفحة واحدة تُرسَل إلى صاحب المحل.
 
+  الأسعار كلها لפני מע"מ، والضريبة تُضاف على المجموع في آخر الحساب. ومفتاحٌ
+  في الأعلى يبدّل الرقم الكبير بين المطلوب כולל מע"מ والمجموع לפני מע"מ.
+
   تحمل نسختها من الحساب لتعمل بلا شبكة وبلا التطبيق، ويحرسها
   `domain/calculatorParity.test.ts`: يمرّ على 1440 احتمالًا ويطابق كل رقم
   فيها مع `domain/pricing.ts`، ويتحقّق أن عمود البنود يجمع إلى التكلفة
-  المعروضة نفسها. أي تعديل هنا يُنقل إلى ذلك الاختبار، وإلا صار التدقيق
-  نفسه كاذبًا - يوافق المالك على أرقام ليست التي سيوقّعها الزبون.
+  المعروضة نفسها.
 
-  خطّ القاهرة مضمَّنٌ فيها مقتصرًا على حروفها وحدها (نحو 31 كيلوبايت للوزن
-  بدل 95)، مولَّدًا من `@expo-google-fonts/cairo` الذي يعمل به التطبيق.
+  خطّ القاهرة مضمَّنٌ فيها مقتصرًا على حروفها وحدها، مولَّدًا من
+  `@expo-google-fonts/cairo` الذي يعمل به التطبيق.
 
   الأرقام المضمَّنة نسخةٌ من البذرة لحظة الإرسال. لو غيّر الأدمن تسعيرةً من
   لوحته لزم تحديث هذه الصفحة أيضًا.
@@ -186,6 +188,14 @@
   }
   .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
   .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
+  /* مفتاحٌ لا شارة: الرقم الكبير يتبدّل بضغطه، فيجب أن يبدو قابلًا للضغط */
+  .vat-switch {
+    display: block; width: 100%;
+    font-family: var(--ar); font-size: .6875rem; font-weight: 600;
+    color: var(--indigo-ink); background: none; border: 0; padding: 0 0 1px;
+    cursor: pointer; text-align: center;
+  }
+  .vat-switch:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
   .verdict .v {
     font-family: var(--num); font-variant-numeric: tabular-nums;
     font-weight: 700; line-height: 1.15;
@@ -438,7 +448,9 @@
     <div class="pleats" aria-hidden="true"></div>
     <div class="verdict">
       <div class="lead">
-        <span class="k">الإجمالي للزبون</span>
+        <button type="button" class="vat-switch" id="vat-switch" aria-pressed="true">
+          <span id="vat-label">المطلوب כולל מע"מ</span> ⇄
+        </button>
         <span class="v v-cust" id="v-customer">₪0</span>
       </div>
       <div>
@@ -497,8 +509,8 @@
     <p class="sub">سعر المتر مضروبًا في الأمتار الطولية، ثم ما يُضاف للستارة.</p>
     <div class="ledger" id="lg-customer"></div>
     <p class="note">
-      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار شاملة الضريبة،
-      فالضريبة تُستخرَج من المبلغ ولا تُضاف فوقه.
+      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار كلها
+      לפני מע"מ، والضريبة تُضاف على المجموع في آخر الحساب.
     </p>
   </section>
 
@@ -529,7 +541,7 @@
           <tr>
             <th>القماش</th><th>البطانة</th><th>المسار</th>
             <th style="text-align:end">للمتر</th>
-            <th style="text-align:end">للزبون</th>
+            <th style="text-align:end">לפני מע"מ</th>
             <th style="text-align:end">التكلفة</th>
             <th style="text-align:end">الهامش</th>
           </tr>
@@ -719,15 +731,21 @@
     };
   }
 
-  /** التجميع: الإجمالي هو الصافي، والضريبة تُستخرَج منه لا تُضاف عليه. */
+  /**
+   * التجميع: الأسعار قبل מע"מ، والضريبة تُضاف على المجموع لا تُستخرَج منه.
+   * والنِّسَب تُسقط كسرها إسقاطًا واحدًا، كما في المحرك و SQL حرفًا.
+   */
   function totals(subtotal, cost, discountPercent) {
     var pct = Math.round(discountPercent * 100);
-    var vat = Math.round(S.vatPercent * 100);
-    var discount = floorToShekel(divRoundHalfAway(subtotal * pct, 10000));
-    var net = subtotal - discount;
-    var revenue = floorToShekel(divRoundHalfAway(net * 10000, 10000 + vat));
+    var vatPct = Math.round(S.vatPercent * 100);
+    var drop = function (amount, hundredths) {
+      return Math.floor((amount * hundredths) / 1000000) * 100;
+    };
+    var discount = drop(subtotal, pct);
+    var revenue = subtotal - discount;
+    var vat = drop(revenue, vatPct);
     return {
-      discount: discount, net: net, vat: net - revenue, revenue: revenue,
+      discount: discount, revenue: revenue, vat: vat, net: revenue + vat,
       profit: revenue - cost,
       marginPercent: revenue > 0
         ? divRoundHalfAway((revenue - cost) * 10000, revenue) / 100
@@ -763,6 +781,13 @@
   * فلا تُعرض سؤالًا. البطانة وحدها لها نسبتها الخاصة بدرجتها.
   */
   var FULLNESS = 3;
+
+  /**
+   * أيُّ الرقمين يُعرض كبيرًا: المطلوب من الزبون أم المجموع قبل الضريبة.
+   * الاثنان في ورقة النتيجة على كل حال، فالمفتاح إبرازٌ لا إخفاء - وبعض
+   * الزبائن يسأل عن هذا وبعضهم عن ذاك.
+   */
+  var inclVat = true;
 
   var state = {
     widthCm: 100, heightCm: 280, quantity: 1,
@@ -879,7 +904,10 @@
     document.getElementById('band-note').textContent =
       p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
-    setAmount(document.getElementById('v-customer'), money(t.net));
+    setAmount(document.getElementById('v-customer'), money(inclVat ? t.net : t.revenue));
+    document.getElementById('vat-label').textContent =
+      inclVat ? 'المطلوب כולל מע"מ' : 'المجموع לפני מע"מ';
+    document.getElementById('vat-switch').setAttribute('aria-pressed', String(inclVat));
     setAmount(document.getElementById('v-cost'), money(p.internalCost));
 
     // ─── ورقة الزبون
@@ -946,9 +974,9 @@
     if (t.discount > 0) {
       line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
-    line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum rev');
-    line(F, 'الضريبة المستخرَجة', S.vatPercent + '%', '−' + money(t.vat), 'muted');
-    line(F, 'الإيراد الصافي', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'المجموع לפני מע"מ', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'מע"מ', S.vatPercent + '%', '+' + money(t.vat), 'muted');
+    line(F, 'المطلوب من الزبون', 'כולל מע"מ', money(t.net), 'sum rev');
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
     line(F, 'الربح', '', money(t.profit), 'sum profit');
 
@@ -967,7 +995,7 @@
     // ─── تفصيل الربح: الإيراد ثم كل بند تكلفة على حدة حتى الربح
     var D = document.getElementById('lg-detail');
     D.textContent = '';
-    line(D, 'الإيراد الصافي', 'بعد استخراج الضريبة ' + S.vatPercent + '%', money2(t.revenue));
+    line(D, 'الإيراد', 'سعر البيع לפני מע"מ', money2(t.revenue));
     p.costItems.forEach(function (it) {
       line(D, it.label, it.work, '−' + money2(it.amount));
     });
@@ -1031,7 +1059,7 @@
             td.textContent = txt;
             tr.appendChild(td);
           });
-          [money(pp.unitPrice), money(tt.net), money(pp.internalCost),
+          [money(pp.unitPrice), money(tt.revenue), money(pp.internalCost),
            tt.marginPercent.toFixed(1) + '%'].forEach(function (txt, ci) {
             var td = document.createElement('td');
             // الهامش دون الحد الأدنى يُلوَّن: العمود طويل، والعين تمسحه
@@ -1057,6 +1085,11 @@
   bindNumber('w', 'widthCm', 1);
   bindNumber('h', 'heightCm', 1);
   bindNumber('q', 'quantity', 1);
+
+  document.getElementById('vat-switch').addEventListener('click', function () {
+    inclVat = !inclVat;
+    render();
+  });
 
   var d = document.getElementById('d');
   d.addEventListener('input', function () {

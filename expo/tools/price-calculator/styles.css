@@ -163,6 +163,14 @@
   }
   .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
   .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
+  /* مفتاحٌ لا شارة: الرقم الكبير يتبدّل بضغطه، فيجب أن يبدو قابلًا للضغط */
+  .vat-switch {
+    display: block; width: 100%;
+    font-family: var(--ar); font-size: .6875rem; font-weight: 600;
+    color: var(--indigo-ink); background: none; border: 0; padding: 0 0 1px;
+    cursor: pointer; text-align: center;
+  }
+  .vat-switch:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
   .verdict .v {
     font-family: var(--num); font-variant-numeric: tabular-nums;
     font-weight: 700; line-height: 1.15;

@@ -166,9 +166,15 @@ export interface TotalsArithmeticResult {
 }
 
 /**
- * Aggregation under the owner's VAT-inclusive policy (§10 هـ):
- * total = net; VAT is extracted (never added on top); margin is measured
- * against VAT-exclusive revenue.
+ * التجميع: الأسعار قبل מע"מ، والضريبة تُضاف على المجموع (قرار المالك
+ * 9.8.2026 - نقضَ ما قبله).
+ *
+ * كانت الأسعار تُعدّ شاملةً فتُستخرَج الضريبة منها: يدفع الزبون 580 فيصل
+ * المحلَّ 491 والباقي للدولة. الآن يدفع 684 ويصل المحلَّ 580 كاملةً. أي
+ * أن المحل كان يتحمّل الضريبة من سعره - فرقٌ يقارب سُبع كل عرض سعر.
+ *
+ * والهامش يبقى مقيسًا على الإيراد الصافي - وهو هنا المجموع قبل الضريبة -
+ * فالضريبة مالُ الدولة تمرّ بالمحل ولا تُحسب له ربحًا.
  */
 export function totalsArithmetic(
   subtotalAgorot: number,
@@ -179,12 +185,22 @@ export function totalsArithmetic(
   const pctHundredths = Math.round(discountPercent * 100);
   const vatHundredths = Math.round(vatPercent * 100);
 
-  const discountAgorot = floorToShekel(divRoundHalfAway(subtotalAgorot * pctHundredths, 10_000));
-  const net = subtotalAgorot - discountAgorot;
-  const revenueExVatAgorot = floorToShekel(
-    divRoundHalfAway(net * 10_000, 10_000 + vatHundredths),
-  );
-  const vatAgorot = net - revenueExVatAgorot;
+  /**
+   * إسقاطٌ إلى الشيكل بخطوة واحدة، مطابقًا لـ SQL حرفًا:
+   * `floor(المبلغ × النسبة ÷ 10000) × 100`.
+   *
+   * كان التقريب يسبق الإسقاط في هذا الطرف والإسقاط وحده في ذاك. يتفقان عند
+   * 18% بالمصادفة لا بالبناء: لو صارت النسبة 19.99% لأعطى هذا الطرف شيكلًا
+   * حيث يعطي ذاك صفرًا. والمرآة تُبنى ولا تُترك للحظّ.
+   */
+  const floorPercentToShekel = (amount: number, hundredths: number) =>
+    Math.floor((amount * hundredths) / 1_000_000) * 100;
+
+  const discountAgorot = floorPercentToShekel(subtotalAgorot, pctHundredths);
+  // الصافي قبل الضريبة هو الإيراد نفسه: لم يعد جزءٌ منه مالَ الدولة
+  const revenueExVatAgorot = subtotalAgorot - discountAgorot;
+  // والضريبة تُسقط كسرها كغيرها، فيبقى المجموع شيكلًا صحيحًا
+  const vatAgorot = floorPercentToShekel(revenueExVatAgorot, vatHundredths);
   const marginPercent =
     revenueExVatAgorot > 0
       ? divRoundHalfAway((revenueExVatAgorot - internalCostAgorot) * 10_000, revenueExVatAgorot) / 100
@@ -194,7 +210,7 @@ export function totalsArithmetic(
     subtotalAgorot,
     discountAgorot,
     vatAgorot,
-    totalAgorot: net,
+    totalAgorot: revenueExVatAgorot + vatAgorot,
     revenueExVatAgorot,
     marginPercent,
   };
@@ -402,9 +418,8 @@ export function priceWindow(input: PriceInput): WindowPricing {
     amountAgorot: settings.measureInstallCostPerMeterAgorot,
   });
 
-  // Owner decision (2026-08-03): customer prices are FINAL, VAT-inclusive.
-  // Margin is always measured against VAT-exclusive revenue — measuring it
-  // against the inclusive price overstates it and hides min-margin breaches.
+  // قرار المالك 9.8.2026: الأسعار قبل מע"מ والضريبة تُضاف عليها. والهامش
+  // مقيسٌ على الإيراد قبل الضريبة - وهو هنا سعر البند نفسه.
   const lineTotals = totalsArithmetic(lineTotalAgorot, internalCostAgorot, 0, settings.vatPercent);
   const marginAgorot = lineTotals.revenueExVatAgorot - internalCostAgorot;
   const marginPercent = lineTotals.marginPercent;
@@ -433,7 +448,10 @@ export function priceWindow(input: PriceInput): WindowPricing {
 export interface QuotationTotals {
   subtotalAgorot: number;
   discountAgorot: number;
+  /** المجموع بعد الخصم وقبل מע"מ - وهو إيراد المحل كاملًا. */
+  revenueExVatAgorot: number;
   vatAgorot: number;
+  /** ما يدفعه الزبون: الإيراد + מע"מ. */
   totalAgorot: number;
   internalCostAgorot: number;
   marginAgorot: number;
@@ -447,13 +465,13 @@ export function computeTotals(
 ): QuotationTotals {
   const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
   const internalCostAgorot = items.reduce((s, i) => s + i.internalCostAgorot, 0);
-  // Owner decision (2026-08-03): prices are VAT-inclusive. The customer pays
-  // `net` as-is; VAT is extracted from it for reporting/PDF, never added on
-  // top. Margin compares VAT-exclusive revenue to internal cost.
+  // الأسعار قبل מע"מ: المجموع هو الإيراد، والضريبة تُضاف عليه فيخرج ما
+  // يدفعه الزبون. والهامش يقارن الإيراد قبل الضريبة بالتكلفة.
   const t = totalsArithmetic(subtotalAgorot, internalCostAgorot, discountPercent, settings.vatPercent);
   return {
     subtotalAgorot,
     discountAgorot: t.discountAgorot,
+    revenueExVatAgorot: t.revenueExVatAgorot,
     vatAgorot: t.vatAgorot,
     totalAgorot: t.totalAgorot,
     internalCostAgorot,

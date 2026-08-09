@@ -4,88 +4,224 @@
     "trackCostPerMeterAgorot": 1000,
     "deliveryCostPerMeterAgorot": 1000,
     "measureInstallCostPerMeterAgorot": 3000,
-    "vatPercent": 18.0
+    "vatPercent": 18
   },
   "vectors": [
     {
       "name": "manual-example-crepe-with-lining",
-      "input": { "widthCm": 200, "quantity": 1, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 6.0,
-                    "lineTotalAgorot": 58000, "internalCostAgorot": 31800,
-                    "subtotalAgorot": 58000, "discountAgorot": 0, "totalAgorot": 58000,
-                    "vatAgorot": 8900, "revenueExVatAgorot": 49100, "marginPercent": 35.23 }
+      "input": {
+        "widthCm": 200,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 29000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 2,
+        "fabricMeters": 6,
+        "liningMeters": 6,
+        "lineTotalAgorot": 58000,
+        "internalCostAgorot": 31800,
+        "subtotalAgorot": 58000,
+        "discountAgorot": 0,
+        "totalAgorot": 68400,
+        "vatAgorot": 10400,
+        "revenueExVatAgorot": 58000,
+        "marginPercent": 45.17
+      }
     },
     {
       "name": "no-lining",
-      "input": { "widthCm": 200, "quantity": 1, "fullness": 3, "hasLining": false,
-                 "unitPriceAgorot": 27000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 0,
-                    "lineTotalAgorot": 54000, "internalCostAgorot": 26400,
-                    "subtotalAgorot": 54000, "discountAgorot": 0, "totalAgorot": 54000,
-                    "vatAgorot": 8300, "revenueExVatAgorot": 45700, "marginPercent": 42.23 }
+      "input": {
+        "widthCm": 200,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": false,
+        "unitPriceAgorot": 27000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 2,
+        "fabricMeters": 6,
+        "liningMeters": 0,
+        "lineTotalAgorot": 54000,
+        "internalCostAgorot": 26400,
+        "subtotalAgorot": 54000,
+        "discountAgorot": 0,
+        "totalAgorot": 63700,
+        "vatAgorot": 9700,
+        "revenueExVatAgorot": 54000,
+        "marginPercent": 51.11
+      }
     },
     {
       "name": "tall-qty2-fractional-width-drops-agorot",
-      "input": { "widthCm": 233.33, "quantity": 2, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 45000, "tailorCostAgorot": 7000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 4.667, "fabricMeters": 14.001, "liningMeters": 14.001,
-                    "lineTotalAgorot": 210000, "internalCostAgorot": 88200,
-                    "subtotalAgorot": 210000, "discountAgorot": 0, "totalAgorot": 210000,
-                    "vatAgorot": 32100, "revenueExVatAgorot": 177900, "marginPercent": 50.42 }
+      "input": {
+        "widthCm": 233.33,
+        "quantity": 2,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 45000,
+        "tailorCostAgorot": 7000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 4.667,
+        "fabricMeters": 14.001,
+        "liningMeters": 14.001,
+        "lineTotalAgorot": 210000,
+        "internalCostAgorot": 88200,
+        "subtotalAgorot": 210000,
+        "discountAgorot": 0,
+        "totalAgorot": 247800,
+        "vatAgorot": 37800,
+        "revenueExVatAgorot": 210000,
+        "marginPercent": 58
+      }
     },
     {
       "name": "sub-shekel-discount-vanishes",
-      "input": { "widthCm": 150, "quantity": 1, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0.10 },
-      "expected": { "runningMeters": 1.5, "fabricMeters": 4.5, "liningMeters": 4.5,
-                    "lineTotalAgorot": 43500, "internalCostAgorot": 23800,
-                    "subtotalAgorot": 43500, "discountAgorot": 0, "totalAgorot": 43500,
-                    "vatAgorot": 6700, "revenueExVatAgorot": 36800, "marginPercent": 35.33 }
+      "input": {
+        "widthCm": 150,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 29000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0.1
+      },
+      "expected": {
+        "runningMeters": 1.5,
+        "fabricMeters": 4.5,
+        "liningMeters": 4.5,
+        "lineTotalAgorot": 43500,
+        "internalCostAgorot": 23800,
+        "subtotalAgorot": 43500,
+        "discountAgorot": 0,
+        "totalAgorot": 51300,
+        "vatAgorot": 7800,
+        "revenueExVatAgorot": 43500,
+        "marginPercent": 45.29
+      }
     },
     {
       "name": "seven-percent-discount-floors",
-      "input": { "widthCm": 200, "quantity": 1, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 1100, "discountPercent": 7 },
-      "expected": { "runningMeters": 2.0, "fabricMeters": 6.0, "liningMeters": 6.0,
-                    "lineTotalAgorot": 58000, "internalCostAgorot": 33000,
-                    "subtotalAgorot": 58000, "discountAgorot": 4000, "totalAgorot": 54000,
-                    "vatAgorot": 8300, "revenueExVatAgorot": 45700, "marginPercent": 27.79 }
+      "input": {
+        "widthCm": 200,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 29000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 1100,
+        "discountPercent": 7
+      },
+      "expected": {
+        "runningMeters": 2,
+        "fabricMeters": 6,
+        "liningMeters": 6,
+        "lineTotalAgorot": 58000,
+        "internalCostAgorot": 33000,
+        "subtotalAgorot": 58000,
+        "discountAgorot": 4000,
+        "totalAgorot": 63700,
+        "vatAgorot": 9700,
+        "revenueExVatAgorot": 54000,
+        "marginPercent": 38.89
+      }
     },
     {
       "name": "other-fabric-tall-with-lining",
-      "input": { "widthCm": 300, "quantity": 1, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 51000, "tailorCostAgorot": 7000,
-                 "fabricCostAgorot": 2000, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 3.0, "fabricMeters": 9.0, "liningMeters": 9.0,
-                    "lineTotalAgorot": 153000, "internalCostAgorot": 62100,
-                    "subtotalAgorot": 153000, "discountAgorot": 0, "totalAgorot": 153000,
-                    "vatAgorot": 23400, "revenueExVatAgorot": 129600, "marginPercent": 52.08 }
+      "input": {
+        "widthCm": 300,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 51000,
+        "tailorCostAgorot": 7000,
+        "fabricCostAgorot": 2000,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 3,
+        "fabricMeters": 9,
+        "liningMeters": 9,
+        "lineTotalAgorot": 153000,
+        "internalCostAgorot": 62100,
+        "subtotalAgorot": 153000,
+        "discountAgorot": 0,
+        "totalAgorot": 180500,
+        "vatAgorot": 27500,
+        "revenueExVatAgorot": 153000,
+        "marginPercent": 59.41
+      }
     },
     {
       "name": "fullness-2p5",
-      "input": { "widthCm": 200, "quantity": 1, "fullness": 2.5, "hasLining": true,
-                 "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 2.0, "fabricMeters": 5.0, "liningMeters": 5.0,
-                    "lineTotalAgorot": 58000, "internalCostAgorot": 29500,
-                    "subtotalAgorot": 58000, "discountAgorot": 0, "totalAgorot": 58000,
-                    "vatAgorot": 8900, "revenueExVatAgorot": 49100, "marginPercent": 39.92 }
+      "input": {
+        "widthCm": 200,
+        "quantity": 1,
+        "fullness": 2.5,
+        "hasLining": true,
+        "unitPriceAgorot": 29000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 2,
+        "fabricMeters": 5,
+        "liningMeters": 5,
+        "lineTotalAgorot": 58000,
+        "internalCostAgorot": 29500,
+        "subtotalAgorot": 58000,
+        "discountAgorot": 0,
+        "totalAgorot": 68400,
+        "vatAgorot": 10400,
+        "revenueExVatAgorot": 58000,
+        "marginPercent": 49.14
+      }
     },
     {
       "name": "tiny-amount-floors-to-two-shekels",
-      "input": { "widthCm": 1, "quantity": 1, "fullness": 3, "hasLining": true,
-                 "unitPriceAgorot": 29000, "tailorCostAgorot": 4000,
-                 "fabricCostAgorot": 1400, "liningCostAgorot": 900, "discountPercent": 0 },
-      "expected": { "runningMeters": 0.01, "fabricMeters": 0.03, "liningMeters": 0.03,
-                    "lineTotalAgorot": 200, "internalCostAgorot": 100,
-                    "subtotalAgorot": 200, "discountAgorot": 0, "totalAgorot": 200,
-                    "vatAgorot": 100, "revenueExVatAgorot": 100, "marginPercent": 0.0 }
+      "input": {
+        "widthCm": 1,
+        "quantity": 1,
+        "fullness": 3,
+        "hasLining": true,
+        "unitPriceAgorot": 29000,
+        "tailorCostAgorot": 4000,
+        "fabricCostAgorot": 1400,
+        "liningCostAgorot": 900,
+        "discountPercent": 0
+      },
+      "expected": {
+        "runningMeters": 0.01,
+        "fabricMeters": 0.03,
+        "liningMeters": 0.03,
+        "lineTotalAgorot": 200,
+        "internalCostAgorot": 100,
+        "subtotalAgorot": 200,
+        "discountAgorot": 0,
+        "totalAgorot": 200,
+        "vatAgorot": 0,
+        "revenueExVatAgorot": 200,
+        "marginPercent": 50
+      }
     }
   ]
 }

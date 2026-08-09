@@ -51,6 +51,8 @@ export default function QuotationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showVersions, setShowVersions] = useState<boolean>(false);
+  // الافتراضي «כולל מע"מ»: هو المبلغ الذي يُسأل عنه الزبون ويدفعه
+  const [inclVat, setInclVat] = useState<boolean>(true);
 
   const quotation = db.quotations.find((q) => q.id === id);
   const versions = useMemo(
@@ -215,36 +217,49 @@ export default function QuotationScreen() {
           label={`الخصم (${percent(activeDiscount)})`}
           value={`- ${money(preview.discountAgorot)}`}
         />
-        <SummaryRow label={`ضريبة القيمة المضافة ${db.settings.vatPercent}%`} value={money(preview.vatAgorot)} />
+        <SummaryRow label='المجموع לפני מע"מ' value={money(preview.revenueExVatAgorot)} />
+        <SummaryRow
+          label={`מע"מ ${db.settings.vatPercent}%`}
+          value={`+ ${money(preview.vatAgorot)}`}
+        />
         <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: spacing.md }} />
-        <Row justify="space-between">
-          <AppText variant="heading" color={palette.ivory}>
-            الإجمالي للزبون
-          </AppText>
+        {/* الرقم الكبير هو ما يُقال للزبون، والمفتاح يبدّل أيَّ الرقمين
+            يُقال: بعض الزبائن يسأل عن السعر قبل الضريبة وبعضهم عن المطلوب
+            دفعه. الاثنان معروضان أعلاه على كل حال، فالمفتاح إبرازٌ لا إخفاء. */}
+        <Row justify="space-between" align="flex-end">
+          <View style={{ flex: 1 }}>
+            <AppText variant="heading" color={palette.ivory}>
+              {inclVat ? 'المطلوب من الزبون' : 'الإجمالي לפני מע"מ'}
+            </AppText>
+            <Pressable onPress={() => setInclVat((v) => !v)} style={vatSwitch}>
+              <AppText variant="caption" color={palette.sage}>
+                {inclVat ? 'اعرض לפני מע"מ' : 'اعرض כולל מע"מ'}
+              </AppText>
+            </Pressable>
+          </View>
           <AppText variant="numberLarge" color={palette.ivory}>
-            {money(preview.totalAgorot)}
+            {money(inclVat ? preview.totalAgorot : preview.revenueExVatAgorot)}
           </AppText>
         </Row>
       </Card>
 
       {showCost && (
         /* بطاقة شفافية الهامش (M4): الرقم كان يُتَّهم بالخطأ لأنه لا يشرح
-           نفسه. هنا سلسلة الحساب كاملة: البيع شامل الضريبة، الضريبة
-           المستخرَجة، الإيراد الصافي، التكلفة، الربح - ثم النسبة بالتعريفين:
-           على الصافي (تعريف المحرك والحد الأدنى) وعلى السعر الشامل (القراءة
-           الشائعة). الفرق بينهما هو الضريبة لا خطأ حسابيًا. */
+           نفسه. هنا سلسلة الحساب كاملة: البيع قبل الضريبة - وهو الإيراد
+           كاملًا - ثم التكلفة والربح. ومنذ صارت الضريبة تُضاف لا تُستخرَج
+           لم يعد للسعر تعريفان للهامش: מע"מ يمرّ بالمحل إلى الدولة ولا
+           يدخل الحساب أصلًا، فيُعرض للعلم لا للقسمة عليه. */
         <Card>
           <SectionHeader title="حساب الهامش" subtitle="للأدمن وحده - سلسلة الحساب كاملة" />
           <View style={{ gap: 4 }}>
-            <CalcRow label="البيع للزبون (شامل الضريبة)" value={money(preview.totalAgorot)} />
             <CalcRow
-              label={`الضريبة المستخرَجة (${db.settings.vatPercent}%)`}
-              value={`- ${money(preview.vatAgorot)}`}
+              label='البيع للزبون (לפני מע"מ)'
+              value={money(preview.revenueExVatAgorot)}
+              strong
             />
             <CalcRow
-              label="الإيراد الصافي"
-              value={money(preview.totalAgorot - preview.vatAgorot)}
-              strong
+              label={`מע"מ ${db.settings.vatPercent}% - يُحصَّل للدولة`}
+              value={money(preview.vatAgorot)}
             />
             <CalcRow
               label="التكلفة الكاملة (قماش، بطانة، خياطة، سكة، توصيل، قياس وتركيب)"
@@ -253,23 +268,15 @@ export default function QuotationScreen() {
             <CalcRow label="الربح" value={money(preview.marginAgorot)} strong />
           </View>
           <Divider />
+          {/* هامشٌ واحد لا اثنان. كان للسعر تعريفان لأنه كان شاملًا للضريبة،
+              فيُعرض الهامش عليه وعلى الصافي معًا. والآن الضريبة تُضاف فوق
+              السعر ولا تدخله، فقسمة الربح على المبلغ الشامل قسمةٌ على مالٍ
+              بعضه للدولة - رقمٌ لا معنى له يخفض الهامش زورًا. */}
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              الهامش على الإيراد الصافي (المعتمد للحد الأدنى)
+              {'الهامش على الإيراد (لפני מע"מ - المعتمد للحد الأدنى)'}
             </AppText>
             <AppText variant="label">{percent(preview.marginPercent)}</AppText>
-          </Row>
-          <Row justify="space-between" style={{ marginTop: 4 }}>
-            <AppText variant="caption" color={palette.muted}>
-              الهامش على السعر الشامل
-            </AppText>
-            <AppText variant="label">
-              {percent(
-                preview.totalAgorot > 0
-                  ? Math.round((preview.marginAgorot / preview.totalAgorot) * 10000) / 100
-                  : 0,
-              )}
-            </AppText>
           </Row>
         </Card>
       )}
@@ -422,3 +429,13 @@ function SummaryRow({
     </Row>
   );
 }
+
+const vatSwitch = {
+  alignSelf: 'flex-start' as const,
+  marginTop: 4,
+  paddingHorizontal: spacing.sm,
+  paddingVertical: 2,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: 'rgba(255,255,255,0.28)',
+};
