@@ -216,6 +216,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     colorHex: s(v.color_hex),
     sku: s(v.sku),
     costPerMeterAgorot: costByVariant.get(s(v.variant_id)) ?? 0,
+    // عمود زيادة سعر البطانة يصل الخادم مع شريحة الكتابة
+    customerSurchargePerMeterAgorot: n(v.customer_surcharge_per_meter_agorot),
     imageUrl: s(v.image_url),
   }));
 

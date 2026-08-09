@@ -265,7 +265,19 @@ export function priceWindow(input: PriceInput): WindowPricing {
     warnings.push('لا توجد قاعدة تسعير مطابقة - راجع إعدادات التسعير.');
   }
 
-  const unitPriceAgorot = rule?.customerPricePerMeterAgorot ?? 0;
+  /**
+   * سعر المتر = قاعدة الشريحة + زيادة البطانة المختارة إن وُجدت.
+   *
+   * البطانة 70% داخلة في السعر المحدد (زيادتها صفر)، و100% تزيده بما يضعه
+   * الأدمن على اللون. الزيادة تُضاف إلى سعر المتر الطولي - وهو الأساس الذي
+   * قِيس عليه السعر الأصلي - فتضرب في الأمتار الطولية لا في أمتار القماش.
+   *
+   * تُجمَع هنا في تجميع السعر لا داخل النواة الحسابية، فتبقى النواة - ومعها
+   * المتجهات الذهبية الثمانية المرآة مع SQL - كما هي حرفًا بحرف.
+   */
+  const liningSurcharge =
+    win.hasLining ? (liningVariant?.customerSurchargePerMeterAgorot ?? 0) : 0;
+  const unitPriceAgorot = (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge;
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
 

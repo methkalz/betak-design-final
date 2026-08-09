@@ -1761,6 +1761,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       colorHex: string;
       sku: string;
       costPerMeterAgorot: number;
+      /** زيادة على سعر المتر للزبون - للبطانة 100% مثلًا. صفر لغيرها. */
+      customerSurchargePerMeterAgorot?: number;
     }): Result<string> => {
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
@@ -1786,6 +1788,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           colorHex: input.colorHex,
           sku,
           costPerMeterAgorot: Math.round(input.costPerMeterAgorot),
+          customerSurchargePerMeterAgorot: Math.round(input.customerSurchargePerMeterAgorot ?? 0),
           imageUrl: existing?.imageUrl ?? '',
         };
         if (existing) Object.assign(existing, record);

@@ -141,6 +141,14 @@ export interface FabricVariant {
   sku: string;
   /** Internal wholesale cost per meter, in agorot. Hidden from field/tailor. */
   costPerMeterAgorot: number;
+  /**
+   * زيادة على سعر المتر الطولي للزبون حين يُختار هذا اللون (بالأغورة).
+   *
+   * وُضعت على اللون لا في قاعدة تسعير رابعة: البطانة 70% داخلة في السعر
+   * المحدد، و100% تزيده - وهذه خاصية الصنف نفسه لا خاصية شريحة الارتفاع.
+   * صفر لكل الأقمشة العادية، فلا يتغيّر شيء إلا حيث وضع الأدمن رقمًا.
+   */
+  customerSurchargePerMeterAgorot: number;
   imageUrl: string;
 }
 

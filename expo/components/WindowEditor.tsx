@@ -69,7 +69,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     existing?.fabricVariantId ?? null,
   );
   const [liningVariantId, setLiningVariantId] = useState<string | null>(
-    existing?.liningVariantId ?? db.fabricVariants.find((v) => v.sku === 'LN-OFFWHITE')?.id ?? null,
+    // الافتراضي 70% - الداخلة في السعر المحدد، فلا يُزاد سعرٌ بلا اختيار
+    existing?.liningVariantId ?? db.fabricVariants.find((v) => v.sku === 'LN-70')?.id ?? null,
   );
   const [notes, setNotes] = useState<string>(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -325,12 +326,16 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         {hasLining && (
           <>
             <Divider />
+            {/* البطانة درجة تغطية لا لونًا (قرار المالك): 70% داخلة في السعر،
+                و100% تزيده. الزيادة تُقال على الخيار نفسه لحظة اختياره - لا
+                تُكتشف في الإجمالي بعد الحفظ. */}
             <AppText variant="label" color={palette.muted}>
-              لون البطانة
+              درجة تغطية البطانة
             </AppText>
             <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
               {liningVariants.map((v) => {
                 const active = liningVariantId === v.id;
+                const extra = v.customerSurchargePerMeterAgorot ?? 0;
                 return (
                   <Pressable
                     key={v.id}
@@ -338,7 +343,16 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
                     style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
                   >
                     <Swatch color={v.colorHex} size={32} />
-                    <AppText variant="caption">{v.colorName}</AppText>
+                    <View>
+                      <AppText variant="caption">{v.colorName}</AppText>
+                      <AppText
+                        variant="caption"
+                        color={extra > 0 ? palette.terracotta : palette.muted}
+                      >
+                        {extra > 0 ? `+${money(extra)} للمتر` : 'ضمن السعر'}
+                      </AppText>
+                    </View>
+                    {active && <Check size={16} color={palette.olive} />}
                   </Pressable>
                 );
               })}

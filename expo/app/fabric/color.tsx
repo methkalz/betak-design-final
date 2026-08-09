@@ -38,6 +38,9 @@ export default function FabricColorScreen() {
   const [cost, setCost] = useState(
     existing ? String(Math.round(existing.costPerMeterAgorot / 100)) : '',
   );
+  const [surcharge, setSurcharge] = useState(
+    existing ? String(Math.round((existing.customerSurchargePerMeterAgorot ?? 0) / 100)) : '',
+  );
   const [error, setError] = useState<string | null>(null);
 
   const submit = () => {
@@ -50,6 +53,7 @@ export default function FabricColorScreen() {
       colorHex,
       sku,
       costPerMeterAgorot: Math.round(parseFloat(cost || '0')) * 100,
+      customerSurchargePerMeterAgorot: Math.round(parseFloat(surcharge || '0')) * 100,
     });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/fabric/[id]', params: { id: product.id } });
@@ -124,6 +128,20 @@ export default function FabricColorScreen() {
           />
           <AppText variant="caption" color={palette.muted}>
             التكلفة داخلية لا تظهر للخياط ولا للعامل الميداني، وعليها يُحسب هامش كل عرض.
+          </AppText>
+          {/* الزيادة على سعر الزبون: البطانة 100% مثالها. صفر لكل قماش عادي،
+              فلا يتغيّر سعر إلا حيث وضع الأدمن رقمًا بنفسه. */}
+          <Field
+            label="زيادة على سعر المتر للزبون"
+            value={surcharge}
+            onChangeText={(t) => setSurcharge(t.replace(/\D/g, ''))}
+            keyboardType="numeric"
+            suffix="₪"
+            placeholder="0"
+          />
+          <AppText variant="caption" color={palette.muted}>
+            تُضاف إلى سعر المتر الطولي حين يُختار هذا اللون. اتركها صفرًا للأقمشة
+            العادية - وتُستعمل للبطانة 100% التي تزيد على السعر المحدد.
           </AppText>
         </View>
       </Card>
