@@ -199,6 +199,9 @@
     border-radius: 999px;
   }
   .vat-seg button {
+    /* بلا هذا يرسم سفاري على الهاتف زرَّه الأصلي - حافةً ومنحدرًا رماديًا -
+       فوق ما نضعه، فيبدو الشريط قديمًا مهما لُوّن */
+    -webkit-appearance: none; appearance: none;
     min-height: 2.125rem; border: 0; border-radius: 999px; cursor: pointer;
     background: transparent; color: var(--ink-2);
     font-family: var(--ar); font-size: .8125rem; font-weight: 600;
