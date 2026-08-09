@@ -52,7 +52,6 @@ import { TabPanel } from '@/components/TabMotion';
 import { font, gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
-  CURTAIN_MODEL_LABELS,
   PROJECT_STATUS_HINTS,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_ORDER,
@@ -741,7 +740,7 @@ function RoomsTab({
                       <View style={{ flex: 1 }}>
                         <AppText variant="label">{w.name}</AppText>
                         <AppText variant="caption" color={palette.muted}>
-                          {cm(w.widthCm)} × {cm(w.heightCm)} • {CURTAIN_MODEL_LABELS[w.model]} •{' '}
+                          {cm(w.widthCm)} × {cm(w.heightCm)} • {TRACK_LABELS[w.track]} •{' '}
                           {w.hasLining ? 'مع بطانة' : 'بدون بطانة'}
                         </AppText>
                       </View>

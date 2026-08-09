@@ -21,7 +21,7 @@ function oneMeter(over: Partial<WindowUnit>, fabricSku: string, liningSku: strin
   return priceWindow({
     window: {
       id: 'w', organizationId: 'o', projectId: 'p', roomId: 'r', name: 'ش',
-      widthCm: 100, heightCm: 280, model: 'wave', hasLining: !!lining,
+      widthCm: 100, heightCm: 280, hasLining: !!lining,
       track: 'standard', fullness: 3, quantity: 1,
       fabricVariantId: variant.id, liningVariantId: lining?.id ?? null,
       notes: '', measuredAt: null, measuredBy: null,

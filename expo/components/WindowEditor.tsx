@@ -17,12 +17,12 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { CURTAIN_MODEL_LABELS, TRACK_LABELS } from '@/domain/labels';
+import { TRACK_LABELS } from '@/domain/labels';
 import { priceWindow, resolveBand } from '@/domain/pricing';
 import { meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
-import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
+import type { TrackType, WindowUnit } from '@/types/domain';
 
 /**
  * التسمية الترتيبية تكتب نفسها (M1): أول شباك في الغرفة يُقترح «الشباك
@@ -61,7 +61,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const [name, setName] = useState<string>(existing?.name ?? nextWindowName(roomCount));
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
-  const [model, setModel] = useState<CurtainModel>(existing?.model ?? 'wave');
   const [track, setTrack] = useState<TrackType>(existing?.track ?? 'standard');
   const [hasLining, setHasLining] = useState<boolean>(existing?.hasLining ?? true);
   const [fullness, setFullness] = useState<number>(existing?.fullness ?? 3);
@@ -106,7 +105,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         name,
         widthCm,
         heightCm,
-        model,
         hasLining,
         track,
         fullness,
@@ -132,7 +130,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     projectId,
     roomId,
     name,
-    model,
     hasLining,
     track,
     fullness,
@@ -148,7 +145,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       name,
       widthCm,
       heightCm,
-      model,
       hasLining,
       track,
       fullness,
@@ -171,8 +167,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   /**
    * الإدخال المتتابع (M2): الحفظ يبقيك في المحرر جاهزًا للشباك التالي.
    *
-   * ما يتكرر في شبابيك الغرفة الواحدة يُحمَل (الموديل، السكة، القماش،
-   * البطانة، المضاعف) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
+   * ما يتكرر في شبابيك الغرفة الواحدة يُحمَل (المسار والقماش
+   * والبطانة والمضاعف) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
    * شباك وحده يُصفَّر (المقاسات، الملاحظات، الاسم يتقدّم للترتيب التالي).
    * هكذا تُدخَل خمسة شبابيك بخمسة قياسات لا بخمسة نماذج كاملة.
    */
@@ -239,21 +235,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       <Card>
-        <AppText variant="heading">الموديل والتركيب</AppText>
+        <AppText variant="heading">المسار والمضاعف</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-          <AppText variant="label" color={palette.muted}>
-            موديل الستارة
-          </AppText>
-          <Row gap={spacing.sm} wrap>
-            {(Object.keys(CURTAIN_MODEL_LABELS) as CurtainModel[]).map((m) => (
-              <Pressable key={m} onPress={() => setModel(m)} style={[chipStyle, model === m && chipActive]}>
-                <AppText variant="label" color={model === m ? palette.ivory : palette.charcoal}>
-                  {CURTAIN_MODEL_LABELS[m]}
-                </AppText>
-              </Pressable>
-            ))}
-          </Row>
-
           <AppText variant="label" color={palette.muted}>
             المسار
           </AppText>
@@ -329,9 +312,10 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         {hasLining && (
           <>
             <Divider />
-            {/* البطانة درجة تغطية لا لونًا (قرار المالك): 70% داخلة في السعر،
-                و100% تزيده. الزيادة تُقال على الخيار نفسه لحظة اختياره - لا
-                تُكتشف في الإجمالي بعد الحفظ. */}
+            {/* البطانة درجة تغطية لا لونًا (قرار المالك). وما يُكتب تحت كل
+                درجة هو ما يفرّقها فعلًا: كم مترًا تستهلك لكل متر طولي، وكم
+                تزيد على الزبون. «ضمن السعر» كانت تُقرأ «بلا تكلفة» - والبطانة
+                70% تكلّف المحل 27 لكل متر طولي وإن لم يدفعها الزبون منفصلة. */}
             <AppText variant="label" color={palette.muted}>
               درجة تغطية البطانة
             </AppText>
@@ -348,11 +332,16 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
                     <Swatch color={v.colorHex} size={32} />
                     <View>
                       <AppText variant="caption">{v.colorName}</AppText>
+                      {v.metersPerRunningMeter > 0 && (
+                        <AppText variant="caption" color={palette.muted}>
+                          {meters(v.metersPerRunningMeter)} لكل متر طولي
+                        </AppText>
+                      )}
                       <AppText
                         variant="caption"
                         color={extra > 0 ? palette.terracotta : palette.muted}
                       >
-                        {extra > 0 ? `+${money(extra)} للمتر` : 'ضمن السعر'}
+                        {extra > 0 ? `+${money(extra)} للمتر` : 'بلا زيادة على الزبون'}
                       </AppText>
                     </View>
                     {active && <Check size={16} color={palette.olive} />}
@@ -491,16 +480,6 @@ function PreviewRow({
   );
 }
 
-const chipStyle = {
-  paddingHorizontal: spacing.lg,
-  minHeight: 44,
-  justifyContent: 'center' as const,
-  borderRadius: radius.pill,
-  borderWidth: 1,
-  borderColor: palette.line,
-  backgroundColor: palette.white,
-};
-const chipActive = { backgroundColor: palette.olive, borderColor: palette.olive };
 const suggestChip = {
   paddingHorizontal: spacing.md,
   height: 36,

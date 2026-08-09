@@ -5,7 +5,6 @@
 import { palette } from '@/constants/theme';
 import type {
   AttachmentKind,
-  CurtainModel,
   NotificationKind,
   PaymentKind,
   PaymentMethod,
@@ -94,14 +93,6 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   low: 'عادية',
   normal: 'متوسطة',
   high: 'عاجلة',
-};
-
-export const CURTAIN_MODEL_LABELS: Record<CurtainModel, string> = {
-  wave: 'ويف (Wave)',
-  pinch_pleat: 'كبسة يدوية',
-  eyelet: 'حلقات (Eyelet)',
-  roman: 'رومان بليد',
-  sheer_panel: 'شيفون سادة',
 };
 
 export const TRACK_LABELS: Record<TrackType, string> = {

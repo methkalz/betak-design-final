@@ -26,10 +26,8 @@ import {
 } from '@/components/ui';
 import { font, palette, spacing } from '@/constants/theme';
 import {
-  CURTAIN_MODEL_LABELS,
   TAILOR_STAGE_LABELS,
   TAILOR_STAGE_ORDER,
-  TRACK_LABELS,
 } from '@/domain/labels';
 import { finishedWindowIds } from '@/domain/fabricPlan';
 import { formatDate } from '@/lib/format';

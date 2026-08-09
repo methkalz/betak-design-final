@@ -698,7 +698,6 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       name: string;
       widthCm: number;
       heightCm: number;
-      model: WindowUnit['model'];
       hasLining: boolean;
       track: WindowUnit['track'];
       fullness: number;
@@ -733,7 +732,6 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           name: input.name.trim() || 'شباك',
           widthCm: input.widthCm,
           heightCm: input.heightCm,
-          model: input.model,
           hasLining: input.hasLining,
           track: input.track,
           fullness: input.fullness,

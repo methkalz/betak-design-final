@@ -56,7 +56,7 @@ const LINING_100 = { id: 'l100', costPerMeterAgorot: 900, customerSurchargePerMe
 /** شباك 200 سم، قطعة واحدة، مضاعف 3 → مترّان طوليّان. */
 const WIN = {
   id: 'w', organizationId: 'o', projectId: 'p', roomId: 'r', name: 'ش',
-  widthCm: 200, heightCm: 280, model: 'wave', hasLining: true, track: 'standard',
+  widthCm: 200, heightCm: 280, hasLining: true, track: 'standard',
   fullness: 3, fabricVariantId: 'v1', liningVariantId: 'l70', quantity: 1,
   notes: '', measuredAt: null, measuredBy: null,
 } as WindowUnit;

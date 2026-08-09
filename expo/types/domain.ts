@@ -91,7 +91,6 @@ export interface Room {
   sortOrder: number;
 }
 
-export type CurtainModel = 'wave' | 'pinch_pleat' | 'eyelet' | 'roman' | 'sheer_panel';
 /**
  * نوعان لا أربعة (قرار المالك 6.8.2026): عادي أو كهربائي.
  * ما كان يُعرض من «قضيب حائط» و«مسار مزدوج» تفاصيل تركيب لا أنواع مسار،
@@ -107,7 +106,6 @@ export interface WindowUnit {
   name: string;
   widthCm: number;
   heightCm: number;
-  model: CurtainModel;
   hasLining: boolean;
   track: TrackType;
   fullness: number;

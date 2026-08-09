@@ -189,7 +189,6 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     name: s(w.name),
     widthCm: n(w.width_cm),
     heightCm: n(w.height_cm),
-    model: s(w.model) as WindowUnit['model'],
     hasLining: Boolean(w.has_lining),
     track: s(w.track) as WindowUnit['track'],
     fullness: n(w.fullness),

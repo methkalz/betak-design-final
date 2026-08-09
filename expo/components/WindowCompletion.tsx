@@ -20,13 +20,12 @@ import {
   Card,
   Divider,
   Field,
-  Pill,
   Row,
   SectionHeader,
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { CURTAIN_MODEL_LABELS, TRACK_LABELS } from '@/domain/labels';
+import { TRACK_LABELS } from '@/domain/labels';
 import { finishedWindowIds, windowFabricNeed } from '@/domain/fabricPlan';
 import { round3 } from '@/domain/pricing';
 import { cm, meters } from '@/lib/format';
@@ -125,7 +124,7 @@ export function WindowCompletion({ projectId }: { projectId: string }) {
                         {w.name}
                       </AppText>
                       <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                        {cm(w.widthCm)} × {cm(w.heightCm)} • {CURTAIN_MODEL_LABELS[w.model]}
+                        {cm(w.widthCm)} × {cm(w.heightCm)} • {TRACK_LABELS[w.track]}
                       </AppText>
                     </View>
                     <View style={{ alignItems: 'flex-start' }}>
@@ -152,20 +151,12 @@ export function WindowCompletion({ projectId }: { projectId: string }) {
 
       {!!openWindow && (
         <View style={styles.sheet}>
-          <Row justify="space-between" align="flex-start">
-            <View style={{ flex: 1 }}>
-              <AppText variant="heading">{openWindow.name}</AppText>
-              <AppText variant="caption" color={palette.muted}>
-                المخطط {meters(planned)} - أكّد ما استُهلك فعلًا
-              </AppText>
-            </View>
-            <Pill
-              label={CURTAIN_MODEL_LABELS[openWindow.model]}
-              bg={palette.sand}
-              fg={palette.oliveDark}
-              small
-            />
-          </Row>
+          <View>
+            <AppText variant="heading">{openWindow.name}</AppText>
+            <AppText variant="caption" color={palette.muted}>
+              المخطط {meters(planned)} - أكّد ما استُهلك فعلًا
+            </AppText>
+          </View>
 
           {/* تفاصيل الخياطة هنا لا في بطاقة ثانية تسرد الشبابيك مرة أخرى:
               هذه اللحظة هي التي يحتاجها الخياط فيها، وهي لشباك بعينه. */}
