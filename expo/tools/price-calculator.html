@@ -27,6 +27,7 @@
     --paper:      #F4F4FA;
     --card:       #FFFFFF;
     --card-2:     #FAFAFE;
+    --sunken:     #F0F0F8;
     --line:       #E4E4F1;
     --line-soft:  #EFEFF8;
     --ink:        #14172B;
@@ -57,6 +58,7 @@
       --paper:      #0D0F1E;
       --card:       #171A2E;
       --card-2:     #1D2038;
+      --sunken:     #101228;
       --line:       #2B2F4A;
       --line-soft:  #23273F;
       --ink:        #EDEEF6;
@@ -81,7 +83,7 @@
 
   /* مبدّل العارض يعلو على تفضيل النظام في الاتجاهين */
   :root[data-theme="light"] {
-    --paper: #F4F4FA; --card: #FFFFFF; --card-2: #FAFAFE;
+    --paper: #F4F4FA; --card: #FFFFFF; --card-2: #FAFAFE; --sunken: #F0F0F8;
     --line: #E4E4F1; --line-soft: #EFEFF8;
     --ink: #14172B; --ink-2: #4A5070; --ink-3: #858BA8;
     --indigo: #4F46E5; --on-accent: #FFFFFF; --indigo-ink: #3B32C4; --indigo-bg: #ECEBFE;
@@ -90,7 +92,7 @@
     --shadow: 0 1px 2px rgba(20,23,43,.05), 0 8px 24px -16px rgba(20,23,43,.18);
   }
   :root[data-theme="dark"] {
-    --paper: #0D0F1E; --card: #171A2E; --card-2: #1D2038;
+    --paper: #0D0F1E; --card: #171A2E; --card-2: #1D2038; --sunken: #101228;
     --line: #2B2F4A; --line-soft: #23273F;
     --ink: #EDEEF6; --ink-2: #A9AFC9; --ink-3: #767D9C;
     --indigo: #8B85F5; --on-accent: #14172B; --indigo-ink: #A5A0F8; --indigo-bg: #262457;
@@ -131,39 +133,70 @@
   }
   .brand {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: .5rem; margin-bottom: .5rem;
+    gap: .5rem; padding-bottom: .5rem;
   }
-  .brand h1 { margin: 0; font-size: 1.0625rem; font-weight: 700; letter-spacing: -.01em; }
+  /* طيّاتٌ رفيعة تحت العنوان - إيماءةٌ إلى ما تحسبه الصفحة، بلا زخرفة.
+     شرطاتٌ لا `border-image`: الأخيرة لا تُرسَم على حافةٍ واحدة بثبات. */
+  .pleats {
+    height: 4px; margin-bottom: .625rem;
+    background: repeating-linear-gradient(
+      to left, var(--line) 0 1px, transparent 1px 6px);
+  }
+  .brand h1 { margin: 0; font-size: 1.1875rem; font-weight: 700; letter-spacing: -.02em; }
   .brand span { font-size: .75rem; color: var(--ink-3); }
 
-  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  /* الرقمان ليسا سواءً: ما يدفعه الزبون هو الحكم، والتكلفة سندُه */
+  .verdict { display: grid; grid-template-columns: 1.35fr 1fr; gap: .5rem; }
   .verdict > div {
-    border-radius: .75rem; padding: .5rem .625rem;
+    border-radius: .75rem; padding: .5rem .75rem;
     border: 1px solid var(--line);
     background: var(--card);
   }
+  .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
   .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
   .verdict .v {
     font-family: var(--num); font-variant-numeric: tabular-nums;
-    font-size: 1.375rem; font-weight: 600; line-height: 1.2;
-    letter-spacing: -.02em; display: block;
+    font-weight: 700; line-height: 1.15;
+    letter-spacing: -.03em; display: block;
   }
-  .v-cust { color: var(--indigo); }
-  .v-cost { color: var(--ink-2); }
+  .v-cust { color: var(--indigo-ink); font-size: 1.75rem; }
+  .v-cost { color: var(--ink-2); font-size: 1.25rem; }
 
   /* ───────── البطاقات ───────── */
   .card {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 1rem;
-    padding: .875rem 1rem 1rem;
+    padding: 1rem 1rem 1.125rem;
     box-shadow: var(--shadow);
   }
+  /* بطاقة الإدخال غائرة بلا ظل: ما يُملأ ليس كما يُقرأ. ولها لونها الخاص
+     لأن «الغائر» في الوضع الفاتح أغمق من السطح، وفي الداكن أغمق أيضًا -
+     لا انعكاسٌ آليّ للنهار. */
+  .card.input { background: var(--sunken); box-shadow: none; }
+
+  /* العنوان يعلو ما تحته لا يختفي دونه - كان أصغر من عناوين حقوله */
   .card > h2 {
-    margin: 0 0 .75rem;
-    font-size: .8125rem; font-weight: 700;
-    color: var(--ink-3);
-    letter-spacing: .06em;
+    margin: 0 0 .125rem;
+    font-size: 1rem; font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .card > h2 + .sub {
+    margin: 0 0 .875rem;
+    font-size: .75rem; color: var(--ink-3); line-height: 1.5;
+  }
+  .card > h2:last-of-type { margin-bottom: .875rem; }
+
+  /* فاصلٌ يقسم الصفحة فصلين: ما تُدخله، وما ينتج عنه */
+  .act {
+    display: flex; align-items: center; gap: .75rem;
+    margin: .375rem .25rem -.25rem;
+    font-size: .75rem; font-weight: 700; color: var(--ink-3);
+    letter-spacing: .08em;
+  }
+  .act::before, .act::after {
+    content: ''; height: 1px; background: var(--line); flex: 1;
   }
 
   .field { display: flex; flex-direction: column; gap: .375rem; }
@@ -196,6 +229,16 @@
   .chip:focus-visible, .num:focus-visible, .range:focus-visible {
     outline: 2px solid var(--indigo); outline-offset: 2px;
   }
+  /* خمسة أقمشة في عمودين تترك واحدًا متدلّيًا؛ يمتدّ على العرض فتُغلق الشبكة */
+  .chips.fill-last > .chip:last-child:nth-child(odd) { grid-column: span 2; }
+
+  .pill.band {
+    font-size: .6875rem; font-weight: 600;
+    padding: .125rem .5rem; border-radius: 999px;
+    background: var(--indigo-bg); color: var(--indigo-ink);
+    white-space: nowrap;
+  }
+
   .sw { width: .75rem; height: .75rem; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
 
   .row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
@@ -236,7 +279,6 @@
     padding: .3125rem 0;
     font-size: .875rem;
   }
-  .lg + .lg { border-top: 1px solid var(--line-soft); }
   .lg .name { color: var(--ink-2); }
   /* الوصف كلامًا يبقى بالخط العربي؛ ولا يصير أحاديّ العرض إلا حين يكون
      عمليةً حسابية - فالمونو بلا حروف عربية يتراخى تباعده ويبدو خطأً */
@@ -246,18 +288,39 @@
     font-family: var(--num); font-variant-numeric: tabular-nums;
     font-size: .9375rem; font-weight: 600; white-space: nowrap;
   }
+  /* المجموع يُعلَّم بخطٍّ فوقه ثم بأرضيةٍ بلون دوره: إيرادٌ، أم تكلفة،
+     أم ربح. كان الثلاثة بشكل واحد فلا يُفرَّق بينها إلا بالقراءة. */
+  /* الهامش السالب يعادل الحشو، فتبقى أعمدة الأرقام على استقامتها بينما
+     تمتدّ الأرضية أوسع من السطر - شريطُ إبرازٍ لا سطرٌ مزاح */
   .lg.sum {
-    border-top: 2px solid var(--ink); margin-top: .25rem; padding-top: .5rem;
+    border-top: 1.5px solid var(--ink);
+    margin: .375rem -.625rem 0; padding: .5rem .625rem;
+    border-radius: .5rem;
   }
   .lg.sum .name { color: var(--ink); font-weight: 700; }
   .lg.sum .amt { font-size: 1.0625rem; }
+  .lg.sum.rev   { background: var(--indigo-bg); border-top-color: var(--indigo); }
+  .lg.sum.rev .amt { color: var(--indigo-ink); }
+  .lg.sum.spend { background: var(--card-2); }
+  .lg.sum.profit { background: var(--mint-bg); border-top-color: var(--mint); }
+
+  /* مجموعٌ وسطيّ لا نهائي: خطٌّ رفيع واسمٌ ثخين بلا أرضية. شريطان ملوّنان
+     في بطاقةٍ واحدة يتنازعان النظر، والرقم الأخير هو المقصود. */
+  .lg.subtotal {
+    border-top: 1px solid var(--line);
+    margin-top: .25rem; padding-top: .4375rem;
+  }
+  .lg.subtotal .name { color: var(--ink); font-weight: 700; }
   .lg.plus .amt { color: var(--indigo); }
   .lg.muted .amt { color: var(--ink-3); }
 
+  /* الملاحظة كانت بلون حقول الإدخال نفسه فتُقرأ حقلًا معطَّلًا؛ صارت
+     نصًّا هامشيًا بعلامةٍ رفيعة على حافته */
   .note {
-    margin-top: .625rem; padding: .5rem .625rem;
-    background: var(--card-2); border-radius: .5rem;
-    font-size: .75rem; color: var(--ink-3); line-height: 1.55;
+    margin: .75rem 0 0;
+    padding: 0 .625rem;
+    border-inline-start: 2px solid var(--line);
+    font-size: .75rem; color: var(--ink-3); line-height: 1.6;
   }
 
   .flag {
@@ -289,7 +352,9 @@
   tbody td.n {
     font-family: var(--num); font-variant-numeric: tabular-nums; text-align: end;
   }
-  tbody tr.here td { background: var(--indigo-bg); }
+  tbody tr.here td { background: var(--indigo-bg); font-weight: 600; }
+  tbody tr.block-start td { border-top: 1.5px solid var(--line); }
+  tbody td.low { color: var(--coral); }
   tbody tr.here td:first-child { border-start-start-radius: .375rem; border-end-start-radius: .375rem; }
   tbody tr.here td:last-child  { border-start-end-radius: .375rem;  border-end-end-radius: .375rem; }
 
@@ -311,8 +376,9 @@
       <h1>حاسبة أسعار بيتك ديزاين</h1>
       <span>تدقيق التسعيرة</span>
     </div>
+    <div class="pleats" aria-hidden="true"></div>
     <div class="verdict">
-      <div>
+      <div class="lead">
         <span class="k">الإجمالي للزبون</span>
         <span class="v v-cust" id="v-customer">₪0</span>
       </div>
@@ -323,8 +389,9 @@
     </div>
   </header>
 
-  <section class="card">
+  <section class="card input">
     <h2>الشباك</h2>
+    <p class="sub">غيّر أي خيار وتابع الرقمين في الأعلى.</p>
 
     <div class="field">
       <label for="w">المقاس</label>
@@ -338,7 +405,7 @@
       </div>
       <div class="lg" style="padding-top:.25rem">
         <span class="name" id="dims-note">عرض 100 سم × ارتفاع 280 سم</span>
-        <span class="amt" id="band-note"></span>
+        <span class="pill band" id="band-note"></span>
       </div>
       <p class="note">
         كل متر طولي يستهلك 3 أمتار قماش، والبطانة بنسبة درجتها. الحساب
@@ -348,7 +415,7 @@
 
     <div class="field">
       <label>القماش</label>
-      <div class="chips two" id="fabrics"></div>
+      <div class="chips two fill-last" id="fabrics"></div>
     </div>
 
     <div class="field">
@@ -363,8 +430,11 @@
 
   </section>
 
+  <div class="act">النتيجة</div>
+
   <section class="card">
     <h2>ما يدفعه الزبون</h2>
+    <p class="sub">سعر المتر مضروبًا في الأمتار الطولية، ثم ما يُضاف للستارة.</p>
     <div class="ledger" id="lg-customer"></div>
     <p class="note">
       كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار شاملة الضريبة،
@@ -374,12 +444,14 @@
 
   <section class="card">
     <h2>ما يكلّفك</h2>
+    <p class="sub">معدّل التكلفة لكل متر طولي - لا يظهر للزبون.</p>
     <div class="ledger" id="lg-cost"></div>
     <p class="note" id="cost-note"></p>
   </section>
 
   <section class="card">
     <h2>الخصم والنتيجة</h2>
+    <p class="sub">الأسعار شاملة الضريبة، فتُستخرَج منها ولا تُضاف فوقها.</p>
     <div class="field">
       <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">0%</span></label>
       <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
@@ -389,7 +461,8 @@
   </section>
 
   <section class="card">
-    <h2>كل الاحتمالات بهذه المقاسات</h2>
+    <h2>كل الاحتمالات</h2>
+    <p class="sub">بالمقاسات نفسها - المظلَّل اختيارك.</p>
     <div class="scroller">
       <table>
         <thead>
@@ -411,7 +484,8 @@
   </section>
 
   <section class="card">
-    <h2>من أين جاء الربح - بندًا بندًا</h2>
+    <h2>من أين جاء الربح</h2>
+    <p class="sub">بندًا بندًا، بمبالغه الكاملة على الشباك كله.</p>
     <div class="ledger" id="lg-detail"></div>
     <p class="note" id="detail-note"></p>
   </section>
@@ -730,7 +804,7 @@
       if (p.trackPrice > 0) {
         line(C, 'المسار الكهربائي', 'على المتر الطولي', '+' + money(p.trackPrice), 'plus');
       }
-      line(C, 'سعر المتر الطولي', '', money(p.unitPrice), 'sum');
+      line(C, 'سعر المتر الطولي', '', money(p.unitPrice), 'subtotal');
       line(C, 'الأمتار الطولية',
         num(state.widthCm) + ' سم ÷ 100' + (p.units > 1 ? ' × ' + num(p.units) : ''),
         m(p.runningMeters) + ' م', 'muted');
@@ -741,7 +815,7 @@
         line(C, 'جهاز تحكم', p.units > 1 ? sh(S.remotePrice) + ' × ' + num(p.units) : 'لكل ستارة',
           '+' + money(S.remotePrice * p.units), 'plus');
       }
-      line(C, 'الإجمالي قبل الخصم', '', money(p.lineTotal), 'sum');
+      line(C, 'الإجمالي قبل الخصم', '', money(p.lineTotal), 'sum rev');
     }
 
     // ─── ورقة التكلفة
@@ -757,7 +831,7 @@
     line(K, p.motor ? 'مسار كهربائي' : 'مسار عادي', 'لكل متر طولي', money(p.trackCost));
     line(K, 'التوصيل', 'لكل متر طولي', money(S.deliveryCost));
     line(K, 'القياس والتركيب', 'لكل متر طولي', money(S.installCost));
-    line(K, 'التكلفة لكل متر طولي', '', money(p.perRmCost), 'sum');
+    line(K, 'التكلفة لكل متر طولي', '', money(p.perRmCost), 'subtotal');
     line(K, 'ثمن الأمتار', sh(p.perRmCost) + ' × ' + m(p.runningMeters), money(p.metersCost));
     if (p.motor) {
       line(K, 'ماتور', p.units > 1 ? sh(S.motorCost) + ' × ' + num(p.units) : 'لكل ستارة',
@@ -765,7 +839,7 @@
       line(K, 'جهاز تحكم', p.units > 1 ? sh(S.remoteCost) + ' × ' + num(p.units) : 'لكل ستارة',
         '+' + money(S.remoteCost * p.units), 'plus');
     }
-    line(K, 'التكلفة الكاملة', '', money(p.internalCost), 'sum');
+    line(K, 'التكلفة الكاملة', '', money(p.internalCost), 'sum spend');
 
     document.getElementById('cost-note').textContent =
       'القماش المطلوب ' + m(p.fabricMeters) + ' متر' +
@@ -779,7 +853,7 @@
     if (t.discount > 0) {
       line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
-    line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum');
+    line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum rev');
     line(F, 'الضريبة المستخرَجة', S.vatPercent + '%', '−' + money(t.vat), 'muted');
     line(F, 'الإيراد الصافي', 'عليه يُقاس الهامش', money(t.revenue));
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
@@ -849,18 +923,27 @@
           });
           var tt = totals(pp.lineTotal, pp.internalCost, state.discount);
           var tr = document.createElement('tr');
+          var cls = [];
           if (rep.kind === state.fabric.kind && ln.id === state.lining.id && tk.id === state.track) {
-            tr.className = 'here';
+            cls.push('here');
           }
+          // فاصلٌ بين كتلة الكريب وكتلة البشتان - اثنتا عشرة سطرًا متصلة
+          // تُقرأ قائمةً واحدة، وهي في الحقيقة مقارنتان
+          if (kd.kind === 'other' && ln.id === 'none' && tk.id === 'standard') {
+            cls.push('block-start');
+          }
+          tr.className = cls.join(' ');
           [kd.name, ln.label, tk.label].forEach(function (txt) {
             var td = document.createElement('td');
             td.textContent = txt;
             tr.appendChild(td);
           });
           [money(pp.unitPrice), money(tt.net), money(pp.internalCost),
-           tt.marginPercent.toFixed(1) + '%'].forEach(function (txt) {
+           tt.marginPercent.toFixed(1) + '%'].forEach(function (txt, ci) {
             var td = document.createElement('td');
-            td.className = 'n';
+            // الهامش دون الحد الأدنى يُلوَّن: العمود طويل، والعين تمسحه
+            // بحثًا عن الشاذّ لا قراءةً لكل رقم فيه
+            td.className = 'n' + (ci === 3 && tt.marginPercent < S.minMarginPercent ? ' low' : '');
             td.textContent = txt;
             tr.appendChild(td);
           });
