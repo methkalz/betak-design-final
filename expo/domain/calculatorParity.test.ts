@@ -120,6 +120,15 @@ function pagePrice(o: {
     unitPrice = 0;
   }
 
+  // بنود التكلفة بمبالغها الكاملة، كما تعرضها ورقة «من أين جاء الربح»
+  const whole = (milliPerRm: number) => divRoundHalfAway(milliPerRm * rt, 1_000_000);
+  const items = [whole(o.fabric.cost * fullTh)];
+  if (hasLining) items.push(whole(o.lining.cost * liningMulTh));
+  items.push(whole(rule[1] * 1000), whole(trackCost * 1000));
+  items.push(whole(S.deliveryCost * 1000), whole(S.installCost * 1000));
+  if (motor) items.push(S.motorCost * units, S.remoteCost * units);
+  const itemsSum = items.reduce((a, b) => a + b, 0);
+
   return {
     runningMeters: rt / 1000,
     fabricMeters: fabricTh / 1000,
@@ -127,6 +136,8 @@ function pagePrice(o: {
     unitPrice,
     lineTotal,
     internalCost,
+    itemsSum,
+    costRounding: internalCost - itemsSum,
   };
 }
 
@@ -224,6 +235,15 @@ test('كل احتمال تعرضه الصفحة يطابق المحرك أغور
                     `${where} التكلفة ${eng.internalCostAgorot}`,
                   );
                 }
+                // العمود الذي يقرأه المالك يجب أن يجمع إلى الرقم نفسه: البنود
+                // مفردةً + سطر تنزيل الكسر = التكلفة المعروضة، بلا استثناء
+                expect(`${where} جمع البنود ${page.itemsSum + page.costRounding}`).toBe(
+                  `${where} جمع البنود ${page.internalCost}`,
+                );
+                // ولا يزيد التنزيل عن شيكل واحد، وإلا فالبنود نفسها منحرفة
+                expect(`${where} التنزيل ${Math.abs(page.costRounding) < 100}`).toBe(
+                  `${where} التنزيل true`,
+                );
                 cases++;
               }
             }

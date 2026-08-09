@@ -4,8 +4,9 @@
 
   تحمل نسختها من الحساب لتعمل بلا شبكة وبلا التطبيق، ويحرسها
   `domain/calculatorParity.test.ts`: يمرّ على ١٤٤٠ احتمالًا ويطابق كل رقم
-  فيها مع `domain/pricing.ts`. أي تعديل هنا يُنقل إلى ذلك الاختبار، وإلا
-  صار التدقيق نفسه كاذبًا - يوافق المالك على أرقام ليست التي سيوقّعها الزبون.
+  فيها مع `domain/pricing.ts`، ويتحقّق أن عمود البنود يجمع إلى التكلفة
+  المعروضة نفسها. أي تعديل هنا يُنقل إلى ذلك الاختبار، وإلا صار التدقيق
+  نفسه كاذبًا - يوافق المالك على أرقام ليست التي سيوقّعها الزبون.
 
   الأرقام المضمَّنة نسخةٌ من البذرة لحظة الإرسال. لو غيّر الأدمن تسعيرةً من
   لوحته لزم تحديث هذه الصفحة أيضًا.
@@ -212,6 +213,17 @@
   }
   .range { width: 100%; accent-color: var(--indigo); }
 
+  /* المبالغ جزرٌ لاتينية داخل نصّ عربي: بلا عزلها تهاجر إشارة الناقص إلى
+     الطرف الآخر فيقرأ العين «42₪−» بدل «−₪42» - وفي ورقة تدقيقٍ إشارةٌ
+     مهاجرة تكفي لقلب المعنى. */
+  .amt, .verdict .v, tbody td.n {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  /* الوصف يخلط رقمًا بحرف عربي («14 × 3 × 1 م»)، وترتيبه الطبيعي في فقرة
+     عربية هو الصحيح - فرضُ اللاتينية عليه يقذف «م» إلى الطرف الخطأ. */
+  .lg .work.calc { unicode-bidi: isolate; }
+
   /* ───────── ورقة الحساب ─────────
      هذا هو قلب الصفحة: لا رقم بلا العمليّة التي أنتجته. الغرض تدقيقٌ
      لا تسعير، ومن يدقّق يحتاج المضروب والمضروب فيه لا الناتج وحده. */
@@ -325,7 +337,7 @@
           <input class="num" id="q" type="number" inputmode="numeric" value="1" min="1" step="1"></label>
       </div>
       <div class="lg" style="padding-top:.25rem">
-        <span class="name" id="dims-note">عرض ١٠٠ سم × ارتفاع ٢٨٠ سم</span>
+        <span class="name" id="dims-note">عرض 100 سم × ارتفاع 280 سم</span>
         <span class="amt" id="band-note"></span>
       </div>
     </div>
@@ -369,7 +381,7 @@
   <section class="card">
     <h2>الخصم والنتيجة</h2>
     <div class="field">
-      <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">٠٪</span></label>
+      <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">0%</span></label>
       <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
     </div>
     <div class="final" id="lg-final" style="margin-top:.75rem"></div>
@@ -394,8 +406,14 @@
     </div>
     <p class="note">
       السطر المظلَّل هو اختيارك أعلاه. الهامش محسوب على الإيراد بعد استخراج
-      الضريبة - وهو المعتمد للحد الأدنى ٣٥٪.
+      الضريبة - وهو المعتمد للحد الأدنى 35%.
     </p>
+  </section>
+
+  <section class="card">
+    <h2>من أين جاء الربح - بندًا بندًا</h2>
+    <div class="ledger" id="lg-detail"></div>
+    <p class="note" id="detail-note"></p>
   </section>
 
   <footer>
@@ -409,7 +427,7 @@
   'use strict';
 
   /* الصفحة تُفتح على الهاتف قبل كل شيء. بلا هذا الوسم يفترض المتصفح عرضًا
-     يقارب ١٠٠٠ بكسل ثم يصغّر الصفحة كلها - فتصير الأرقام غير مقروءة على من
+     يقارب 1000 بكسل ثم يصغّر الصفحة كلها - فتصير الأرقام غير مقروءة على من
      أُرسلت إليه أصلًا. تُحقن هنا لأن الصفحة تُنشر بلا وصولٍ إلى الترويسة. */
   if (!document.querySelector('meta[name="viewport"]')) {
     var vp = document.createElement('meta');
@@ -469,13 +487,13 @@
 
   var LININGS = [
     { id: 'none', label: 'بدون',      note: '',              cost: 0,    perRm: 0,   surcharge: 0 },
-    { id: 'l70',  label: 'تغطية ٧٠٪', note: '٣ م لكل متر',   cost: 900,  perRm: 3,   surcharge: 0 },
-    { id: 'l100', label: 'تغطية ١٠٠٪', note: '١٫٥ م لكل متر', cost: 3000, perRm: 1.5, surcharge: 17000 }
+    { id: 'l70',  label: '70%',  note: '3 م لكل متر',   cost: 900,  perRm: 3,   surcharge: 0 },
+    { id: 'l100', label: '100%', note: '1.5 م لكل متر', cost: 3000, perRm: 1.5, surcharge: 17000 }
   ];
 
   var TRACKS = [
     { id: 'standard',  label: 'عادي',    note: 'ضمن سعر القماش' },
-    { id: 'motorized', label: 'كهربائي', note: '+٢٠٠ للمتر' }
+    { id: 'motorized', label: 'كهربائي', note: '+200 للمتر' }
   ];
 
   function price(o) {
@@ -515,7 +533,44 @@
 
     if (overMax) { lineTotal = 0; metersTotal = 0; perWinPrice = 0; unitPrice = 0; }
 
+    /**
+     * البنود بمبالغها الكاملة على الشباك كله.
+     *
+     * المحرك يجمع معدّلات المتر أولًا ثم ينزّل الكسر مرةً واحدة على
+     * المجموع؛ فلو نُزِّل كل بند وحده لاختلّ المجموع. لذلك تُحسب البنود
+     * هنا بأغوروتها كاملة، ويُفرَد الفرق سطرًا باسمه في آخر العمود -
+     * فيجمع العمود إلى الرقم نفسه الذي يعرضه التطبيق.
+     */
+    function whole(milliPerRm) { return divRoundHalfAway(milliPerRm * rt, 1000000); }
+    var perM = ' × ' + (rt / 1000) + ' م';
+    var items = [
+      { label: fabric.name, work: (fabric.cost / 100) + ' × ' + o.fullness + perM,
+        amount: whole(fabric.cost * fullTh) }
+    ];
+    if (hasLining) {
+      items.push({
+        label: 'البطانة ' + lining.label,
+        work: (lining.cost / 100) + ' × ' + liningPerRm + perM,
+        amount: whole(lining.cost * liningMulTh)
+      });
+    }
+    items.push({ label: 'الخياط', work: (rule[1] / 100) + perM, amount: whole(rule[1] * 1000) });
+    items.push({ label: motor ? 'مسار كهربائي' : 'مسار عادي',
+      work: (trackCost / 100) + perM, amount: whole(trackCost * 1000) });
+    items.push({ label: 'التوصيل', work: (S.deliveryCost / 100) + perM,
+      amount: whole(S.deliveryCost * 1000) });
+    items.push({ label: 'القياس والتركيب', work: (S.installCost / 100) + perM,
+      amount: whole(S.installCost * 1000) });
+    if (motor) {
+      items.push({ label: 'ماتور', work: (S.motorCost / 100) + ' × ' + units + ' ستارة',
+        amount: S.motorCost * units });
+      items.push({ label: 'جهاز تحكم', work: (S.remoteCost / 100) + ' × ' + units + ' ستارة',
+        amount: S.remoteCost * units });
+    }
+    var itemsSum = items.reduce(function (a, i) { return a + i.amount; }, 0);
+
     return {
+      costItems: items, costRounding: internalCost - itemsSum,
       band: band, overMax: overMax, units: units,
       runningMeters: rt / 1000, fabricMeters: fabricTh / 1000, liningMeters: liningTh / 1000,
       hasLining: hasLining, motor: motor, liningPerRm: liningPerRm,
@@ -548,14 +603,26 @@
 
   /* ═══════════ العرض ═══════════ */
 
-  var AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
-  function ar(s) { return String(s).replace(/[0-9]/g, function (d) { return AR[+d]; }); }
+  /** الأرقام لاتينية كما هي في التطبيق - ليقارن الرقم بالرقم بلا ترجمة. */
+  function num(v) { return String(v); }
   function money(agorot) {
-    return '₪' + ar((agorot / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+    return '₪' + (agorot / 100).toLocaleString('en-US', { maximumFractionDigits: 0 });
   }
-  /** الشيكل بلا أغوروت في كل مكان؛ والأمتار تحتمل الكسر. */
-  function sh(agorot) { return ar(String(Math.round(agorot / 100))); }
-  function m(v) { return ar(String(Math.round(v * 1000) / 1000)); }
+  /**
+   * في ورقة التفصيل تُعرض الأغوروت حين توجد.
+   *
+   * البنود مفردةً تُنتج كسورًا (14 × 3 × 3.2 م = 134.40)، والمحرك ينزّل
+   * الكسر مرةً واحدة على المجموع لا على كل بند. لو عُرض كل بند مقرَّبًا
+   * لظهر عمودٌ لا يساوي مجموعه - وهو أسوأ ما يقع فيه من يدقّق.
+   */
+  function money2(agorot) {
+    var neg = agorot < 0, a = Math.abs(agorot);
+    return (neg ? '−' : '') + '₪' + (a / 100).toLocaleString('en-US', {
+      minimumFractionDigits: a % 100 ? 2 : 0, maximumFractionDigits: 2
+    });
+  }
+  function sh(agorot) { return String(Math.round(agorot / 100)); }
+  function m(v) { return String(Math.round(v * 1000) / 1000); }
 
   var state = {
     widthCm: 100, heightCm: 280, quantity: 1,
@@ -631,7 +698,7 @@
       function (it) { state.track = it.ref.id; });
 
     chipRow(document.getElementById('fullness'),
-      [2, 2.5, 3].map(function (f) { return { ref: f, label: '×' + ar(f) }; }),
+      [2, 2.5, 3].map(function (f) { return { ref: f, label: '×' + num(f) }; }),
       function (it) { return it.ref === state.fullness; },
       function (it) { state.fullness = it.ref; });
 
@@ -639,10 +706,10 @@
     var t = totals(p.lineTotal, p.internalCost, state.discount);
 
     document.getElementById('dims-note').textContent =
-      'عرض ' + ar(state.widthCm) + ' سم × ارتفاع ' + ar(state.heightCm) + ' سم' +
-      (p.units > 1 ? ' × ' + ar(p.units) + ' ستائر' : '');
+      'عرض ' + num(state.widthCm) + ' سم × ارتفاع ' + num(state.heightCm) + ' سم' +
+      (p.units > 1 ? ' × ' + num(p.units) + ' ستائر' : '');
     document.getElementById('band-note').textContent =
-      p.overMax ? 'فوق ٥٠٠ سم' : (p.band === 'standard' ? 'شريحة حتى ٣٢٩' : 'شريحة ٣٣٠–٥٠٠');
+      p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
     document.getElementById('v-customer').textContent = money(t.net);
     document.getElementById('v-cost').textContent = money(p.internalCost);
@@ -651,26 +718,26 @@
     var C = document.getElementById('lg-customer');
     C.textContent = '';
     if (p.overMax) {
-      line(C, 'لا تسعير تلقائي', 'الارتفاع فوق ٥٠٠ سم', '—', 'muted');
+      line(C, 'لا تسعير تلقائي', 'الارتفاع فوق 500 سم', '—', 'muted');
     } else {
       line(C, 'سعر المتر الأساسي',
-        (p.hasLining ? 'مع بطانة' : 'بلا بطانة') + ' • ' + (p.band === 'standard' ? 'حتى ٣٢٩' : '٣٣٠–٥٠٠'),
+        (p.hasLining ? 'مع بطانة' : 'بلا بطانة') + ' • ' + (p.band === 'standard' ? 'حتى 329' : '330–500'),
         money(p.basePrice));
       if (p.surcharge > 0) {
-        line(C, 'زيادة البطانة ١٠٠٪', 'على المتر الطولي', '+' + money(p.surcharge), 'plus');
+        line(C, 'زيادة البطانة 100%', 'على المتر الطولي', '+' + money(p.surcharge), 'plus');
       }
       if (p.trackPrice > 0) {
         line(C, 'المسار الكهربائي', 'على المتر الطولي', '+' + money(p.trackPrice), 'plus');
       }
       line(C, 'سعر المتر الطولي', '', money(p.unitPrice), 'sum');
       line(C, 'الأمتار الطولية',
-        ar(state.widthCm) + ' سم ÷ ١٠٠' + (p.units > 1 ? ' × ' + ar(p.units) : ''),
+        num(state.widthCm) + ' سم ÷ 100' + (p.units > 1 ? ' × ' + num(p.units) : ''),
         m(p.runningMeters) + ' م', 'muted');
       line(C, 'ثمن الأمتار', sh(p.unitPrice) + ' × ' + m(p.runningMeters), money(p.metersTotal));
       if (p.motor) {
-        line(C, 'ماتور', p.units > 1 ? sh(S.motorPrice) + ' × ' + ar(p.units) : 'لكل ستارة',
+        line(C, 'ماتور', p.units > 1 ? sh(S.motorPrice) + ' × ' + num(p.units) : 'لكل ستارة',
           '+' + money(S.motorPrice * p.units), 'plus');
-        line(C, 'جهاز تحكم', p.units > 1 ? sh(S.remotePrice) + ' × ' + ar(p.units) : 'لكل ستارة',
+        line(C, 'جهاز تحكم', p.units > 1 ? sh(S.remotePrice) + ' × ' + num(p.units) : 'لكل ستارة',
           '+' + money(S.remotePrice * p.units), 'plus');
       }
       line(C, 'الإجمالي قبل الخصم', '', money(p.lineTotal), 'sum');
@@ -679,11 +746,11 @@
     // ─── ورقة التكلفة
     var K = document.getElementById('lg-cost');
     K.textContent = '';
-    line(K, state.fabric.name, sh(state.fabric.cost) + ' × ' + ar(state.fullness),
+    line(K, state.fabric.name, sh(state.fabric.cost) + ' × ' + num(state.fullness),
       money(p.fabricPerRm));
     if (p.hasLining) {
-      line(K, 'البطانة ' + state.lining.label.replace('تغطية ', ''),
-        sh(state.lining.cost) + ' × ' + ar(p.liningPerRm), money(p.liningPerRmCost));
+      line(K, 'البطانة ' + state.lining.label,
+        sh(state.lining.cost) + ' × ' + num(p.liningPerRm), money(p.liningPerRmCost));
     }
     line(K, 'الخياط', p.band === 'standard' ? 'ارتفاع عادي' : 'ارتفاع عالٍ', money(p.tailorCost));
     line(K, p.motor ? 'مسار كهربائي' : 'مسار عادي', 'لكل متر طولي', money(p.trackCost));
@@ -692,9 +759,9 @@
     line(K, 'التكلفة لكل متر طولي', '', money(p.perRmCost), 'sum');
     line(K, 'ثمن الأمتار', sh(p.perRmCost) + ' × ' + m(p.runningMeters), money(p.metersCost));
     if (p.motor) {
-      line(K, 'ماتور', p.units > 1 ? sh(S.motorCost) + ' × ' + ar(p.units) : 'لكل ستارة',
+      line(K, 'ماتور', p.units > 1 ? sh(S.motorCost) + ' × ' + num(p.units) : 'لكل ستارة',
         '+' + money(S.motorCost * p.units), 'plus');
-      line(K, 'جهاز تحكم', p.units > 1 ? sh(S.remoteCost) + ' × ' + ar(p.units) : 'لكل ستارة',
+      line(K, 'جهاز تحكم', p.units > 1 ? sh(S.remoteCost) + ' × ' + num(p.units) : 'لكل ستارة',
         '+' + money(S.remoteCost * p.units), 'plus');
     }
     line(K, 'التكلفة الكاملة', '', money(p.internalCost), 'sum');
@@ -709,10 +776,10 @@
     F.textContent = '';
     line(F, 'الإجمالي قبل الخصم', '', money(p.lineTotal));
     if (t.discount > 0) {
-      line(F, 'الخصم', ar(state.discount) + '٪', '−' + money(t.discount), 'plus');
+      line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
     line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum');
-    line(F, 'الضريبة المستخرَجة', ar(S.vatPercent) + '٪', '−' + money(t.vat), 'muted');
+    line(F, 'الضريبة المستخرَجة', S.vatPercent + '%', '−' + money(t.vat), 'muted');
     line(F, 'الإيراد الصافي', 'عليه يُقاس الهامش', money(t.revenue));
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
     line(F, 'الربح', '', money(t.profit), 'sum profit');
@@ -724,10 +791,28 @@
     ml.textContent = 'الهامش على الإيراد الصافي';
     var mp = document.createElement('span');
     mp.className = 'pill ' + (t.marginPercent >= S.minMarginPercent ? 'ok' : 'bad');
-    mp.textContent = ar(t.marginPercent.toFixed(2)) + '٪';
+    mp.textContent = t.marginPercent.toFixed(2) + '%';
     mrow.appendChild(ml);
     mrow.appendChild(mp);
     F.appendChild(mrow);
+
+    // ─── تفصيل الربح: الإيراد ثم كل بند تكلفة على حدة حتى الربح
+    var D = document.getElementById('lg-detail');
+    D.textContent = '';
+    line(D, 'الإيراد الصافي', 'بعد استخراج الضريبة ' + S.vatPercent + '%', money2(t.revenue));
+    p.costItems.forEach(function (it) {
+      line(D, it.label, it.work, '−' + money2(it.amount));
+    });
+    if (p.costRounding !== 0) {
+      line(D, 'تنزيل المجموع إلى الشيكل', 'قاعدة «بلا أغوروت»',
+        (p.costRounding > 0 ? '−' : '+') + money2(Math.abs(p.costRounding)), 'muted');
+    }
+    line(D, 'الربح', '', money2(t.profit), 'sum profit');
+
+    document.getElementById('detail-note').textContent =
+      'مجموع البنود ' + money2(p.internalCost) + ' - وهو نفسه «التكلفة على المحل» في الأعلى. ' +
+      'الأغوروت تظهر هنا وحدها لأن البند الواحد ينتج كسرًا، والتطبيق ينزّل الكسر ' +
+      'مرةً واحدة على المجموع لا على كل بند.';
 
     // ─── التنبيهات
     var G = document.getElementById('flags');
@@ -735,18 +820,18 @@
     if (p.overMax) {
       var s1 = document.createElement('div');
       s1.className = 'flag stop';
-      s1.textContent = 'الارتفاع فوق ٥٠٠ سم: لا تسعير تلقائي إطلاقًا. الشباك يحتاج سعرًا خاصًا تضعه بنفسك.';
+      s1.textContent = 'الارتفاع فوق 500 سم: لا تسعير تلقائي إطلاقًا. الشباك يحتاج سعرًا خاصًا تضعه بنفسك.';
       G.appendChild(s1);
     } else if (t.marginPercent < S.minMarginPercent && p.lineTotal > 0) {
       var s2 = document.createElement('div');
       s2.className = 'flag warn';
-      s2.textContent = 'الهامش تحت الحد الأدنى ٣٥٪ - التطبيق ينبّه على هذا البند.';
+      s2.textContent = 'الهامش تحت الحد الأدنى 35% - التطبيق ينبّه على هذا البند.';
       G.appendChild(s2);
     }
     if (state.discount > 10) {
       var s3 = document.createElement('div');
       s3.className = 'flag warn';
-      s3.textContent = 'خصم فوق ١٠٪ يتجاوز صلاحيتك أنت أيضًا - في التطبيق يحتاج قرارًا صريحًا.';
+      s3.textContent = 'خصم فوق 10% يتجاوز صلاحيتك أنت أيضًا - في التطبيق يحتاج قرارًا صريحًا.';
       G.appendChild(s3);
     }
 
@@ -766,13 +851,13 @@
           if (rep.kind === state.fabric.kind && ln.id === state.lining.id && tk.id === state.track) {
             tr.className = 'here';
           }
-          [kd.name, ln.label.replace('تغطية ', ''), tk.label].forEach(function (txt) {
+          [kd.name, ln.label, tk.label].forEach(function (txt) {
             var td = document.createElement('td');
             td.textContent = txt;
             tr.appendChild(td);
           });
           [money(pp.unitPrice), money(tt.net), money(pp.internalCost),
-           ar(tt.marginPercent.toFixed(1)) + '٪'].forEach(function (txt) {
+           tt.marginPercent.toFixed(1) + '%'].forEach(function (txt) {
             var td = document.createElement('td');
             td.className = 'n';
             td.textContent = txt;
@@ -799,7 +884,7 @@
   var d = document.getElementById('d');
   d.addEventListener('input', function () {
     state.discount = parseInt(d.value, 10) || 0;
-    document.getElementById('d-label').textContent = ar(state.discount) + '٪';
+    document.getElementById('d-label').textContent = state.discount + '%';
     render();
   });
 
