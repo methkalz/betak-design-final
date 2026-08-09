@@ -686,7 +686,7 @@ const windows: WindowUnit[] = [
     heightCm: 220,
     hasLining: false,
     track: 'standard',
-    fullness: 2.5,
+    fullness: 3,
     fabricVariantId: 'var-crepe-white',
     liningVariantId: null,
     quantity: 1,
@@ -740,7 +740,7 @@ const windows: WindowUnit[] = [
     heightCm: 240,
     hasLining: false,
     track: 'standard',
-    fullness: 2.5,
+    fullness: 3,
     fabricVariantId: 'var-bashtan-beige',
     liningVariantId: null,
     quantity: 1,
@@ -758,7 +758,7 @@ const windows: WindowUnit[] = [
     heightCm: 250,
     hasLining: true,
     track: 'standard',
-    fullness: 2.5,
+    fullness: 3,
     fabricVariantId: 'var-crepe-white',
     liningVariantId: 'var-lining-70',
     quantity: 1,
@@ -1450,4 +1450,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v10';
+export const SEED_VERSION = 'baytak-seed-v11';

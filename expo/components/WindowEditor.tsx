@@ -47,6 +47,15 @@ export function nextWindowName(count: number): string {
   return count < ORDINALS.length ? `الشباك ${ORDINALS[count]}` : `الشباك ${count + 1}`;
 }
 
+/**
+ * كل متر طولي يستهلك ثلاثة أمتار قماش - قاعدة المحل لا خيار الشباك.
+ *
+ * كان شريطًا يُختار منه، وكل اختيارٍ لا يُتّخذ فعلًا بابُ خطأ: يُترك على
+ * قيمةٍ سهوًا فيخرج عرض سعر بأمتار غير التي ستُقص. الحقل باقٍ في النموذج
+ * لأن محرك SQL ومتجهاته الذهبية مبنيّة عليه، لكنه لم يعد سؤالًا.
+ */
+const FULLNESS = 3;
+
 interface Props {
   projectId: string;
   roomId: string;
@@ -63,7 +72,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
   const [track, setTrack] = useState<TrackType>(existing?.track ?? 'standard');
   const [hasLining, setHasLining] = useState<boolean>(existing?.hasLining ?? true);
-  const [fullness, setFullness] = useState<number>(existing?.fullness ?? 3);
   const [fabricVariantId, setFabricVariantId] = useState<string | null>(
     existing?.fabricVariantId ?? null,
   );
@@ -107,7 +115,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         heightCm,
         hasLining,
         track,
-        fullness,
+        fullness: FULLNESS,
         fabricVariantId,
         liningVariantId,
         quantity: 1,
@@ -132,7 +140,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     name,
     hasLining,
     track,
-    fullness,
     notes,
   ]);
 
@@ -147,7 +154,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       heightCm,
       hasLining,
       track,
-      fullness,
+      fullness: FULLNESS,
       fabricVariantId,
       liningVariantId,
       quantity: 1,
@@ -168,7 +175,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
    * الإدخال المتتابع (M2): الحفظ يبقيك في المحرر جاهزًا للشباك التالي.
    *
    * ما يتكرر في شبابيك الغرفة الواحدة يُحمَل (المسار والقماش
-   * والبطانة والمضاعف) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
+   * والبطانة) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
    * شباك وحده يُصفَّر (المقاسات، الملاحظات، الاسم يتقدّم للترتيب التالي).
    * هكذا تُدخَل خمسة شبابيك بخمسة قياسات لا بخمسة نماذج كاملة.
    */
@@ -235,7 +242,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       <Card>
-        <AppText variant="heading">المسار والمضاعف</AppText>
+        <AppText variant="heading">المسار والبطانة</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
           <AppText variant="label" color={palette.muted}>
             المسار
@@ -249,19 +256,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               value: t,
               label: TRACK_LABELS[t],
             }))}
-          />
-
-          <AppText variant="label" color={palette.muted}>
-            المضاعف (Fullness)
-          </AppText>
-          <SegmentedControl
-            value={String(fullness)}
-            onChange={(v) => setFullness(parseFloat(v))}
-            options={[
-              { value: '2', label: '×2' },
-              { value: '2.5', label: '×2.5' },
-              { value: '3', label: '×3' },
-            ]}
           />
 
           <Divider />
