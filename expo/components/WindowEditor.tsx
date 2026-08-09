@@ -84,10 +84,17 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
 
+  const fabricProducts = db.fabricProducts.filter((p) => p.kind !== 'lining');
   const fabricVariants = db.fabricVariants.filter((v) => {
     const p = db.fabricProducts.find((x) => x.id === v.productId);
     return p?.kind !== 'lining';
   });
+  const [productId, setProductId] = useState<string>(
+    () =>
+      db.fabricVariants.find((v) => v.id === existing?.fabricVariantId)?.productId ??
+      fabricProducts[0]?.id ??
+      '',
+  );
   const liningVariants = db.fabricVariants.filter((v) => {
     const p = db.fabricProducts.find((x) => x.id === v.productId);
     return p?.kind === 'lining';
@@ -293,29 +300,39 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
             يُقال هنا قبل الحفظ لا في رسالة خطأ بعده. */}
         <SectionHeader
           title="القماش"
-          subtitle={fabricVariantId ? 'اختر اللون من مكتبة الأقمشة' : 'مطلوب - عليه يقوم السعر والحجز'}
+          subtitle={fabricVariantId ? 'النوع ثم اللون' : 'مطلوب - عليه يقوم السعر والحجز'}
         />
-        <Row gap={spacing.sm} wrap>
-          {fabricVariants.map((v) => {
-            const p = db.fabricProducts.find((x) => x.id === v.productId);
-            const active = fabricVariantId === v.id;
-            return (
-              <Pressable
-                key={v.id}
-                onPress={() => setFabricVariantId(v.id)}
-                style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
-              >
-                <Swatch color={v.colorHex} size={40} />
-                <View>
-                  <AppText variant="caption">{p?.name}</AppText>
-                  <AppText variant="caption" color={palette.muted}>
-                    {v.colorName}
-                  </AppText>
-                </View>
-                {active && <Check size={16} color={palette.olive} />}
-              </Pressable>
-            );
-          })}
+        {/* النوع أولًا ثم ألوانه: سردُ كل الألوان معًا يُخفي أنها صنفان،
+            وتطول القائمة كلما دخل لونٌ جديد على المكتبة. */}
+        <SegmentedControl
+          value={productId}
+          onChange={(id) => {
+            setProductId(id);
+            // تبديل النوع يُلغي اللون: ألوان الأول لا وجود لها في الثاني،
+            // وحمل لونٍ سابقًا إلى نوعٍ جديد يعني قماشًا لا يملكه المحل
+            setFabricVariantId(null);
+          }}
+          options={fabricProducts.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
+          {fabricVariants
+            .filter((v) => v.productId === productId)
+            .map((v) => {
+              const active = fabricVariantId === v.id;
+              return (
+                <Pressable
+                  key={v.id}
+                  accessibilityRole="radio"
+                  aria-checked={active}
+                  onPress={() => setFabricVariantId(v.id)}
+                  style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
+                >
+                  <Swatch color={v.colorHex} size={40} />
+                  <AppText variant="label">{v.colorName}</AppText>
+                  {active && <Check size={16} color={palette.olive} />}
+                </Pressable>
+              );
+            })}
         </Row>
 
         <Divider />
