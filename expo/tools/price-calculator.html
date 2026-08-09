@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<!--
+  حاسبة تدقيق الأسعار - صفحة واحدة تُرسَل إلى صاحب المحل.
+
+  تحمل نسختها من الحساب لتعمل بلا شبكة وبلا التطبيق، ويحرسها
+  `domain/calculatorParity.test.ts`: يمرّ على ١٤٤٠ احتمالًا ويطابق كل رقم
+  فيها مع `domain/pricing.ts`. أي تعديل هنا يُنقل إلى ذلك الاختبار، وإلا
+  صار التدقيق نفسه كاذبًا - يوافق المالك على أرقام ليست التي سيوقّعها الزبون.
+
+  الأرقام المضمَّنة نسخةٌ من البذرة لحظة الإرسال. لو غيّر الأدمن تسعيرةً من
+  لوحته لزم تحديث هذه الصفحة أيضًا.
+-->
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حاسبة أسعار بيتك ديزاين</title>
+
+<style>
+  /* ───────── الرموز ─────────
+     النيلي من التطبيق نفسه ليقرأها صاحب المحل كامتداد لما بين يديه.
+     الحياد مائل نحو النيلي قليلًا - رمادٌ صافٍ يبدو غير مقصود. */
+  :root {
+    direction: rtl;
+
+    --paper:      #F4F4FA;
+    --card:       #FFFFFF;
+    --card-2:     #FAFAFE;
+    --line:       #E4E4F1;
+    --line-soft:  #EFEFF8;
+    --ink:        #14172B;
+    --ink-2:      #4A5070;
+    --ink-3:      #858BA8;
+
+    --indigo:     #4F46E5;
+    --on-accent:  #FFFFFF;
+    --indigo-ink: #3B32C4;
+    --indigo-bg:  #ECEBFE;
+    --deep:       #211D63;
+    --coral:      #E05A50;
+    --coral-bg:   #FFE9E6;
+    --mint:       #0B8F6B;
+    --mint-bg:    #DDF6EE;
+    --amber:      #B0730A;
+    --amber-bg:   #FDF0D8;
+
+    --shadow: 0 1px 2px rgba(20, 23, 43, .05), 0 8px 24px -16px rgba(20, 23, 43, .18);
+
+    --ar: "SF Arabic", "Geeza Pro", "Noto Naskh Arabic", "Segoe UI",
+          Tahoma, "Arial", sans-serif;
+    --num: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #0D0F1E;
+      --card:       #171A2E;
+      --card-2:     #1D2038;
+      --line:       #2B2F4A;
+      --line-soft:  #23273F;
+      --ink:        #EDEEF6;
+      --ink-2:      #A9AFC9;
+      --ink-3:      #767D9C;
+
+      --indigo:     #8B85F5;
+      --on-accent:  #14172B;
+      --indigo-ink: #A5A0F8;
+      --indigo-bg:  #262457;
+      --deep:       #C7C3FB;
+      --coral:      #FF8F86;
+      --coral-bg:   #45241F;
+      --mint:       #4ED8AC;
+      --mint-bg:    #10382C;
+      --amber:      #F0B44E;
+      --amber-bg:   #3B2C0E;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .7);
+    }
+  }
+
+  /* مبدّل العارض يعلو على تفضيل النظام في الاتجاهين */
+  :root[data-theme="light"] {
+    --paper: #F4F4FA; --card: #FFFFFF; --card-2: #FAFAFE;
+    --line: #E4E4F1; --line-soft: #EFEFF8;
+    --ink: #14172B; --ink-2: #4A5070; --ink-3: #858BA8;
+    --indigo: #4F46E5; --on-accent: #FFFFFF; --indigo-ink: #3B32C4; --indigo-bg: #ECEBFE;
+    --deep: #211D63; --coral: #E05A50; --coral-bg: #FFE9E6;
+    --mint: #0B8F6B; --mint-bg: #DDF6EE; --amber: #B0730A; --amber-bg: #FDF0D8;
+    --shadow: 0 1px 2px rgba(20,23,43,.05), 0 8px 24px -16px rgba(20,23,43,.18);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0F1E; --card: #171A2E; --card-2: #1D2038;
+    --line: #2B2F4A; --line-soft: #23273F;
+    --ink: #EDEEF6; --ink-2: #A9AFC9; --ink-3: #767D9C;
+    --indigo: #8B85F5; --on-accent: #14172B; --indigo-ink: #A5A0F8; --indigo-bg: #262457;
+    --deep: #C7C3FB; --coral: #FF8F86; --coral-bg: #45241F;
+    --mint: #4ED8AC; --mint-bg: #10382C; --amber: #F0B44E; --amber-bg: #3B2C0E;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ar);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 30rem;
+    margin: 0 auto;
+    padding: 0 1rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ───────── الترويسة ─────────
+     رقما الحكم ملتصقان بأعلى الشاشة: يتغيّران تحت الإبهام وهو يبدّل
+     الخيارات، فلا يحتاج أن يعود إليهما بالتمرير في كل مرة. */
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    padding: .75rem 0 .5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: .5rem; margin-bottom: .5rem;
+  }
+  .brand h1 { margin: 0; font-size: 1.0625rem; font-weight: 700; letter-spacing: -.01em; }
+  .brand span { font-size: .75rem; color: var(--ink-3); }
+
+  .verdict { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .verdict > div {
+    border-radius: .75rem; padding: .5rem .625rem;
+    border: 1px solid var(--line);
+    background: var(--card);
+  }
+  .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
+  .verdict .v {
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-size: 1.375rem; font-weight: 600; line-height: 1.2;
+    letter-spacing: -.02em; display: block;
+  }
+  .v-cust { color: var(--indigo); }
+  .v-cost { color: var(--ink-2); }
+
+  /* ───────── البطاقات ───────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    padding: .875rem 1rem 1rem;
+    box-shadow: var(--shadow);
+  }
+  .card > h2 {
+    margin: 0 0 .75rem;
+    font-size: .8125rem; font-weight: 700;
+    color: var(--ink-3);
+    letter-spacing: .06em;
+  }
+
+  .field { display: flex; flex-direction: column; gap: .375rem; }
+  .field + .field { margin-top: .875rem; }
+  .field > label { font-size: .8125rem; color: var(--ink-2); font-weight: 600; }
+
+  /* رقاقات بحجم الإبهام: 44px الحد الأدنى للمس المريح. وعدد الأعمدة مثبَّت
+     لكل صفٍّ بحسب طول أسمائه - الالتفاف التلقائي كان يترك رقاقةً وحيدة
+     مضغوطة بجانب أختين واسعتين. */
+  .chips { display: grid; gap: .375rem; }
+  .chips.two   { grid-template-columns: repeat(2, 1fr); }
+  .chips.three { grid-template-columns: repeat(3, 1fr); }
+  .chip {
+    min-height: 2.75rem;
+    padding: .375rem .75rem;
+    border-radius: .625rem;
+    border: 1px solid var(--line);
+    background: var(--card-2);
+    color: var(--ink);
+    font-family: var(--ar); font-size: .875rem; line-height: 1.3;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .chip small { font-size: .6875rem; color: var(--ink-3); }
+  .chip[aria-pressed="true"] {
+    background: var(--indigo); border-color: var(--indigo); color: var(--on-accent);
+  }
+  .chip[aria-pressed="true"] small { color: var(--on-accent); opacity: .75; }
+  .chip:focus-visible, .num:focus-visible, .range:focus-visible {
+    outline: 2px solid var(--indigo); outline-offset: 2px;
+  }
+  .sw { width: .75rem; height: .75rem; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
+  .nf { display: flex; flex-direction: column; gap: .25rem; }
+  .nf > span {
+    font-size: .6875rem; color: var(--ink-3); text-align: center;
+  }
+  .num {
+    width: 100%; box-sizing: border-box;
+    min-height: 2.75rem; padding: .25rem .625rem;
+    border: 1px solid var(--line); border-radius: .625rem;
+    background: var(--card-2); color: var(--ink);
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-size: 1rem; text-align: center;
+  }
+  .range { width: 100%; accent-color: var(--indigo); }
+
+  /* ───────── ورقة الحساب ─────────
+     هذا هو قلب الصفحة: لا رقم بلا العمليّة التي أنتجته. الغرض تدقيقٌ
+     لا تسعير، ومن يدقّق يحتاج المضروب والمضروب فيه لا الناتج وحده. */
+  .ledger { display: flex; flex-direction: column; }
+  .lg {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .3125rem 0;
+    font-size: .875rem;
+  }
+  .lg + .lg { border-top: 1px solid var(--line-soft); }
+  .lg .name { color: var(--ink-2); }
+  /* الوصف كلامًا يبقى بالخط العربي؛ ولا يصير أحاديّ العرض إلا حين يكون
+     عمليةً حسابية - فالمونو بلا حروف عربية يتراخى تباعده ويبدو خطأً */
+  .lg .work { font-size: .75rem; color: var(--ink-3); margin-inline-start: .375rem; }
+  .lg .work.calc { font-family: var(--num); font-variant-numeric: tabular-nums; }
+  .lg .amt {
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-size: .9375rem; font-weight: 600; white-space: nowrap;
+  }
+  .lg.sum {
+    border-top: 2px solid var(--ink); margin-top: .25rem; padding-top: .5rem;
+  }
+  .lg.sum .name { color: var(--ink); font-weight: 700; }
+  .lg.sum .amt { font-size: 1.0625rem; }
+  .lg.plus .amt { color: var(--indigo); }
+  .lg.muted .amt { color: var(--ink-3); }
+
+  .note {
+    margin-top: .625rem; padding: .5rem .625rem;
+    background: var(--card-2); border-radius: .5rem;
+    font-size: .75rem; color: var(--ink-3); line-height: 1.55;
+  }
+
+  .flag {
+    margin-top: .75rem; padding: .625rem .75rem;
+    border-radius: .625rem; font-size: .8125rem; line-height: 1.5;
+  }
+  .flag.warn { background: var(--amber-bg); color: var(--amber); }
+  .flag.stop { background: var(--coral-bg); color: var(--coral); }
+
+  .final { display: flex; flex-direction: column; gap: .125rem; }
+  .final .lg .amt { font-size: 1rem; }
+  .profit .amt { color: var(--mint); }
+  .pill {
+    display: inline-block; padding: .0625rem .5rem; border-radius: 999px;
+    font-family: var(--num); font-size: .8125rem; font-weight: 600;
+  }
+  .pill.ok  { background: var(--mint-bg);  color: var(--mint); }
+  .pill.bad { background: var(--coral-bg); color: var(--coral); }
+
+  /* ───────── جدول الاحتمالات ───────── */
+  .scroller { overflow-x: auto; margin: 0 -1rem; padding: 0 1rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .8125rem; }
+  th, td { padding: .4375rem .375rem; text-align: start; white-space: nowrap; }
+  thead th {
+    font-size: .6875rem; color: var(--ink-3); font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { border-bottom: 1px solid var(--line-soft); }
+  tbody td.n {
+    font-family: var(--num); font-variant-numeric: tabular-nums; text-align: end;
+  }
+  tbody tr.here td { background: var(--indigo-bg); }
+  tbody tr.here td:first-child { border-start-start-radius: .375rem; border-end-start-radius: .375rem; }
+  tbody tr.here td:last-child  { border-start-end-radius: .375rem;  border-end-end-radius: .375rem; }
+
+  footer {
+    text-align: center; font-size: .75rem; color: var(--ink-3);
+    line-height: 1.7; padding-top: .5rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" dir="rtl" lang="ar">
+
+  <header class="top">
+    <div class="brand">
+      <h1>حاسبة أسعار بيتك ديزاين</h1>
+      <span>تدقيق التسعيرة</span>
+    </div>
+    <div class="verdict">
+      <div>
+        <span class="k">الإجمالي للزبون</span>
+        <span class="v v-cust" id="v-customer">₪0</span>
+      </div>
+      <div>
+        <span class="k">التكلفة على المحل</span>
+        <span class="v v-cost" id="v-cost">₪0</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="card">
+    <h2>الشباك</h2>
+
+    <div class="field">
+      <label for="w">المقاس</label>
+      <div class="row2">
+        <label class="nf" for="w"><span>العرض سم</span>
+          <input class="num" id="w" type="number" inputmode="decimal" value="100" min="1" step="1"></label>
+        <label class="nf" for="h"><span>الارتفاع سم</span>
+          <input class="num" id="h" type="number" inputmode="decimal" value="280" min="1" step="1"></label>
+        <label class="nf" for="q"><span>عدد الستائر</span>
+          <input class="num" id="q" type="number" inputmode="numeric" value="1" min="1" step="1"></label>
+      </div>
+      <div class="lg" style="padding-top:.25rem">
+        <span class="name" id="dims-note">عرض ١٠٠ سم × ارتفاع ٢٨٠ سم</span>
+        <span class="amt" id="band-note"></span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>القماش</label>
+      <div class="chips two" id="fabrics"></div>
+    </div>
+
+    <div class="field">
+      <label>البطانة</label>
+      <div class="chips three" id="linings"></div>
+    </div>
+
+    <div class="field">
+      <label>المسار</label>
+      <div class="chips two" id="tracks"></div>
+    </div>
+
+    <div class="field">
+      <label>المضاعف - كم مترًا من القماش لكل متر طولي</label>
+      <div class="chips three" id="fullness"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>ما يدفعه الزبون</h2>
+    <div class="ledger" id="lg-customer"></div>
+    <p class="note">
+      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت. والأسعار شاملة الضريبة،
+      فالضريبة تُستخرَج من المبلغ ولا تُضاف فوقه.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>ما يكلّفك</h2>
+    <div class="ledger" id="lg-cost"></div>
+    <p class="note" id="cost-note"></p>
+  </section>
+
+  <section class="card">
+    <h2>الخصم والنتيجة</h2>
+    <div class="field">
+      <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">٠٪</span></label>
+      <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
+    </div>
+    <div class="final" id="lg-final" style="margin-top:.75rem"></div>
+    <div id="flags"></div>
+  </section>
+
+  <section class="card">
+    <h2>كل الاحتمالات بهذه المقاسات</h2>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>القماش</th><th>البطانة</th><th>المسار</th>
+            <th style="text-align:end">للمتر</th>
+            <th style="text-align:end">للزبون</th>
+            <th style="text-align:end">التكلفة</th>
+            <th style="text-align:end">الهامش</th>
+          </tr>
+        </thead>
+        <tbody id="matrix"></tbody>
+      </table>
+    </div>
+    <p class="note">
+      السطر المظلَّل هو اختيارك أعلاه. الهامش محسوب على الإيراد بعد استخراج
+      الضريبة - وهو المعتمد للحد الأدنى ٣٥٪.
+    </p>
+  </section>
+
+  <footer>
+    الأرقام هنا هي نفسها التي في التطبيق، بالحساب نفسه رقمًا رقمًا.<br>
+    أي فرق - ولو شيكل واحد - يعني خللًا يجب تصحيحه قبل إصدار أي عرض.
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* الصفحة تُفتح على الهاتف قبل كل شيء. بلا هذا الوسم يفترض المتصفح عرضًا
+     يقارب ١٠٠٠ بكسل ثم يصغّر الصفحة كلها - فتصير الأرقام غير مقروءة على من
+     أُرسلت إليه أصلًا. تُحقن هنا لأن الصفحة تُنشر بلا وصولٍ إلى الترويسة. */
+  if (!document.querySelector('meta[name="viewport"]')) {
+    var vp = document.createElement('meta');
+    vp.setAttribute('name', 'viewport');
+    vp.setAttribute('content', 'width=device-width, initial-scale=1');
+    document.head.appendChild(vp);
+  }
+
+  /* ═══════════ محرّك التسعير ═══════════
+     مرآةٌ حرفية لـ domain/pricing.ts: كل المبالغ بالأغورة كأعداد صحيحة،
+     والأمتار بالألف من المتر، وكل قسمة صحيحةٌ بتقريب النصف بعيدًا عن الصفر
+     - كما في PostgreSQL. لا قسمة عشرية تمسّ رقمًا ماليًا. */
+
+  function divRoundHalfAway(numer, denom) {
+    var sign = numer < 0 ? -1 : 1;
+    var n = Math.abs(numer);
+    var q = Math.floor(n / denom);
+    var r = n - q * denom;
+    return sign * (r * 2 >= denom ? q + 1 : q);
+  }
+  /** قاعدة المالك: الكسر يُسقَط لا يُقرَّب - فلا يدفع الزبون فوق الحسبة. */
+  function floorToShekel(agorot) { return Math.floor(agorot / 100) * 100; }
+  function rmTh(widthCm, quantity) {
+    return divRoundHalfAway(Math.round(widthCm * 100) * quantity, 10);
+  }
+
+  var S = {
+    trackCost: 1000, deliveryCost: 1000, installCost: 1500,
+    motorTrackCost: 10000, motorTrackPrice: 20000,
+    motorCost: 40000, motorPrice: 90000,
+    remoteCost: 10000, remotePrice: 20000,
+    vatPercent: 18, minMarginPercent: 35
+  };
+
+  var RULES = {
+    standard: {
+      crepe_with_lining:    [29000, 4000],
+      crepe_without_lining: [27000, 4000],
+      other_with_lining:    [35000, 4000],
+      other_without_lining: [29000, 4000]
+    },
+    tall: {
+      crepe_with_lining:    [45000, 7000],
+      crepe_without_lining: [43000, 7000],
+      other_with_lining:    [51000, 7000],
+      other_without_lining: [45000, 7000]
+    }
+  };
+
+  var FABRICS = [
+    { id: 'crg-ow', name: 'كريب جورجيت', color: 'أوف وايت', kind: 'crepe', cost: 1400, hex: '#F2EDE4' },
+    { id: 'crg-w',  name: 'كريب جورجيت', color: 'أبيض',     kind: 'crepe', cost: 1400, hex: '#FFFFFF' },
+    { id: 'bsh-ow', name: 'بشتان',       color: 'أوف وايت', kind: 'other', cost: 2000, hex: '#F2EDE4' },
+    { id: 'bsh-w',  name: 'بشتان',       color: 'أبيض',     kind: 'other', cost: 2000, hex: '#FFFFFF' },
+    { id: 'bsh-b',  name: 'بشتان',       color: 'بيج',      kind: 'other', cost: 2000, hex: '#D8C3A5' }
+  ];
+
+  var LININGS = [
+    { id: 'none', label: 'بدون',      note: '',              cost: 0,    perRm: 0,   surcharge: 0 },
+    { id: 'l70',  label: 'تغطية ٧٠٪', note: '٣ م لكل متر',   cost: 900,  perRm: 3,   surcharge: 0 },
+    { id: 'l100', label: 'تغطية ١٠٠٪', note: '١٫٥ م لكل متر', cost: 3000, perRm: 1.5, surcharge: 17000 }
+  ];
+
+  var TRACKS = [
+    { id: 'standard',  label: 'عادي',    note: 'ضمن سعر القماش' },
+    { id: 'motorized', label: 'كهربائي', note: '+٢٠٠ للمتر' }
+  ];
+
+  function price(o) {
+    var fabric = o.fabric, lining = o.lining, motor = o.track === 'motorized';
+    var hasLining = lining.id !== 'none';
+    var band = o.heightCm >= 330 ? 'tall' : 'standard';
+    var overMax = o.heightCm > 500;
+    var cat = (fabric.kind === 'crepe' ? 'crepe' : 'other') + (hasLining ? '_with_lining' : '_without_lining');
+    var rule = RULES[band][cat];
+
+    var units = Math.max(1, o.quantity);
+    var trackCost  = motor ? S.motorTrackCost  : S.trackCost;
+    var trackPrice = motor ? S.motorTrackPrice : 0;
+    var perWinPrice = motor ? (S.motorPrice + S.remotePrice) * units : 0;
+    var perWinCost  = motor ? (S.motorCost  + S.remoteCost)  * units : 0;
+
+    var surcharge = hasLining ? lining.surcharge : 0;
+    var unitPrice = rule[0] + surcharge + trackPrice;
+
+    var rt = rmTh(o.widthCm, units);
+    var fullTh = Math.round(o.fullness * 1000);
+    var liningPerRm = hasLining && lining.perRm > 0 ? lining.perRm : o.fullness;
+    var liningMulTh = Math.round(liningPerRm * 1000);
+
+    var fabricTh = divRoundHalfAway(rt * fullTh, 1000);
+    var liningTh = hasLining ? divRoundHalfAway(rt * liningMulTh, 1000) : 0;
+
+    var metersTotal = floorToShekel(divRoundHalfAway(unitPrice * rt, 1000));
+    var lineTotal = metersTotal + perWinPrice;
+
+    var perRmMilli =
+      fabric.cost * fullTh +
+      (hasLining ? lining.cost * liningMulTh : 0) +
+      (rule[1] + trackCost + S.deliveryCost + S.installCost) * 1000;
+    var metersCost = floorToShekel(divRoundHalfAway(perRmMilli * rt, 1000000));
+    var internalCost = metersCost + perWinCost;
+
+    if (overMax) { lineTotal = 0; metersTotal = 0; perWinPrice = 0; unitPrice = 0; }
+
+    return {
+      band: band, overMax: overMax, units: units,
+      runningMeters: rt / 1000, fabricMeters: fabricTh / 1000, liningMeters: liningTh / 1000,
+      hasLining: hasLining, motor: motor, liningPerRm: liningPerRm,
+      basePrice: overMax ? 0 : rule[0], surcharge: overMax ? 0 : surcharge,
+      trackPrice: overMax ? 0 : trackPrice, unitPrice: unitPrice,
+      metersTotal: metersTotal, perWinPrice: perWinPrice, lineTotal: lineTotal,
+      tailorCost: rule[1], trackCost: trackCost,
+      fabricPerRm: divRoundHalfAway(fabric.cost * fullTh, 1000),
+      liningPerRmCost: hasLining ? divRoundHalfAway(lining.cost * liningMulTh, 1000) : 0,
+      perRmCost: perRmMilli / 1000,
+      metersCost: metersCost, perWinCost: perWinCost, internalCost: internalCost
+    };
+  }
+
+  /** التجميع: الإجمالي هو الصافي، والضريبة تُستخرَج منه لا تُضاف عليه. */
+  function totals(subtotal, cost, discountPercent) {
+    var pct = Math.round(discountPercent * 100);
+    var vat = Math.round(S.vatPercent * 100);
+    var discount = floorToShekel(divRoundHalfAway(subtotal * pct, 10000));
+    var net = subtotal - discount;
+    var revenue = floorToShekel(divRoundHalfAway(net * 10000, 10000 + vat));
+    return {
+      discount: discount, net: net, vat: net - revenue, revenue: revenue,
+      profit: revenue - cost,
+      marginPercent: revenue > 0
+        ? divRoundHalfAway((revenue - cost) * 10000, revenue) / 100
+        : 0
+    };
+  }
+
+  /* ═══════════ العرض ═══════════ */
+
+  var AR = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+  function ar(s) { return String(s).replace(/[0-9]/g, function (d) { return AR[+d]; }); }
+  function money(agorot) {
+    return '₪' + ar((agorot / 100).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+  }
+  /** الشيكل بلا أغوروت في كل مكان؛ والأمتار تحتمل الكسر. */
+  function sh(agorot) { return ar(String(Math.round(agorot / 100))); }
+  function m(v) { return ar(String(Math.round(v * 1000) / 1000)); }
+
+  var state = {
+    widthCm: 100, heightCm: 280, quantity: 1,
+    fabric: FABRICS[0], lining: LININGS[1], track: 'standard',
+    fullness: 3, discount: 0
+  };
+
+  function chipRow(host, items, isOn, onPick) {
+    host.textContent = '';
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.setAttribute('aria-pressed', isOn(it) ? 'true' : 'false');
+      if (it.hex) {
+        var s = document.createElement('span');
+        s.className = 'sw';
+        s.style.background = it.hex;
+        b.appendChild(s);
+      }
+      var t = document.createElement('span');
+      t.textContent = it.label;
+      b.appendChild(t);
+      if (it.note) {
+        var n = document.createElement('small');
+        n.textContent = it.note;
+        b.appendChild(n);
+      }
+      b.addEventListener('click', function () { onPick(it); render(); });
+      host.appendChild(b);
+    });
+  }
+
+  function line(host, name, work, amount, cls) {
+    var row = document.createElement('div');
+    row.className = 'lg' + (cls ? ' ' + cls : '');
+    var l = document.createElement('span');
+    l.className = 'name';
+    l.textContent = name;
+    if (work) {
+      var w = document.createElement('span');
+      w.className = /[×÷]/.test(work) ? 'work calc' : 'work';
+      w.textContent = work;
+      l.appendChild(w);
+    }
+    var a = document.createElement('span');
+    a.className = 'amt';
+    a.textContent = amount;
+    row.appendChild(l);
+    row.appendChild(a);
+    host.appendChild(row);
+  }
+
+  function render() {
+    // ─── المدخلات
+    document.getElementById('w').value = state.widthCm;
+    document.getElementById('h').value = state.heightCm;
+    document.getElementById('q').value = state.quantity;
+
+    chipRow(document.getElementById('fabrics'),
+      FABRICS.map(function (f) { return { ref: f, label: f.name, note: f.color, hex: f.hex }; }),
+      function (it) { return it.ref.id === state.fabric.id; },
+      function (it) { state.fabric = it.ref; });
+
+    chipRow(document.getElementById('linings'),
+      LININGS.map(function (l) { return { ref: l, label: l.label, note: l.note }; }),
+      function (it) { return it.ref.id === state.lining.id; },
+      function (it) { state.lining = it.ref; });
+
+    chipRow(document.getElementById('tracks'),
+      TRACKS.map(function (t) { return { ref: t, label: t.label, note: t.note }; }),
+      function (it) { return it.ref.id === state.track; },
+      function (it) { state.track = it.ref.id; });
+
+    chipRow(document.getElementById('fullness'),
+      [2, 2.5, 3].map(function (f) { return { ref: f, label: '×' + ar(f) }; }),
+      function (it) { return it.ref === state.fullness; },
+      function (it) { state.fullness = it.ref; });
+
+    var p = price(state);
+    var t = totals(p.lineTotal, p.internalCost, state.discount);
+
+    document.getElementById('dims-note').textContent =
+      'عرض ' + ar(state.widthCm) + ' سم × ارتفاع ' + ar(state.heightCm) + ' سم' +
+      (p.units > 1 ? ' × ' + ar(p.units) + ' ستائر' : '');
+    document.getElementById('band-note').textContent =
+      p.overMax ? 'فوق ٥٠٠ سم' : (p.band === 'standard' ? 'شريحة حتى ٣٢٩' : 'شريحة ٣٣٠–٥٠٠');
+
+    document.getElementById('v-customer').textContent = money(t.net);
+    document.getElementById('v-cost').textContent = money(p.internalCost);
+
+    // ─── ورقة الزبون
+    var C = document.getElementById('lg-customer');
+    C.textContent = '';
+    if (p.overMax) {
+      line(C, 'لا تسعير تلقائي', 'الارتفاع فوق ٥٠٠ سم', '—', 'muted');
+    } else {
+      line(C, 'سعر المتر الأساسي',
+        (p.hasLining ? 'مع بطانة' : 'بلا بطانة') + ' • ' + (p.band === 'standard' ? 'حتى ٣٢٩' : '٣٣٠–٥٠٠'),
+        money(p.basePrice));
+      if (p.surcharge > 0) {
+        line(C, 'زيادة البطانة ١٠٠٪', 'على المتر الطولي', '+' + money(p.surcharge), 'plus');
+      }
+      if (p.trackPrice > 0) {
+        line(C, 'المسار الكهربائي', 'على المتر الطولي', '+' + money(p.trackPrice), 'plus');
+      }
+      line(C, 'سعر المتر الطولي', '', money(p.unitPrice), 'sum');
+      line(C, 'الأمتار الطولية',
+        ar(state.widthCm) + ' سم ÷ ١٠٠' + (p.units > 1 ? ' × ' + ar(p.units) : ''),
+        m(p.runningMeters) + ' م', 'muted');
+      line(C, 'ثمن الأمتار', sh(p.unitPrice) + ' × ' + m(p.runningMeters), money(p.metersTotal));
+      if (p.motor) {
+        line(C, 'ماتور', p.units > 1 ? sh(S.motorPrice) + ' × ' + ar(p.units) : 'لكل ستارة',
+          '+' + money(S.motorPrice * p.units), 'plus');
+        line(C, 'جهاز تحكم', p.units > 1 ? sh(S.remotePrice) + ' × ' + ar(p.units) : 'لكل ستارة',
+          '+' + money(S.remotePrice * p.units), 'plus');
+      }
+      line(C, 'الإجمالي قبل الخصم', '', money(p.lineTotal), 'sum');
+    }
+
+    // ─── ورقة التكلفة
+    var K = document.getElementById('lg-cost');
+    K.textContent = '';
+    line(K, state.fabric.name, sh(state.fabric.cost) + ' × ' + ar(state.fullness),
+      money(p.fabricPerRm));
+    if (p.hasLining) {
+      line(K, 'البطانة ' + state.lining.label.replace('تغطية ', ''),
+        sh(state.lining.cost) + ' × ' + ar(p.liningPerRm), money(p.liningPerRmCost));
+    }
+    line(K, 'الخياط', p.band === 'standard' ? 'ارتفاع عادي' : 'ارتفاع عالٍ', money(p.tailorCost));
+    line(K, p.motor ? 'مسار كهربائي' : 'مسار عادي', 'لكل متر طولي', money(p.trackCost));
+    line(K, 'التوصيل', 'لكل متر طولي', money(S.deliveryCost));
+    line(K, 'القياس والتركيب', 'لكل متر طولي', money(S.installCost));
+    line(K, 'التكلفة لكل متر طولي', '', money(p.perRmCost), 'sum');
+    line(K, 'ثمن الأمتار', sh(p.perRmCost) + ' × ' + m(p.runningMeters), money(p.metersCost));
+    if (p.motor) {
+      line(K, 'ماتور', p.units > 1 ? sh(S.motorCost) + ' × ' + ar(p.units) : 'لكل ستارة',
+        '+' + money(S.motorCost * p.units), 'plus');
+      line(K, 'جهاز تحكم', p.units > 1 ? sh(S.remoteCost) + ' × ' + ar(p.units) : 'لكل ستارة',
+        '+' + money(S.remoteCost * p.units), 'plus');
+    }
+    line(K, 'التكلفة الكاملة', '', money(p.internalCost), 'sum');
+
+    document.getElementById('cost-note').textContent =
+      'القماش المطلوب ' + m(p.fabricMeters) + ' متر' +
+      (p.hasLining ? '، والبطانة ' + m(p.liningMeters) + ' متر' : '') +
+      '. هذه الأمتار لا تظهر للزبون - عرضه بالأمتار الطولية وحدها.';
+
+    // ─── النتيجة
+    var F = document.getElementById('lg-final');
+    F.textContent = '';
+    line(F, 'الإجمالي قبل الخصم', '', money(p.lineTotal));
+    if (t.discount > 0) {
+      line(F, 'الخصم', ar(state.discount) + '٪', '−' + money(t.discount), 'plus');
+    }
+    line(F, 'الإجمالي للزبون', 'شامل الضريبة', money(t.net), 'sum');
+    line(F, 'الضريبة المستخرَجة', ar(S.vatPercent) + '٪', '−' + money(t.vat), 'muted');
+    line(F, 'الإيراد الصافي', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
+    line(F, 'الربح', '', money(t.profit), 'sum profit');
+
+    var mrow = document.createElement('div');
+    mrow.className = 'lg';
+    var ml = document.createElement('span');
+    ml.className = 'name';
+    ml.textContent = 'الهامش على الإيراد الصافي';
+    var mp = document.createElement('span');
+    mp.className = 'pill ' + (t.marginPercent >= S.minMarginPercent ? 'ok' : 'bad');
+    mp.textContent = ar(t.marginPercent.toFixed(2)) + '٪';
+    mrow.appendChild(ml);
+    mrow.appendChild(mp);
+    F.appendChild(mrow);
+
+    // ─── التنبيهات
+    var G = document.getElementById('flags');
+    G.textContent = '';
+    if (p.overMax) {
+      var s1 = document.createElement('div');
+      s1.className = 'flag stop';
+      s1.textContent = 'الارتفاع فوق ٥٠٠ سم: لا تسعير تلقائي إطلاقًا. الشباك يحتاج سعرًا خاصًا تضعه بنفسك.';
+      G.appendChild(s1);
+    } else if (t.marginPercent < S.minMarginPercent && p.lineTotal > 0) {
+      var s2 = document.createElement('div');
+      s2.className = 'flag warn';
+      s2.textContent = 'الهامش تحت الحد الأدنى ٣٥٪ - التطبيق ينبّه على هذا البند.';
+      G.appendChild(s2);
+    }
+    if (state.discount > 10) {
+      var s3 = document.createElement('div');
+      s3.className = 'flag warn';
+      s3.textContent = 'خصم فوق ١٠٪ يتجاوز صلاحيتك أنت أيضًا - في التطبيق يحتاج قرارًا صريحًا.';
+      G.appendChild(s3);
+    }
+
+    // ─── جدول الاحتمالات
+    var M = document.getElementById('matrix');
+    M.textContent = '';
+    [{ kind: 'crepe', name: 'كريب' }, { kind: 'other', name: 'بشتان' }].forEach(function (kd) {
+      var rep = FABRICS.filter(function (f) { return f.kind === kd.kind; })[0];
+      LININGS.forEach(function (ln) {
+        TRACKS.forEach(function (tk) {
+          var pp = price({
+            widthCm: state.widthCm, heightCm: state.heightCm, quantity: state.quantity,
+            fabric: rep, lining: ln, track: tk.id, fullness: state.fullness
+          });
+          var tt = totals(pp.lineTotal, pp.internalCost, state.discount);
+          var tr = document.createElement('tr');
+          if (rep.kind === state.fabric.kind && ln.id === state.lining.id && tk.id === state.track) {
+            tr.className = 'here';
+          }
+          [kd.name, ln.label.replace('تغطية ', ''), tk.label].forEach(function (txt) {
+            var td = document.createElement('td');
+            td.textContent = txt;
+            tr.appendChild(td);
+          });
+          [money(pp.unitPrice), money(tt.net), money(pp.internalCost),
+           ar(tt.marginPercent.toFixed(1)) + '٪'].forEach(function (txt) {
+            var td = document.createElement('td');
+            td.className = 'n';
+            td.textContent = txt;
+            tr.appendChild(td);
+          });
+          M.appendChild(tr);
+        });
+      });
+    });
+  }
+
+  function bindNumber(id, key, min) {
+    var el = document.getElementById(id);
+    el.addEventListener('input', function () {
+      var v = parseFloat(el.value);
+      state[key] = isFinite(v) && v >= min ? v : min;
+      render();
+    });
+  }
+  bindNumber('w', 'widthCm', 1);
+  bindNumber('h', 'heightCm', 1);
+  bindNumber('q', 'quantity', 1);
+
+  var d = document.getElementById('d');
+  d.addEventListener('input', function () {
+    state.discount = parseInt(d.value, 10) || 0;
+    document.getElementById('d-label').textContent = ar(state.discount) + '٪';
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

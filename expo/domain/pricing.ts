@@ -259,6 +259,14 @@ export function priceWindow(input: PriceInput): WindowPricing {
   const category = resolveCategory(kind, win.hasLining);
   const rule = findRule(rules, band, category);
 
+  // نسبة استهلاك البطانة خاصة بدرجتها؛ صفر يعني «اتبع المضاعف». تُحسب قبل
+  // فرع الـ500 لأن ذلك الفرع يعرض الأمتار أيضًا - وكان يعرضها بالمضاعف،
+  // فيقرأ الأدمن رقم بطانة خاطئًا في الشباك الذي يسعّره بيده أصلًا.
+  const liningPerRm =
+    liningVariant?.metersPerRunningMeter && liningVariant.metersPerRunningMeter > 0
+      ? liningVariant.metersPerRunningMeter
+      : win.fullness;
+
   // فوق 500 سم: لا تسعير تلقائي إطلاقًا — مطابقة لمحرك SQL (BD422).
   // الأمتار تُعرض للمعلومة؛ كل الأرقام المالية صفر حتى يسعّر الأدمن يدويًا.
   if (win.heightCm > TALL_BAND_MAX_CM) {
@@ -267,7 +275,9 @@ export function priceWindow(input: PriceInput): WindowPricing {
       category,
       runningMeters: runningMeters(win.widthCm, win.quantity),
       fabricMeters: fabricMeters(win.widthCm, win.quantity, win.fullness),
-      liningMeters: win.hasLining ? fabricMeters(win.widthCm, win.quantity, win.fullness) : 0,
+      liningMeters: win.hasLining
+        ? fabricMeters(win.widthCm, win.quantity, liningPerRm)
+        : 0,
       unitPriceAgorot: 0,
       lineTotalAgorot: 0,
       internalCostAgorot: 0,
@@ -319,11 +329,6 @@ export function priceWindow(input: PriceInput): WindowPricing {
     (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge + trackPricePerM;
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
-  // نسبة استهلاك البطانة خاصة بدرجتها؛ صفر يعني «اتبع المضاعف»
-  const liningPerRm =
-    liningVariant?.metersPerRunningMeter && liningVariant.metersPerRunningMeter > 0
-      ? liningVariant.metersPerRunningMeter
-      : win.fullness;
 
   const line = lineArithmetic({
     widthCm: win.widthCm,
