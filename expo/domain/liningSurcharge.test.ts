@@ -21,7 +21,7 @@ import type {
 const SETTINGS = {
   trackCostPerMeterAgorot: 1000,
   deliveryCostPerMeterAgorot: 1000,
-  measureInstallCostPerMeterAgorot: 3000,
+  measureInstallCostPerMeterAgorot: 1500,
   liningCostPerMeterAgorot: 900,
   vatPercent: 18,
   minMarginPercent: 35,
@@ -50,8 +50,17 @@ const RULES: PricingRule[] = [
 
 const PRODUCT = { id: 'p1', kind: 'crepe' } as FabricProduct;
 const FABRIC = { id: 'v1', productId: 'p1', costPerMeterAgorot: 1400, customerSurchargePerMeterAgorot: 0 } as FabricVariant;
-const LINING_70 = { id: 'l70', costPerMeterAgorot: 900, customerSurchargePerMeterAgorot: 0 } as FabricVariant;
-const LINING_100 = { id: 'l100', costPerMeterAgorot: 900, customerSurchargePerMeterAgorot: 17000 } as FabricVariant;
+// أرقام المالك: 70% تسعة للمتر وتستهلك ثلاثة أمتار لكل متر طولي (27)،
+// و100% ثلاثون للمتر وتستهلك مترًا ونصفًا (45). الدرجتان تختلفان في
+// التكلفة كما تختلفان في السعر - فالعيّنة تحمل الفرقين معًا.
+const LINING_70 = {
+  id: 'l70', costPerMeterAgorot: 900,
+  customerSurchargePerMeterAgorot: 0, metersPerRunningMeter: 3,
+} as FabricVariant;
+const LINING_100 = {
+  id: 'l100', costPerMeterAgorot: 3000,
+  customerSurchargePerMeterAgorot: 17000, metersPerRunningMeter: 1.5,
+} as FabricVariant;
 
 /** شباك 200 سم، قطعة واحدة، مضاعف 3 → مترّان طوليّان. */
 const WIN = {
@@ -93,10 +102,15 @@ test('الزيادة تسقط تمامًا حين لا بطانة', () => {
   expect(r.unitPriceAgorot).toBe(24000);
 });
 
-test('الزيادة لا تُغيّر التكلفة الداخلية - هي إيراد لا مصروف', () => {
-  expect(price(LINING_100).internalCostAgorot).toBe(price(LINING_70).internalCostAgorot);
+test('درجة البطانة تُغيّر التكلفة أيضًا: 27 للمتر مقابل 45', () => {
+  // 42 قماش + 75 (خياط 40، مسار 10، توصيل 10، تركيب 15) ثابتة في الحالتين
+  expect(price(LINING_70).internalCostAgorot).toBe(2 * 14400); // +27 بطانة
+  expect(price(LINING_100).internalCostAgorot).toBe(2 * 16200); // +45 بطانة
+  expect(price(LINING_100).internalCostAgorot - price(LINING_70).internalCostAgorot).toBe(
+    2 * 1800,
+  );
 });
 
-test('الزيادة ترفع الهامش لأنها إيراد صافٍ فوق تكلفة ثابتة', () => {
+test('الزيادة ترفع الهامش: 170 إيرادًا مقابل 18 تكلفةً على المتر', () => {
   expect(price(LINING_100).marginPercent).toBeGreaterThan(price(LINING_70).marginPercent);
 });
