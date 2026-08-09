@@ -212,11 +212,13 @@
   var FULLNESS = 3;
 
   /**
-   * أيُّ الرقمين يُعرض كبيرًا: المطلوب من الزبون أم المجموع قبل الضريبة.
-   * الاثنان في ورقة النتيجة على كل حال، فالمفتاح إبرازٌ لا إخفاء - وبعض
-   * الزبائن يسأل عن هذا وبعضهم عن ذاك.
+   * أيُّ الرقمين يُعرض كبيرًا: المجموع لא כולל מע"מ أم المطلوب כולל מע"מ.
+   *
+   * الافتراضي بلا ضريبة: هو الرقم الذي يُبنى عليه كل شيء في هذه الورقة -
+   * التكلفة والربح والهامش تُقاس عليه، والضريبة تمرّ إلى الدولة. والاثنان
+   * في ورقة النتيجة على كل حال، فالمفتاح إبرازٌ لا إخفاء.
    */
-  var inclVat = true;
+  var inclVat = false;
 
   var state = {
     widthCm: 100, heightCm: 280, quantity: 1,
@@ -411,7 +413,7 @@
     if (t.discount > 0) {
       line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
-    line(F, 'المجموع לפני מע"מ', 'عليه يُقاس الهامش', money(t.revenue));
+    line(F, 'المجموع לא כולל מע"מ', 'عليه يُقاس الهامش', money(t.revenue));
     line(F, 'מע"מ', S.vatPercent + '%', '+' + money(t.vat), 'muted');
     line(F, 'المطلوب من الزبون', 'כולל מע"מ', money(t.net), 'sum rev');
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
@@ -432,7 +434,7 @@
     // ─── تفصيل الربح: الإيراد ثم كل بند تكلفة على حدة حتى الربح
     var D = document.getElementById('lg-detail');
     D.textContent = '';
-    line(D, 'الإيراد', 'سعر البيع לפני מע"מ', money2(t.revenue));
+    line(D, 'الإيراد', 'سعر البيع לא כולל מע"מ', money2(t.revenue));
     p.costItems.forEach(function (it) {
       line(D, it.label, it.work, '−' + money2(it.amount));
     });

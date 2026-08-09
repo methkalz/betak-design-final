@@ -125,14 +125,14 @@ function buildHtml(params: {
     <div><span>مجموع الأمتار الطولية</span><span>${totalMeters} م</span></div>
     <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
     <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
-    <div><span>المجموع לפני מע"מ</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>
+    <div><span>المجموع לא כולל מע"מ</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>
     <div><span>מע"מ ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
     <div class="grand"><span>الإجمالي כולל מע"מ</span><span>${money(version.totalAgorot)}</span></div>
   </div>
 
   <div class="foot">
     ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
-    الأسعار قبل מע"מ وشاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
+    الأسعار לא כולל מע"מ وشاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
     <br/>${orgName} - شكرًا لثقتكم.
   </div>
 </body>
@@ -320,7 +320,7 @@ export default function QuotationPdfScreen() {
           </Row>
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              {'المجموع לפני מע"מ'}
+              {'المجموع לא כולל מע"מ'}
             </AppText>
             <AppText variant="label">
               {money(version.totalAgorot - version.vatAgorot)}

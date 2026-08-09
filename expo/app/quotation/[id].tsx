@@ -51,8 +51,9 @@ export default function QuotationScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showVersions, setShowVersions] = useState<boolean>(false);
-  // الافتراضي «כולל מע"מ»: هو المبلغ الذي يُسأل عنه الزبون ويدفعه
-  const [inclVat, setInclVat] = useState<boolean>(true);
+  // الافتراضي «לא כולל מע"מ»: عليه يُبنى الهامش والتكلفة والخصم، والضريبة
+  // تمرّ إلى الدولة. والرقمان معروضان في المجاميع على كل حال.
+  const [inclVat, setInclVat] = useState<boolean>(false);
 
   const quotation = db.quotations.find((q) => q.id === id);
   const versions = useMemo(
@@ -217,7 +218,7 @@ export default function QuotationScreen() {
           label={`الخصم (${percent(activeDiscount)})`}
           value={`- ${money(preview.discountAgorot)}`}
         />
-        <SummaryRow label='المجموع לפני מע"מ' value={money(preview.revenueExVatAgorot)} />
+        <SummaryRow label='المجموع לא כולל מע"מ' value={money(preview.revenueExVatAgorot)} />
         <SummaryRow
           label={`מע"מ ${db.settings.vatPercent}%`}
           value={`+ ${money(preview.vatAgorot)}`}
@@ -229,11 +230,11 @@ export default function QuotationScreen() {
         <Row justify="space-between" align="flex-end">
           <View style={{ flex: 1 }}>
             <AppText variant="heading" color={palette.ivory}>
-              {inclVat ? 'المطلوب من الزبون' : 'الإجمالي לפני מע"מ'}
+              {inclVat ? 'المطلوب כולל מע"מ' : 'الإجمالي לא כולל מע"מ'}
             </AppText>
             <Pressable onPress={() => setInclVat((v) => !v)} style={vatSwitch}>
               <AppText variant="caption" color={palette.sage}>
-                {inclVat ? 'اعرض לפני מע"מ' : 'اعرض כולל מע"מ'}
+                {inclVat ? 'اعرض לא כולל מע"מ' : 'اعرض כולל מע"מ'}
               </AppText>
             </Pressable>
           </View>
@@ -253,7 +254,7 @@ export default function QuotationScreen() {
           <SectionHeader title="حساب الهامش" subtitle="للأدمن وحده - سلسلة الحساب كاملة" />
           <View style={{ gap: 4 }}>
             <CalcRow
-              label='البيع للزبون (לפני מע"מ)'
+              label='البيع للزبون (לא כולל מע"מ)'
               value={money(preview.revenueExVatAgorot)}
               strong
             />
@@ -274,7 +275,7 @@ export default function QuotationScreen() {
               بعضه للدولة - رقمٌ لا معنى له يخفض الهامش زورًا. */}
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              {'الهامش على الإيراد (لפני מע"מ - المعتمد للحد الأدنى)'}
+              {'الهامش على الإيراد (לא כולל מע"מ - المعتمد للحد الأدنى)'}
             </AppText>
             <AppText variant="label">{percent(preview.marginPercent)}</AppText>
           </Row>

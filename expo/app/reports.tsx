@@ -80,7 +80,7 @@ export default function ReportsScreen() {
 <div class="box"><h3>المبيعات والربح (عروض اعتُمدت هذا الشهر)</h3>
  ${row('عدد العروض المعتمدة', String(m.approvedCount))}
  ${row('إجمالي البيع כולל מע"מ', money(m.approvedTotalAgorot))}
- ${row('الإيراد לפני מע"מ', money(m.revenueExAgorot))}
+ ${row('الإيراد לא כולל מע"מ', money(m.revenueExAgorot))}
  ${row('التكلفة الكاملة كما سُعّرت', money(m.costAgorot))}
  ${`<div class="grand"><span>الربح</span><span>${money(m.profitAgorot)}</span></div>`}
 </div>
