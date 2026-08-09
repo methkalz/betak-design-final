@@ -33,12 +33,46 @@ const BAND_LABELS: Record<HeightBand, string> = {
   tall: 'ارتفاع 330–500 سم',
 };
 
+/**
+ * كل رقم ثابت في التسعيرة، بيد الأدمن (شرط المالك).
+ *
+ * فُصلت التكاليف عن الأسعار في مجموعتين لأنهما سؤالان مختلفان: «كم يكلّفني»
+ * و«كم أُحاسب عليه». والمسار العادي في التكاليف وحدها عمدًا - هو داخلٌ في
+ * سعر القماش فلا يُزاد على الزبون، لكنه يبقى محسوبًا على المحل.
+ */
+const COST_FIELDS = [
+  { key: 'trackCostPerMeterAgorot', label: 'مسار عادي - تكلفة المتر' },
+  { key: 'motorizedTrackCostPerMeterAgorot', label: 'مسار كهربائي - تكلفة المتر' },
+  { key: 'measureInstallCostPerMeterAgorot', label: 'التركيب - تكلفة المتر' },
+  { key: 'deliveryCostPerMeterAgorot', label: 'التوصيل - تكلفة المتر' },
+  { key: 'motorCostAgorot', label: 'ماتور - تكلفة الستارة' },
+  { key: 'remoteCostAgorot', label: 'جهاز تحكم - تكلفة الستارة' },
+] as const;
+
+const PRICE_FIELDS = [
+  { key: 'motorizedTrackPricePerMeterAgorot', label: 'مسار كهربائي - للزبون لكل متر' },
+  { key: 'motorPriceAgorot', label: 'ماتور - للزبون لكل ستارة' },
+  { key: 'remotePriceAgorot', label: 'جهاز تحكم - للزبون لكل ستارة' },
+] as const;
+
 export default function PricingRulesScreen() {
-  const { db, role, updatePricingRule } = useStore();
+  const { db, role, updatePricingRule, updateSettings } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [price, setPrice] = useState<string>('');
   const [tailor, setTailor] = useState<string>('');
   const [info, setInfo] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  const shekel = (k: string) =>
+    draft[k] ?? String(Math.round((db.settings[k as keyof typeof db.settings] as number) / 100));
+  const saveNumbers = () => {
+    const patch: Record<string, number> = {};
+    for (const [k, v] of Object.entries(draft)) patch[k] = Math.round(parseFloat(v || '0')) * 100;
+    const res = updateSettings(patch);
+    if (!res.ok) return setInfo(res.error);
+    setDraft({});
+    setInfo('حُفظت التسعيرة. تسري على العروض الجديدة وحدها.');
+  };
 
   if (!can(role, 'edit_pricing_rules')) {
     return (
@@ -60,6 +94,52 @@ export default function PricingRulesScreen() {
         body="السعر يُحسب لكل متر طولي حسب شريحة الارتفاع ونوع القماش ووجود البطانة، ثم تُجمع البنود في عرض واحد."
       />
       {!!info && <Banner tone="success" title={info} />}
+
+      <Card>
+        <SectionHeader
+          title="المسار الكهربائي وملحقاته"
+          subtitle="ما يُضاف للزبون - المسار العادي داخلٌ في سعر القماش فلا يُزاد"
+        />
+        <View style={{ gap: spacing.md }}>
+          {PRICE_FIELDS.map((f) => (
+            <Field
+              key={f.key}
+              label={f.label}
+              value={shekel(f.key)}
+              onChangeText={(t) => setDraft((d) => ({ ...d, [f.key]: t.replace(/\D/g, '') }))}
+              keyboardType="numeric"
+              suffix="₪"
+            />
+          ))}
+        </View>
+      </Card>
+
+      <Card>
+        <SectionHeader
+          title="التكاليف على المحل"
+          subtitle="لا تظهر للزبون - عليها يُحسب الهامش"
+        />
+        <View style={{ gap: spacing.md }}>
+          {COST_FIELDS.map((f) => (
+            <Field
+              key={f.key}
+              label={f.label}
+              value={shekel(f.key)}
+              onChangeText={(t) => setDraft((d) => ({ ...d, [f.key]: t.replace(/\D/g, '') }))}
+              keyboardType="numeric"
+              suffix="₪"
+            />
+          ))}
+          <AppText variant="caption" color={palette.muted}>
+            تكلفة القماش والبطانة وكمية استهلاك كل صنف تُضبط من مكتبة الأقمشة،
+            لأنها خاصة بكل لون على حدة.
+          </AppText>
+        </View>
+      </Card>
+
+      {Object.keys(draft).length > 0 && (
+        <Button label="حفظ التسعيرة" full onPress={saveNumbers} />
+      )}
 
       {(['standard', 'tall'] as HeightBand[]).map((band) => (
         <Card key={band}>

@@ -84,7 +84,7 @@ const settings: BusinessSettings = {
   organizationId: ORG,
   trackCostPerMeterAgorot: 1000,
   deliveryCostPerMeterAgorot: 1000,
-  measureInstallCostPerMeterAgorot: 3000,
+  measureInstallCostPerMeterAgorot: 1500,
   liningCostPerMeterAgorot: 900,
   minMarginPercent: 35,
   employeeDiscountLimitPercent: 5,
@@ -93,6 +93,13 @@ const settings: BusinessSettings = {
   vatPercent: 18,
   currency: 'ILS',
   fieldVisitWageAgorot: 15000,
+  // المسار الكهربائي وملحقاته - تسعيرة المالك 6.8.2026
+  motorizedTrackCostPerMeterAgorot: 10000,
+  motorizedTrackPricePerMeterAgorot: 20000,
+  motorCostAgorot: 40000,
+  motorPriceAgorot: 90000,
+  remoteCostAgorot: 10000,
+  remotePriceAgorot: 20000,
 };
 
 const profiles: Profile[] = [
@@ -242,6 +249,7 @@ const fabricVariants: FabricVariant[] = [
     sku: 'CRG-OFFWHITE',
     costPerMeterAgorot: 1400,
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 0,
     imageUrl: '',
   },
   {
@@ -253,6 +261,7 @@ const fabricVariants: FabricVariant[] = [
     sku: 'CRG-WHITE',
     costPerMeterAgorot: 1400,
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 0,
     imageUrl: '',
   },
   {
@@ -262,8 +271,9 @@ const fabricVariants: FabricVariant[] = [
     colorName: 'أوف وايت',
     colorHex: '#F2EDE4',
     sku: 'BSH-OFFWHITE',
-    costPerMeterAgorot: 1400,
+    costPerMeterAgorot: 2000,
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 0,
     imageUrl: '',
   },
   {
@@ -273,8 +283,9 @@ const fabricVariants: FabricVariant[] = [
     colorName: 'أبيض',
     colorHex: '#FFFFFF',
     sku: 'BSH-WHITE',
-    costPerMeterAgorot: 1400,
+    costPerMeterAgorot: 2000,
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 0,
     imageUrl: '',
   },
   {
@@ -284,8 +295,9 @@ const fabricVariants: FabricVariant[] = [
     colorName: 'بيج',
     colorHex: '#D8C3A5',
     sku: 'BSH-BEIGE',
-    costPerMeterAgorot: 1400,
+    costPerMeterAgorot: 2000,
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 0,
     imageUrl: '',
   },
   {
@@ -298,6 +310,7 @@ const fabricVariants: FabricVariant[] = [
     costPerMeterAgorot: 900,
     // داخلة في سعر المتر المحدد
     customerSurchargePerMeterAgorot: 0,
+    metersPerRunningMeter: 3,
     imageUrl: '',
   },
   {
@@ -307,9 +320,10 @@ const fabricVariants: FabricVariant[] = [
     colorName: 'تغطية 100%',
     colorHex: '#C9C4BA',
     sku: 'LN-100',
-    costPerMeterAgorot: 900,
+    costPerMeterAgorot: 3000,
     // +170 شيكل على سعر المتر الطولي - يضبطه الأدمن من شاشة اللون
     customerSurchargePerMeterAgorot: 17000,
+    metersPerRunningMeter: 1.5,
     imageUrl: '',
   },
 ];
@@ -1445,4 +1459,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v8';
+export const SEED_VERSION = 'baytak-seed-v10';

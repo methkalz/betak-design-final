@@ -23,6 +23,7 @@ import { uid } from '@/lib/id';
 import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
+  BusinessSettings,
   AttachmentKind,
   ClientOperation,
   Customer,
@@ -59,7 +60,13 @@ const DB_KEY = `baytak.db.${SEED_VERSION}`;
 function reviveDb(raw: string): Database {
   const fresh = buildSeed();
   const parsed = JSON.parse(raw) as Partial<Database>;
-  return { ...fresh, ...parsed } as Database;
+  return {
+    ...fresh,
+    ...parsed,
+    // الإعدادات كائن لا مصفوفة، فدمج السطح الأول وحده يستبدلها كاملةً بالقديمة
+    // ويصل رقم تسعيرة جديد إلى المحرك `undefined`: عرض سعر بـ NaN لا خطأ يُرى.
+    settings: { ...fresh.settings, ...(parsed.settings ?? {}) },
+  } as Database;
 }
 const SESSION_KEY = 'baytak.session';
 
@@ -1763,6 +1770,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       costPerMeterAgorot: number;
       /** زيادة على سعر المتر للزبون - للبطانة 100% مثلًا. صفر لغيرها. */
       customerSurchargePerMeterAgorot?: number;
+      /** أمتار الصنف لكل متر طولي؛ صفر = اتبع مضاعف الشباك. */
+      metersPerRunningMeter?: number;
     }): Result<string> => {
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
@@ -1789,6 +1798,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           sku,
           costPerMeterAgorot: Math.round(input.costPerMeterAgorot),
           customerSurchargePerMeterAgorot: Math.round(input.customerSurchargePerMeterAgorot ?? 0),
+          metersPerRunningMeter: input.metersPerRunningMeter ?? 0,
           imageUrl: existing?.imageUrl ?? '',
         };
         if (existing) Object.assign(existing, record);
@@ -2286,6 +2296,35 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     });
   }, [mutate, userId]);
 
+  /**
+   * تعديل أرقام التسعيرة الثابتة (شرط المالك: كل الأسعار من لوحته).
+   *
+   * تسري على العروض الجديدة وحدها - النسخ المرسلة مقفلة بحكم التصميم، فلا
+   * يتغيّر سعرٌ وقّعه زبون بأثر رجعي.
+   */
+  const updateSettings = useCallback(
+    (patch: Partial<BusinessSettings>): Result<void> => {
+      const denied = guard('edit_pricing_rules');
+      if (denied) return denied;
+      const bad = Object.entries(patch).find(
+        ([, v]) => typeof v === 'number' && (!Number.isFinite(v) || v < 0),
+      );
+      if (bad) return failWith('القيم يجب أن تكون أرقامًا غير سالبة.', 'validation');
+      mutate((draft) => {
+        Object.assign(draft.settings, patch);
+        audit(
+          draft,
+          'settings.update',
+          'business_settings',
+          draft.organization.id,
+          `تعديل التسعيرة: ${Object.keys(patch).join('، ')}`,
+        );
+      });
+      return okVoid;
+    },
+    [guard, mutate, audit],
+  );
+
   const updatePricingRule = useCallback(
     (ruleId: UUID, customerPricePerMeterAgorot: number, tailorCostPerMeterAgorot: number): Result<void> => {
       const denied = guard('edit_pricing_rules');
@@ -2371,6 +2410,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       reversePayment,
       markNotificationRead,
       markAllRead,
+      updateSettings,
       updatePricingRule,
       retryFailedOperations,
       resetDemo,
@@ -2431,6 +2471,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       reversePayment,
       markNotificationRead,
       markAllRead,
+      updateSettings,
       updatePricingRule,
       retryFailedOperations,
       resetDemo,

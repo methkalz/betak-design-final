@@ -117,6 +117,13 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     currency: 'ILS',
     // عمود أجرة الزيارة يصل الخادم مع شريحة الكتابة
     fieldVisitWageAgorot: n(st.field_visit_wage_agorot),
+    // أعمدة المسار الكهربائي وملحقاته تصل الخادم مع شريحة الكتابة
+    motorizedTrackCostPerMeterAgorot: n(stCosts.motorized_track_cost_per_meter_agorot),
+    motorizedTrackPricePerMeterAgorot: n(st.motorized_track_price_per_meter_agorot),
+    motorCostAgorot: n(stCosts.motor_cost_agorot),
+    motorPriceAgorot: n(st.motor_price_agorot),
+    remoteCostAgorot: n(stCosts.remote_cost_agorot),
+    remotePriceAgorot: n(st.remote_price_agorot),
   };
 
   const profiles: Profile[] = members.map((m) => ({
@@ -218,6 +225,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     costPerMeterAgorot: costByVariant.get(s(v.variant_id)) ?? 0,
     // عمود زيادة سعر البطانة يصل الخادم مع شريحة الكتابة
     customerSurchargePerMeterAgorot: n(v.customer_surcharge_per_meter_agorot),
+    metersPerRunningMeter: n(v.meters_per_running_meter),
     imageUrl: s(v.image_url),
   }));
 

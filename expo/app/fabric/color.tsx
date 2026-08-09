@@ -41,6 +41,9 @@ export default function FabricColorScreen() {
   const [surcharge, setSurcharge] = useState(
     existing ? String(Math.round((existing.customerSurchargePerMeterAgorot ?? 0) / 100)) : '',
   );
+  const [perRm, setPerRm] = useState(
+    existing && existing.metersPerRunningMeter > 0 ? String(existing.metersPerRunningMeter) : '',
+  );
   const [error, setError] = useState<string | null>(null);
 
   const submit = () => {
@@ -54,6 +57,7 @@ export default function FabricColorScreen() {
       sku,
       costPerMeterAgorot: Math.round(parseFloat(cost || '0')) * 100,
       customerSurchargePerMeterAgorot: Math.round(parseFloat(surcharge || '0')) * 100,
+      metersPerRunningMeter: parseFloat(perRm || '0'),
     });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/fabric/[id]', params: { id: product.id } });
@@ -142,6 +146,20 @@ export default function FabricColorScreen() {
           <AppText variant="caption" color={palette.muted}>
             تُضاف إلى سعر المتر الطولي حين يُختار هذا اللون. اتركها صفرًا للأقمشة
             العادية - وتُستعمل للبطانة 100% التي تزيد على السعر المحدد.
+          </AppText>
+          {/* كمية الاستهلاك: للبطانة نسبةٌ ثابتة خاصة بدرجتها، وللقماش
+              تُترك فارغة فيتبع مضاعف كل شباك */}
+          <Field
+            label="أمتار يستهلكها كل متر طولي"
+            value={perRm}
+            onChangeText={(t) => setPerRm(t.replace(/[^0-9.]/g, ''))}
+            keyboardType="decimal-pad"
+            suffix="متر"
+            placeholder="اتركه فارغًا ليتبع المضاعف"
+          />
+          <AppText variant="caption" color={palette.muted}>
+            القماش يتبع مضاعف الشباك فيُترك فارغًا. البطانة لها نسبتها هي:
+            70% تحتاج 3 أمتار لكل متر طولي، و100% تحتاج مترًا ونصفًا.
           </AppText>
         </View>
       </Card>

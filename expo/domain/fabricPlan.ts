@@ -34,9 +34,16 @@ export function projectFabricPlan(db: Database, projectId: UUID): FabricNeed[] {
       const p = db.fabricProducts.find((x) => x.id === v?.productId);
       const key = w.liningVariantId;
       const prev = map.get(key);
+      // البطانة تُحجز بنسبة استهلاكها هي لا بمضاعف الستارة: 70% تحتاج ثلاثة
+      // أمتار لكل متر طولي و100% مترًا ونصفًا. حجزها بالمضاعف يقتطع من
+      // المخزون ضعف ما يُقصّ فعلًا - أو ينقص عنه.
+      const perRm = v?.metersPerRunningMeter && v.metersPerRunningMeter > 0
+        ? v.metersPerRunningMeter
+        : w.fullness;
+      const liningNeed = round3((w.widthCm / 100) * w.quantity * perRm);
       map.set(key, {
         variantId: key,
-        meters: round3((prev?.meters ?? 0) + fabric),
+        meters: round3((prev?.meters ?? 0) + liningNeed),
         label: `${p?.name ?? ''} ${v?.colorName ?? ''}`.trim(),
       });
     }

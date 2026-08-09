@@ -149,6 +149,15 @@ export interface FabricVariant {
    * صفر لكل الأقمشة العادية، فلا يتغيّر شيء إلا حيث وضع الأدمن رقمًا.
    */
   customerSurchargePerMeterAgorot: number;
+  /**
+   * كم مترًا من هذا الصنف يلزم لكل متر طولي من الستارة.
+   *
+   * للبطانة وحدها معنى مستقل: 70% تحتاج 3 أمتار لكل متر طولي، و100% تحتاج
+   * مترًا ونصفًا - نسبتان ثابتتان لا تتبعان مضاعف الستارة، لأن البطانتين
+   * لا تُكسَّران بالطريقة نفسها. صفر يعني «اتبع مضاعف الشباك» وهو سلوك
+   * القماش الأساسي: أمتاره = المتر الطولي × المضاعف.
+   */
+  metersPerRunningMeter: number;
   imageUrl: string;
 }
 
@@ -290,6 +299,21 @@ export interface BusinessSettings {
   currency: 'ILS';
   /** أجرة الزيارة الميدانية بالأغورة (M26) - تُستحق مع إكمال كل زيارة. */
   fieldVisitWageAgorot: number;
+
+  /* ── المسار الكهربائي وملحقاته (تسعيرة المالك 6.8.2026) ──────────────
+     المسار العادي تكلفةٌ فقط: داخلٌ في سعر القماش فلا يُزاد على الزبون،
+     ويبقى محسوبًا على المحل. أما الكهربائي فله سعره المستقل، ومعه ماتور
+     وجهاز تحكم لكل ستارة. كلها أرقام يملكها الأدمن من لوحته. */
+  /** تكلفة المتر من المسار الكهربائي على المحل. */
+  motorizedTrackCostPerMeterAgorot: number;
+  /** ما يُضاف للزبون عن كل متر طولي حين يكون المسار كهربائيًا. */
+  motorizedTrackPricePerMeterAgorot: number;
+  /** الماتور: لكل ستارة كهربائية، لا لكل متر. */
+  motorCostAgorot: number;
+  motorPriceAgorot: number;
+  /** جهاز التحكم: لازمٌ لكل ستارة كهربائية. */
+  remoteCostAgorot: number;
+  remotePriceAgorot: number;
   /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
   timezone?: string;
 }

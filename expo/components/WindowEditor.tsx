@@ -91,6 +91,9 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
 
   const preview = useMemo(() => {
     if (!(widthCm > 0) || !(heightCm > 0)) return null;
+    // بلا قماش يسقط أكبر بند تكلفة، فيظهر إجمالي أقلّ من الحقيقة وهامش أعلى
+    // منها. القماش إلزامي أصلًا، فالانتظار حتى اختياره أصدق من رقم مؤقّت.
+    if (!fabricVariantId) return null;
     const variant = db.fabricVariants.find((v) => v.id === fabricVariantId) ?? null;
     const product = db.fabricProducts.find((p) => p.id === variant?.productId) ?? null;
     const lining = db.fabricVariants.find((v) => v.id === liningVariantId) ?? null;
@@ -360,6 +363,17 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           </>
         )}
       </Card>
+
+      {!preview && widthCm > 0 && heightCm > 0 && !fabricVariantId && (
+        <Card>
+          <Row gap={spacing.sm}>
+            <Calculator size={18} color={palette.muted} />
+            <AppText variant="caption" color={palette.muted}>
+              اختر القماش ليظهر السعر - سعر بلا قماش ناقص.
+            </AppText>
+          </Row>
+        </Card>
+      )}
 
       {preview && (
         <Card style={{ backgroundColor: palette.oliveDeepest, borderColor: palette.oliveDeepest }}>

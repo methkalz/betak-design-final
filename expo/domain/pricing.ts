@@ -91,6 +91,17 @@ export interface LineArithmeticInput {
   trackCostAgorot: number;
   deliveryCostAgorot: number;
   measureInstallCostAgorot: number;
+  /**
+   * أمتار البطانة لكل متر طولي. غيابه يعني «اتبع المضاعف» - وهو السلوك
+   * الذي قامت عليه المتجهات الذهبية، فتبقى كما هي حرفًا بحرف.
+   */
+  liningMetersPerRunningMeter?: number;
+  /**
+   * مبالغ ثابتة للستارة لا لكل متر: الماتور وجهاز التحكم. تُضاف بعد حساب
+   * الأمتار لأنها لا تتناسب معها - ماتورٌ واحد لستارة طولها متر أو عشرة.
+   */
+  perWindowPriceAgorot?: number;
+  perWindowCostAgorot?: number;
 }
 
 export interface LineArithmeticResult {
@@ -115,18 +126,25 @@ export function lineArithmetic(i: LineArithmeticInput): LineArithmeticResult {
   const fullnessTh = Math.round(i.fullness * 1000);
   // thousandths × thousandths ÷ 1000 → thousandths (round3 of rm × fullness)
   const fabricTh = divRoundHalfAway(rmTh * fullnessTh, 1000);
-  const liningTh = i.hasLining ? fabricTh : 0;
+  // البطانة قد تستهلك نسبةً غير المضاعف؛ غياب القيمة يعيد سلوك المضاعف
+  const liningMulTh =
+    i.liningMetersPerRunningMeter != null
+      ? Math.round(i.liningMetersPerRunningMeter * 1000)
+      : fullnessTh;
+  const liningTh = i.hasLining ? divRoundHalfAway(rmTh * liningMulTh, 1000) : 0;
 
-  const lineTotalAgorot = floorToShekel(divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000));
+  const lineTotalAgorot =
+    floorToShekel(divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000)) +
+    (i.perWindowPriceAgorot ?? 0);
 
   const costPerRunningMeterMilli =
     i.fabricCostAgorot * fullnessTh +
-    (i.hasLining ? i.liningCostAgorot * fullnessTh : 0) +
+    (i.hasLining ? i.liningCostAgorot * liningMulTh : 0) +
     (i.tailorCostAgorot + i.trackCostAgorot + i.deliveryCostAgorot + i.measureInstallCostAgorot) * 1000;
 
-  const internalCostAgorot = floorToShekel(
-    divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000),
-  );
+  const internalCostAgorot =
+    floorToShekel(divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000)) +
+    (i.perWindowCostAgorot ?? 0);
 
   return {
     runningMeters: rmTh / 1000,
@@ -277,9 +295,35 @@ export function priceWindow(input: PriceInput): WindowPricing {
    */
   const liningSurcharge =
     win.hasLining ? (liningVariant?.customerSurchargePerMeterAgorot ?? 0) : 0;
-  const unitPriceAgorot = (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge;
+
+  /**
+   * المسار الكهربائي (تسعيرة المالك): العادي داخلٌ في سعر القماش فلا يُزاد
+   * على الزبون ويبقى تكلفةً على المحل، والكهربائي له سعره المستقل للمتر
+   * ومعه ماتور وجهاز تحكم لكل ستارة - لا لكل متر، فماتورٌ واحد يكفي ستارة
+   * طولها متر أو عشرة.
+   */
+  const isMotorized = win.track === 'motorized';
+  const trackCostPerM = isMotorized
+    ? settings.motorizedTrackCostPerMeterAgorot
+    : settings.trackCostPerMeterAgorot;
+  const trackPricePerM = isMotorized ? settings.motorizedTrackPricePerMeterAgorot : 0;
+  const units = Math.max(1, win.quantity);
+  const perWindowPriceAgorot = isMotorized
+    ? (settings.motorPriceAgorot + settings.remotePriceAgorot) * units
+    : 0;
+  const perWindowCostAgorot = isMotorized
+    ? (settings.motorCostAgorot + settings.remoteCostAgorot) * units
+    : 0;
+
+  const unitPriceAgorot =
+    (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge + trackPricePerM;
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
+  // نسبة استهلاك البطانة خاصة بدرجتها؛ صفر يعني «اتبع المضاعف»
+  const liningPerRm =
+    liningVariant?.metersPerRunningMeter && liningVariant.metersPerRunningMeter > 0
+      ? liningVariant.metersPerRunningMeter
+      : win.fullness;
 
   const line = lineArithmetic({
     widthCm: win.widthCm,
@@ -290,9 +334,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
     tailorCostAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
     fabricCostAgorot: fabricCostPerM,
     liningCostAgorot: liningCostPerM,
-    trackCostAgorot: settings.trackCostPerMeterAgorot,
+    trackCostAgorot: trackCostPerM,
     deliveryCostAgorot: settings.deliveryCostPerMeterAgorot,
     measureInstallCostAgorot: settings.measureInstallCostPerMeterAgorot,
+    liningMetersPerRunningMeter: liningPerRm,
+    perWindowPriceAgorot,
+    perWindowCostAgorot,
   });
   const rm = line.runningMeters;
   const fm = line.fabricMeters;
@@ -310,9 +357,9 @@ export function priceWindow(input: PriceInput): WindowPricing {
   ];
   if (win.hasLining) {
     costLines.push({
-      label: 'البطانة',
-      detail: `${(liningCostPerM / 100).toFixed(0)} × ${win.fullness}`,
-      amountAgorot: divRoundHalfAway(liningCostPerM * fullnessTh, 1000),
+      label: `البطانة ${liningVariant?.colorName ?? ''}`.trim(),
+      detail: `${(liningCostPerM / 100).toFixed(0)} × ${liningPerRm}`,
+      amountAgorot: divRoundHalfAway(liningCostPerM * Math.round(liningPerRm * 1000), 1000),
     });
   }
   costLines.push({
@@ -321,10 +368,24 @@ export function priceWindow(input: PriceInput): WindowPricing {
     amountAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
   });
   costLines.push({
-    label: 'المسار',
+    label: isMotorized ? 'مسار كهربائي' : 'مسار عادي',
     detail: 'لكل متر طولي',
-    amountAgorot: settings.trackCostPerMeterAgorot,
+    amountAgorot: trackCostPerM,
   });
+  if (isMotorized) {
+    // مبالغ للستارة لا للمتر - تُعرض بمجموعها لا مقسومة، وإلا بدت كأنها
+    // تتضاعف مع الطول
+    costLines.push({
+      label: 'ماتور',
+      detail: units > 1 ? `${units} ستائر` : 'لكل ستارة',
+      amountAgorot: settings.motorCostAgorot * units,
+    });
+    costLines.push({
+      label: 'جهاز تحكم',
+      detail: units > 1 ? `${units} ستائر` : 'لكل ستارة',
+      amountAgorot: settings.remoteCostAgorot * units,
+    });
+  }
   costLines.push({
     label: 'التوصيل',
     detail: 'لكل متر طولي',
