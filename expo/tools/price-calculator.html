@@ -296,6 +296,9 @@
     direction: ltr;
     unicode-bidi: isolate;
   }
+  /* الشيكل علامةُ وحدةٍ لا رقم: أصغر قليلًا وبينه وبين المبلغ فرجة، فيُقرأ
+     الرقم أولًا وتبقى العلامة سندًا له */
+  .cur { font-size: .78em; margin-inline-end: .14em; }
   /* الوصف يخلط رقمًا بحرف عربي («14 × 3 × 1 م»)، وترتيبه الطبيعي في فقرة
      عربية هو الصحيح - فرضُ اللاتينية عليه يقذف «م» إلى الطرف الخطأ. */
   .lg .work.calc { unicode-bidi: isolate; }
@@ -770,6 +773,24 @@
     });
   }
 
+  /**
+   * وضع مبلغ في عنصر مع إفراد علامة الشيكل.
+   *
+   * لا يكفي `textContent`: العلامة والرقم نصٌّ واحد، ولا سبيل لتصغير حرفٍ
+   * منه بالأسلوب وحده. فتُفصَل في عنصرها، وتبقى الإشارة السالبة قبلها.
+   */
+  function setAmount(el, str) {
+    el.textContent = '';
+    var m = /^([−+]?)₪([\s\S]*)$/.exec(str);
+    if (!m) { el.textContent = str; return; }
+    if (m[1]) el.appendChild(document.createTextNode(m[1]));
+    var c = document.createElement('span');
+    c.className = 'cur';
+    c.textContent = '₪';
+    el.appendChild(c);
+    el.appendChild(document.createTextNode(m[2]));
+  }
+
   function line(host, name, work, amount, cls) {
     var row = document.createElement('div');
     row.className = 'lg' + (cls ? ' ' + cls : '');
@@ -784,7 +805,7 @@
     }
     var a = document.createElement('span');
     a.className = 'amt';
-    a.textContent = amount;
+    setAmount(a, amount);
     row.appendChild(l);
     row.appendChild(a);
     host.appendChild(row);
@@ -835,8 +856,8 @@
     document.getElementById('band-note').textContent =
       p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
-    document.getElementById('v-customer').textContent = money(t.net);
-    document.getElementById('v-cost').textContent = money(p.internalCost);
+    setAmount(document.getElementById('v-customer'), money(t.net));
+    setAmount(document.getElementById('v-cost'), money(p.internalCost));
 
     // ─── ورقة الزبون
     var C = document.getElementById('lg-customer');
@@ -993,7 +1014,7 @@
             // الهامش دون الحد الأدنى يُلوَّن: العمود طويل، والعين تمسحه
             // بحثًا عن الشاذّ لا قراءةً لكل رقم فيه
             td.className = 'n' + (ci === 3 && tt.marginPercent < S.minMarginPercent ? ' low' : '');
-            td.textContent = txt;
+            setAmount(td, txt);
             tr.appendChild(td);
           });
           M.appendChild(tr);
