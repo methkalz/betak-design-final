@@ -232,10 +232,18 @@
       b.className = 'chip';
       b.setAttribute('aria-pressed', isOn(it) ? 'true' : 'false');
       if (it.hex) {
-        var s = document.createElement('span');
-        s.className = 'sw';
-        s.style.background = it.hex;
-        b.appendChild(s);
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'sw');
+        svg.setAttribute('viewBox', '0 0 10 10');
+        svg.setAttribute('aria-hidden', 'true');
+        var c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', '5');
+        c.setAttribute('cy', '5');
+        c.setAttribute('r', '5');
+        c.setAttribute('fill', it.hex);
+        svg.appendChild(c);
+        b.appendChild(svg);
       }
       var t = document.createElement('span');
       t.textContent = it.label;
@@ -334,9 +342,9 @@
       p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
     setAmount(document.getElementById('v-customer'), money(inclVat ? t.net : t.revenue));
-    document.getElementById('vat-label').textContent =
-      inclVat ? 'المطلوب כולל מע"מ' : 'المجموع לפני מע"מ';
-    document.getElementById('vat-switch').setAttribute('aria-pressed', String(inclVat));
+    Array.prototype.forEach.call(document.querySelectorAll('.vat-seg button'), function (b) {
+      b.setAttribute('aria-pressed', String((b.dataset.vat === '1') === inclVat));
+    });
     setAmount(document.getElementById('v-cost'), money(p.internalCost));
 
     // ─── ورقة الزبون
@@ -515,9 +523,11 @@
   bindNumber('h', 'heightCm', 1);
   bindNumber('q', 'quantity', 1);
 
-  document.getElementById('vat-switch').addEventListener('click', function () {
-    inclVat = !inclVat;
-    render();
+  Array.prototype.forEach.call(document.querySelectorAll('.vat-seg button'), function (b) {
+    b.addEventListener('click', function () {
+      inclVat = b.dataset.vat === '1';
+      render();
+    });
   });
 
   var d = document.getElementById('d');

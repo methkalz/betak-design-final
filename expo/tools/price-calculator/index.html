@@ -17,15 +17,18 @@
     <div class="pleats" aria-hidden="true"></div>
     <div class="verdict">
       <div class="lead">
-        <button type="button" class="vat-switch" id="vat-switch" aria-pressed="true">
-          <span id="vat-label">المطلوب כולל מע"מ</span> ⇄
-        </button>
+        <span class="k">الإجمالي للزبون</span>
         <span class="v v-cust" id="v-customer">₪0</span>
       </div>
       <div>
         <span class="k">التكلفة على المحل</span>
         <span class="v v-cost" id="v-cost">₪0</span>
       </div>
+    </div>
+
+    <div class="vat-seg" role="group" aria-label="أساس عرض السعر">
+      <button type="button" data-vat="1" aria-pressed="true">כולל מע"מ</button>
+      <button type="button" data-vat="0" aria-pressed="false">לא כולל מע"מ</button>
     </div>
   </header>
 
@@ -43,7 +46,7 @@
         <label class="nf" for="q"><span>عدد الستائر</span>
           <input class="num" id="q" type="number" inputmode="numeric" value="1" min="1" step="1"></label>
       </div>
-      <div class="lg" style="padding-top:.25rem">
+      <div class="lg pt-xs">
         <span class="name" id="dims-note">عرض 100 سم × ارتفاع 280 سم</span>
         <span class="pill band" id="band-note"></span>
       </div>
@@ -94,10 +97,10 @@
     <h2>الخصم والنتيجة</h2>
     <p class="sub">الأسعار شاملة الضريبة، فتُستخرَج منها ولا تُضاف فوقها.</p>
     <div class="field">
-      <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">0%</span></label>
+      <label for="d">نسبة الخصم: <span id="d-label" class="num-face">0%</span></label>
       <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
     </div>
-    <div class="final" id="lg-final" style="margin-top:.75rem"></div>
+    <div class="final mt-md" id="lg-final"></div>
     <div id="flags"></div>
   </section>
 
@@ -109,10 +112,10 @@
         <thead>
           <tr>
             <th>القماش</th><th>البطانة</th><th>المسار</th>
-            <th style="text-align:end">للمتر</th>
-            <th style="text-align:end">לפני מע"מ</th>
-            <th style="text-align:end">التكلفة</th>
-            <th style="text-align:end">الهامش</th>
+            <th class="n">للمتر</th>
+            <th class="n">לא כולל מע"מ</th>
+            <th class="n">التكلفة</th>
+            <th class="n">الهامش</th>
           </tr>
         </thead>
         <tbody id="matrix"></tbody>

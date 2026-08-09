@@ -2,19 +2,16 @@
 <!--
   حاسبة تدقيق الأسعار - صفحة واحدة تُرسَل إلى صاحب المحل.
 
-  الأسعار كلها لפני מע"מ، والضريبة تُضاف على المجموع في آخر الحساب. ومفتاحٌ
-  في الأعلى يبدّل الرقم الكبير بين المطلوب כולל מע"מ والمجموع לפני מע"מ.
+  الأسعار كلها לא כולל מע"מ، والضريبة تُضاف على المجموع في آخر الحساب.
+  ومفتاحٌ تحت المربعين يبدّل الرقم الكبير بين الأساسين.
 
   تحمل نسختها من الحساب لتعمل بلا شبكة وبلا التطبيق، ويحرسها
   `domain/calculatorParity.test.ts`: يمرّ على 1440 احتمالًا ويطابق كل رقم
-  فيها مع `domain/pricing.ts`، ويتحقّق أن عمود البنود يجمع إلى التكلفة
-  المعروضة نفسها.
+  فيها مع `domain/pricing.ts`.
 
-  خطّ القاهرة مضمَّنٌ فيها مقتصرًا على حروفها وحدها، مولَّدًا من
-  `@expo-google-fonts/cairo` الذي يعمل به التطبيق.
-
-  الأرقام المضمَّنة نسخةٌ من البذرة لحظة الإرسال. لو غيّر الأدمن تسعيرةً من
-  لوحته لزم تحديث هذه الصفحة أيضًا.
+  ملاحظة للرفع: بعض الخوادم تمنع النصّ البرمجي والخطّ داخل الصفحة (CSP).
+  إن لم تعمل هذه، فالمجلد `price-calculator/` يحمل النسخة المفصولة، وهي
+  مفحوصةٌ تحت `default-src 'self'` بلا خطأ واحد.
 -->
 <html dir="rtl" lang="ar">
 <head>
@@ -188,14 +185,31 @@
   }
   .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
   .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
-  /* مفتاحٌ لا شارة: الرقم الكبير يتبدّل بضغطه، فيجب أن يبدو قابلًا للضغط */
-  .vat-switch {
-    display: block; width: 100%;
-    font-family: var(--ar); font-size: .6875rem; font-weight: 600;
-    color: var(--indigo-ink); background: none; border: 0; padding: 0 0 1px;
-    cursor: pointer; text-align: center;
+  /* ───────── أساس العرض ─────────
+     مفتاحٌ مستقلٌّ تحت المربعين لا نصٌّ داخل أحدهما: هو يحكم الرقمين معًا،
+     فسكناه في أحدهما توحي بأنه يخصّه وحده.
+
+     ومسارٌ هادئ يعلوه قرصٌ مرفوع - اصطلاح التطبيق نفسه في أشرطته
+     المقسومة - لا زرّان مصمتان يتنازعان النظر مع الرقم فوقهما. */
+  .vat-seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+    margin-top: .5rem; padding: 3px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 999px;
   }
-  .vat-switch:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
+  .vat-seg button {
+    min-height: 2.125rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--ink-2);
+    font-family: var(--ar); font-size: .8125rem; font-weight: 600;
+    letter-spacing: -.01em;
+    transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+  }
+  .vat-seg button[aria-pressed="true"] {
+    background: var(--card); color: var(--indigo-ink);
+    box-shadow: 0 1px 2px rgba(20, 23, 43, .1);
+  }
+  .vat-seg button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
   .verdict .v {
     font-family: var(--num); font-variant-numeric: tabular-nums;
     font-weight: 700; line-height: 1.15;
@@ -302,10 +316,21 @@
   }
 
   /* حدُّ العيّنة رماديٌّ شفّاف ليُرى الأبيض على الفاتح والداكن معًا */
+  /* عيّنة اللون svg لا div: لون القماش بيانٌ لا زخرفة، ولا يمكن وضعه في
+     صنف. و`style` على العنصر تمنعه سياسة أمن المحتوى على الخوادم، أما
+     `fill` فخاصيةُ عرضٍ لا أسلوبٌ داخلي - فتمرّ حيث يُمنع غيرها. */
   .sw {
-    width: .875rem; height: .875rem; border-radius: 50%;
+    width: .875rem; height: .875rem;
+    border-radius: 50%;
     border: 1px solid rgba(128, 128, 140, .45);
+    display: block;
   }
+
+  /* بدائل لكل `style` كان في الترميز: أيّ منها تُسقطه السياسة بلا إنذار */
+  .mt-md { margin-top: .75rem; }
+  .pt-xs { padding-top: .25rem; }
+  .num-face { font-family: var(--num); }
+  th.n { text-align: end; }
 
   .row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
   .nf { display: flex; flex-direction: column; gap: .25rem; }
@@ -448,15 +473,18 @@
     <div class="pleats" aria-hidden="true"></div>
     <div class="verdict">
       <div class="lead">
-        <button type="button" class="vat-switch" id="vat-switch" aria-pressed="true">
-          <span id="vat-label">المطلوب כולל מע"מ</span> ⇄
-        </button>
+        <span class="k">الإجمالي للزبون</span>
         <span class="v v-cust" id="v-customer">₪0</span>
       </div>
       <div>
         <span class="k">التكلفة على المحل</span>
         <span class="v v-cost" id="v-cost">₪0</span>
       </div>
+    </div>
+
+    <div class="vat-seg" role="group" aria-label="أساس عرض السعر">
+      <button type="button" data-vat="1" aria-pressed="true">כולל מע"מ</button>
+      <button type="button" data-vat="0" aria-pressed="false">לא כולל מע"מ</button>
     </div>
   </header>
 
@@ -474,7 +502,7 @@
         <label class="nf" for="q"><span>عدد الستائر</span>
           <input class="num" id="q" type="number" inputmode="numeric" value="1" min="1" step="1"></label>
       </div>
-      <div class="lg" style="padding-top:.25rem">
+      <div class="lg pt-xs">
         <span class="name" id="dims-note">عرض 100 سم × ارتفاع 280 سم</span>
         <span class="pill band" id="band-note"></span>
       </div>
@@ -525,10 +553,10 @@
     <h2>الخصم والنتيجة</h2>
     <p class="sub">الأسعار شاملة الضريبة، فتُستخرَج منها ولا تُضاف فوقها.</p>
     <div class="field">
-      <label for="d">نسبة الخصم: <span id="d-label" style="font-family:var(--num)">0%</span></label>
+      <label for="d">نسبة الخصم: <span id="d-label" class="num-face">0%</span></label>
       <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
     </div>
-    <div class="final" id="lg-final" style="margin-top:.75rem"></div>
+    <div class="final mt-md" id="lg-final"></div>
     <div id="flags"></div>
   </section>
 
@@ -540,10 +568,10 @@
         <thead>
           <tr>
             <th>القماش</th><th>البطانة</th><th>المسار</th>
-            <th style="text-align:end">للمتر</th>
-            <th style="text-align:end">לפני מע"מ</th>
-            <th style="text-align:end">التكلفة</th>
-            <th style="text-align:end">الهامش</th>
+            <th class="n">للمتر</th>
+            <th class="n">לא כולל מע"מ</th>
+            <th class="n">التكلفة</th>
+            <th class="n">الهامش</th>
           </tr>
         </thead>
         <tbody id="matrix"></tbody>
@@ -803,10 +831,18 @@
       b.className = 'chip';
       b.setAttribute('aria-pressed', isOn(it) ? 'true' : 'false');
       if (it.hex) {
-        var s = document.createElement('span');
-        s.className = 'sw';
-        s.style.background = it.hex;
-        b.appendChild(s);
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'sw');
+        svg.setAttribute('viewBox', '0 0 10 10');
+        svg.setAttribute('aria-hidden', 'true');
+        var c = document.createElementNS(NS, 'circle');
+        c.setAttribute('cx', '5');
+        c.setAttribute('cy', '5');
+        c.setAttribute('r', '5');
+        c.setAttribute('fill', it.hex);
+        svg.appendChild(c);
+        b.appendChild(svg);
       }
       var t = document.createElement('span');
       t.textContent = it.label;
@@ -905,9 +941,9 @@
       p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
 
     setAmount(document.getElementById('v-customer'), money(inclVat ? t.net : t.revenue));
-    document.getElementById('vat-label').textContent =
-      inclVat ? 'المطلوب כולל מע"מ' : 'المجموع לפני מע"מ';
-    document.getElementById('vat-switch').setAttribute('aria-pressed', String(inclVat));
+    Array.prototype.forEach.call(document.querySelectorAll('.vat-seg button'), function (b) {
+      b.setAttribute('aria-pressed', String((b.dataset.vat === '1') === inclVat));
+    });
     setAmount(document.getElementById('v-cost'), money(p.internalCost));
 
     // ─── ورقة الزبون
@@ -1086,9 +1122,11 @@
   bindNumber('h', 'heightCm', 1);
   bindNumber('q', 'quantity', 1);
 
-  document.getElementById('vat-switch').addEventListener('click', function () {
-    inclVat = !inclVat;
-    render();
+  Array.prototype.forEach.call(document.querySelectorAll('.vat-seg button'), function (b) {
+    b.addEventListener('click', function () {
+      inclVat = b.dataset.vat === '1';
+      render();
+    });
   });
 
   var d = document.getElementById('d');

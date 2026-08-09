@@ -163,14 +163,31 @@
   }
   .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
   .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
-  /* مفتاحٌ لا شارة: الرقم الكبير يتبدّل بضغطه، فيجب أن يبدو قابلًا للضغط */
-  .vat-switch {
-    display: block; width: 100%;
-    font-family: var(--ar); font-size: .6875rem; font-weight: 600;
-    color: var(--indigo-ink); background: none; border: 0; padding: 0 0 1px;
-    cursor: pointer; text-align: center;
+  /* ───────── أساس العرض ─────────
+     مفتاحٌ مستقلٌّ تحت المربعين لا نصٌّ داخل أحدهما: هو يحكم الرقمين معًا،
+     فسكناه في أحدهما توحي بأنه يخصّه وحده.
+
+     ومسارٌ هادئ يعلوه قرصٌ مرفوع - اصطلاح التطبيق نفسه في أشرطته
+     المقسومة - لا زرّان مصمتان يتنازعان النظر مع الرقم فوقهما. */
+  .vat-seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+    margin-top: .5rem; padding: 3px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 999px;
   }
-  .vat-switch:focus-visible { outline: 2px solid var(--indigo); outline-offset: 3px; }
+  .vat-seg button {
+    min-height: 2.125rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--ink-2);
+    font-family: var(--ar); font-size: .8125rem; font-weight: 600;
+    letter-spacing: -.01em;
+    transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+  }
+  .vat-seg button[aria-pressed="true"] {
+    background: var(--card); color: var(--indigo-ink);
+    box-shadow: 0 1px 2px rgba(20, 23, 43, .1);
+  }
+  .vat-seg button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
   .verdict .v {
     font-family: var(--num); font-variant-numeric: tabular-nums;
     font-weight: 700; line-height: 1.15;
@@ -277,10 +294,21 @@
   }
 
   /* حدُّ العيّنة رماديٌّ شفّاف ليُرى الأبيض على الفاتح والداكن معًا */
+  /* عيّنة اللون svg لا div: لون القماش بيانٌ لا زخرفة، ولا يمكن وضعه في
+     صنف. و`style` على العنصر تمنعه سياسة أمن المحتوى على الخوادم، أما
+     `fill` فخاصيةُ عرضٍ لا أسلوبٌ داخلي - فتمرّ حيث يُمنع غيرها. */
   .sw {
-    width: .875rem; height: .875rem; border-radius: 50%;
+    width: .875rem; height: .875rem;
+    border-radius: 50%;
     border: 1px solid rgba(128, 128, 140, .45);
+    display: block;
   }
+
+  /* بدائل لكل `style` كان في الترميز: أيّ منها تُسقطه السياسة بلا إنذار */
+  .mt-md { margin-top: .75rem; }
+  .pt-xs { padding-top: .25rem; }
+  .num-face { font-family: var(--num); }
+  th.n { text-align: end; }
 
   .row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
   .nf { display: flex; flex-direction: column; gap: .25rem; }
