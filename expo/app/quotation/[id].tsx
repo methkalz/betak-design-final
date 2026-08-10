@@ -292,7 +292,7 @@ export default function QuotationScreen() {
               <CalcRow
                 label={
                   <>
-                    <He>{'מע"מ'}</He> {db.settings.vatPercent}% - يُحصَّل للدولة
+                    <He>{'מע"מ'}</He> {db.settings.vatPercent}%
                   </>
                 }
                 value={money(preview.vatAgorot)}
