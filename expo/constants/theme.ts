@@ -102,6 +102,12 @@ export const font = {
   bold: 'Cairo_700Bold',
 } as const;
 
+/** الخط العبري - خيبو، لما كُتب بالعبرية وحده (מע"מ ونحوها). */
+export const fontHe = {
+  semibold: 'Heebo_600SemiBold',
+  bold: 'Heebo_700Bold',
+} as const;
+
 export const shadow = {
   // ظل بارد مائل للنيلي — يذوب في الخلفية بدل أن يتسخ فوقها
   card: {

@@ -5,6 +5,7 @@ import {
   Cairo_700Bold,
   useFonts,
 } from '@expo-google-fonts/cairo';
+import { Heebo_600SemiBold, Heebo_700Bold } from '@expo-google-fonts/heebo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -82,6 +83,9 @@ export default function RootLayout() {
     Cairo_500Medium,
     Cairo_600SemiBold,
     Cairo_700Bold,
+    // للعبرية وحدها (מע"מ ونحوها): القاهرة بلا حروف عبرية فتسقط لخط النظام
+    Heebo_600SemiBold,
+    Heebo_700Bold,
   });
 
   useEffect(() => {

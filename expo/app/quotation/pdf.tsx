@@ -6,7 +6,8 @@ import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen } from '@/components/ui';
+import { AppText, Banner, Button, Card, Divider, EmptyState, He, Row, ScrollScreen } from '@/components/ui';
+import { HEEBO_HEBREW_B64 } from '@/constants/hebrewFont';
 import { palette, radius, spacing } from '@/constants/theme';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -61,9 +62,16 @@ function buildHtml(params: {
 <head>
 <meta charset="utf-8" />
 <style>
+  /* خيبو للعبرية وحدها (מע"מ): نطاق اليونيكود يحصره فيها، والباقي لخط النظام */
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 400 700;
+    unicode-range: U+0590-05FF, U+0022;
+    src: url(data:font/ttf;base64,${HEEBO_HEBREW_B64}) format('truetype');
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
+    font-family: 'Heebo', -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
     direction: rtl; text-align: right; color: #1B1F32; margin: 0; padding: 32px;
     background: #F6F6FB;
   }
@@ -342,7 +350,7 @@ export default function QuotationPdfScreen() {
               )}
               <Row justify="space-between">
                 <AppText variant="caption" color={palette.muted}>
-                  {'מע"מ'} {db.settings.vatPercent}%
+                  <He>{'מע"מ'}</He> {db.settings.vatPercent}%
                 </AppText>
                 <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
               </Row>
@@ -350,7 +358,15 @@ export default function QuotationPdfScreen() {
           )}
           <Divider />
           <Row justify="space-between">
-            <AppText variant="heading">{showVat ? 'الإجمالي כולל מע"מ' : 'الإجمالي'}</AppText>
+            <AppText variant="heading">
+              {showVat ? (
+                <>
+                  الإجمالي <He>{'כולל מע"מ'}</He>
+                </>
+              ) : (
+                'الإجمالي'
+              )}
+            </AppText>
             <AppText variant="numberLarge" color={palette.olive}>
               {money(showVat ? version.totalAgorot : version.totalAgorot - version.vatAgorot)}
             </AppText>

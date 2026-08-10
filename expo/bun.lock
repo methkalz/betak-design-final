@@ -6,6 +6,7 @@
       "name": "expo-app",
       "dependencies": {
         "@expo-google-fonts/cairo": "^0.4.2",
+        "@expo-google-fonts/heebo": "^0.4.2",
         "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",
         "@expo/vector-icons": "^15.0.3",
         "@nkzw/create-context-hook": "^1.1.0",
@@ -295,6 +296,8 @@
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.3.3", "", { "dependencies": { "@eslint/core": "^0.15.1", "levn": "^0.4.1" } }, "sha512-1+WqvgNMhmlAambTvT3KPtCl/Ibr68VldY2XY40SL1CE0ZXiakFR/cbTspaF5HsnpDMvcYYoJHfl4980NBjGag=="],
 
     "@expo-google-fonts/cairo": ["@expo-google-fonts/cairo@0.4.2", "", {}, "sha512-iWXHgE4MH6BfFqs8IxhbjNphAboUsb8NSEVIf1kWVGkiwCkAXDHxotgASabuPhhM1SQQXrgOPdmjT9VyeakM3Q=="],
+
+    "@expo-google-fonts/heebo": ["@expo-google-fonts/heebo@0.4.2", "", {}, "sha512-mNSjLv9kikSexvdNteFElzeYEOrOPXHQctAJOGEfnUZPU9PgiEaSMcKM6K50Geahy2Aiq/xlbMD0OwhGRhSBiQ=="],
 
     "@expo-google-fonts/ibm-plex-sans-arabic": ["@expo-google-fonts/ibm-plex-sans-arabic@0.4.2", "", {}, "sha512-Cx24iSo/4pWBKHVf69tbVLDUiHWCSTHrhKPw/+SYWLDnyiX10WXh+amNWRSo9N3ruwd+qk9AQgDaIY1KO0u1Ig=="],
 

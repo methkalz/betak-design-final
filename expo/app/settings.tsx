@@ -3,7 +3,7 @@ import { Building2, RotateCcw, ShieldCheck } from 'lucide-react-native';
 import React from 'react';
 import { Alert, View } from 'react-native';
 
-import { AppText, Button, Card, Divider, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
+import { AppText, Button, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import {
   CAPABILITY_LABELS,
@@ -38,7 +38,7 @@ export default function SettingsScreen() {
         <Divider />
         <Row justify="space-between">
           <AppText variant="caption" color={palette.muted}>
-            מע"מ
+            <He>{'מע"מ'}</He>
           </AppText>
           <AppText variant="label">{percent(db.settings.vatPercent)}</AppText>
         </Row>

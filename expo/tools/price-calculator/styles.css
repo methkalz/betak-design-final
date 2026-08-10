@@ -27,6 +27,28 @@
     src: url('cairo-700.ttf') format('truetype');
   }
 
+  /* חיבו (Heebo) - خطّ واجهاتٍ عبريّ، لما كُتب بالعبرية وحده:
+     מע"מ وأخواتها. القاهرة بلا حروفٍ عبرية، فكانت تسقط إلى خطّ النظام -
+     شكلٌ غريب وسط صفحةٍ مضبوطة الحرف. */
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    /* للحروف العبرية وحدها: نطاق اليونيكود يحصره فيها، فتبقى العربية لقاهرتها */
+    unicode-range: U+0590-05FF, U+0022;
+    src: url('heebo-600.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    /* للحروف العبرية وحدها: نطاق اليونيكود يحصره فيها، فتبقى العربية لقاهرتها */
+    unicode-range: U+0590-05FF, U+0022;
+    src: url('heebo-700.ttf') format('truetype');
+  }
+
   /* ───────── الرموز ─────────
      النيلي من التطبيق نفسه ليقرأها صاحب المحل كامتداد لما بين يديه.
      الحياد مائل نحو النيلي قليلًا - رمادٌ صافٍ يبدو غير مقصود. */
@@ -56,7 +78,7 @@
 
     --shadow: 0 1px 2px rgba(20, 23, 43, .05), 0 8px 24px -16px rgba(20, 23, 43, .18);
 
-    --ar: 'Cairo', "SF Arabic", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+    --ar: 'Heebo', 'Cairo', "SF Arabic", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
     /* الأرقام بخطّ الصفحة نفسه. كانت بخطٍّ أحاديّ العرض فتخرج فاصلة الآلاف
        من عائلةٍ أخرى: ضخمةً هابطة، تُرى قبل الرقم الذي تفصله. */
     --num: 'Cairo', "SF Arabic", "Segoe UI", Tahoma, sans-serif;

@@ -19,6 +19,7 @@ import {
   Divider,
   EmptyState,
   Field,
+  He,
   Pill,
   Row,
   ScrollScreen,
@@ -210,6 +211,26 @@ export default function QuotationScreen() {
       </Card>
 
       <Card style={{ backgroundColor: palette.oliveDeepest, borderColor: palette.oliveDeepest }}>
+        {/* أساس العرض في رأس البطاقة لا في ذيلها: المفتاح يحكم كل ما تحته،
+            وموضعه قبل الأرقام يقول ذلك قبل قراءتها. والعبرية بخط خيبو. */}
+        <Row gap={4} style={vatSegTrack}>
+          {([true, false] as const).map((v) => (
+            <Pressable
+              key={String(v)}
+              role="radio"
+              aria-checked={inclVat === v}
+              onPress={() => setInclVat(v)}
+              style={[vatSegBtn, inclVat === v && vatSegBtnActive]}
+            >
+              <AppText
+                variant="caption"
+                color={inclVat === v ? palette.oliveDeepest : palette.sage}
+              >
+                <He bold={inclVat === v}>{v ? 'כולל מע"מ' : 'לא כולל מע"מ'}</He>
+              </AppText>
+            </Pressable>
+          ))}
+        </Row>
         {/* مجموع الأمتار قبل المال: هو ما يُطلب من المخزن ويُسلَّم للخياط،
             وغيابه كان يُلزم جمعه يدويًا من البنود */}
         <SummaryRow label="مجموع الأمتار الطولية" value={meters(round3(totalMeters))} />
@@ -227,23 +248,26 @@ export default function QuotationScreen() {
               <SummaryRow label="المجموع بعد الخصم" value={money(preview.revenueExVatAgorot)} />
             )}
             <SummaryRow
-              label={`מע"מ ${db.settings.vatPercent}%`}
+              label={
+                <>
+                  <He>{'מע"מ'}</He> {db.settings.vatPercent}%
+                </>
+              }
               value={`+ ${money(preview.vatAgorot)}`}
             />
           </>
         )}
         <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: spacing.md }} />
         <Row justify="space-between" align="flex-end">
-          <View style={{ flex: 1 }}>
-            <AppText variant="heading" color={palette.ivory}>
-              {inclVat ? 'المطلوب כולל מע"מ' : 'الإجمالي'}
-            </AppText>
-            <Pressable onPress={() => setInclVat((v) => !v)} style={vatSwitch}>
-              <AppText variant="caption" color={palette.sage}>
-                {inclVat ? 'اعرض לא כולל מע"מ' : 'اعرض כולל מע"מ'}
-              </AppText>
-            </Pressable>
-          </View>
+          <AppText variant="heading" color={palette.ivory}>
+            {inclVat ? (
+              <>
+                المطلوب <He>{'כולל מע"מ'}</He>
+              </>
+            ) : (
+              'الإجمالي'
+            )}
+          </AppText>
           <AppText variant="numberLarge" color={palette.ivory}>
             {money(inclVat ? preview.totalAgorot : preview.revenueExVatAgorot)}
           </AppText>
@@ -266,7 +290,11 @@ export default function QuotationScreen() {
             />
             {inclVat && (
               <CalcRow
-                label={`מע"מ ${db.settings.vatPercent}% - يُحصَّل للدولة`}
+                label={
+                  <>
+                    <He>{'מע"מ'}</He> {db.settings.vatPercent}% - يُحصَّل للدولة
+                  </>
+                }
                 value={money(preview.vatAgorot)}
               />
             )}
@@ -410,7 +438,7 @@ export default function QuotationScreen() {
 }
 
 /** سطر في سلسلة حساب الهامش - على سطح أبيض لا على البطاقة الداكنة. */
-function CalcRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function CalcRow({ label, value, strong }: { label: React.ReactNode; value: string; strong?: boolean }) {
   return (
     <Row justify="space-between" gap={spacing.md} align="flex-start">
       <AppText variant="caption" color={palette.muted} style={{ flex: 1 }}>
@@ -426,7 +454,7 @@ function SummaryRow({
   value,
   muted,
 }: {
-  label: string;
+  label: React.ReactNode;
   value: string;
   muted?: boolean;
 }) {
@@ -442,12 +470,18 @@ function SummaryRow({
   );
 }
 
-const vatSwitch = {
-  alignSelf: 'flex-start' as const,
-  marginTop: 4,
-  paddingHorizontal: spacing.sm,
-  paddingVertical: 2,
+/** مسارٌ خافت وقرصٌ فاتح - نظير شريط الحاسبة على السطح الداكن. */
+const vatSegTrack = {
+  backgroundColor: 'rgba(255,255,255,0.12)',
   borderRadius: 999,
-  borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.28)',
+  padding: 3,
+  marginBottom: spacing.md,
 };
+const vatSegBtn = {
+  flex: 1,
+  minHeight: 34,
+  borderRadius: 999,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
+const vatSegBtnActive = { backgroundColor: palette.ivory };

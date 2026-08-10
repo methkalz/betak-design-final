@@ -25,9 +25,20 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { font, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
+import { font, fontHe, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
 
 export const RTL_ROW = 'row-reverse' as const;
+
+/**
+ * مقطعٌ عبري داخل نصٍّ عربي: يُعشَّش في AppText فيرث حجمه ولونه، ويستبدل
+ * العائلة وحدها. القاهرة بلا حروف عبرية، فبدونه تسقط מע"מ إلى خطّ النظام -
+ * شكلٌ غريب وسط سطرٍ مضبوط الحرف.
+ */
+export function He({ children, bold }: { children: React.ReactNode; bold?: boolean }) {
+  return (
+    <Text style={{ fontFamily: bold ? fontHe.bold : fontHe.semibold }}>{children}</Text>
+  );
+}
 
 /* ────────────────────────────── Text ────────────────────────────── */
 
