@@ -1,9 +1,17 @@
--- ════════════════════════════════════════════════════════════════════
--- محرك التسعير والبصمة القانونية fp1 (§10 هـ + ح-1)
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
--- ════════════════════════════════════════════════════════════════════
+-- ============================================================================
+-- حدُّ شريحة الارتفاع عند 320 سم (تصحيح المالك 10.8.2026 - كان 330)
+--
+-- «يتغير السعر ليس عند ارتفاع 329 سم - بل عند 320 سم». الشباك بارتفاع 320
+-- فأكثر يأخذ تسعيرة الشريحة العالية، وما دونه العادية. حدّ الـ500 كما هو:
+-- فوقه لا تسعير تلقائي (BD422).
+--
+-- الموضعان اللذان يحسبان الشريحة يتغيّران معًا: محرك التسعير الخاص، وعرض
+-- تفاصيل الشبابيك. والنسخ المرسلة لا تُمَسّ - المحتوى مجمّد بقرار §10 و،
+-- فما وُقّع على شريحة 330 يبقى كما صدر.
+--
+-- المرآة في TS (`expo/domain/pricing.ts`: TALL_BAND_MIN_CM = 320) تغيّرت
+-- في الالتزام نفسه، ومعها اختبار التطابق على جانبَي الحدّ (319/320).
+-- ============================================================================
 
 CREATE OR REPLACE FUNCTION private.price_project_windows(p_org uuid, p_project uuid, p_ctx jsonb)
  RETURNS TABLE(window_id uuid, room_name text, window_name text, description text, width_cm numeric, height_cm numeric, running_meters numeric, quantity integer, category core.pricing_category, band core.height_band, unit_price_agorot bigint, line_total_agorot bigint, internal_cost_agorot bigint, fabric_meters numeric, lining_meters numeric, sort_order integer)
@@ -118,49 +126,37 @@ begin
   end loop;
 end $function$;
 
-CREATE OR REPLACE FUNCTION private.quotation_content_canonical(p_version_id uuid)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO ''
-AS $function$
-  select 'fp1'
-    || '|' || coalesce(v.pricing_context->>'currency', 'null')
-    || '|' || coalesce(v.pricing_context->>'calculation_version', 'null')
-    || '|' || coalesce(v.pricing_context->>'vat_mode', 'null')
-    || '|' || coalesce(v.pricing_context->>'vat_percent', 'null')
-    || '|' || v.discount_percent::text
-    || '|' || pg_catalog.to_char(v.valid_until at time zone 'UTC',
-                                 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
-    || '|' || encode(extensions.digest(v.pricing_context::text, 'sha256'), 'hex')
-    || '|' || coalesce((
-         select string_agg(
-                  lower(i.id::text)
-                  || '|' || i.width_cm::text
-                  || '|' || i.height_cm::text
-                  || '|' || i.running_meters::text
-                  || '|' || i.quantity::text
-                  || '|' || i.category::text
-                  || '|' || i.band::text
-                  || '|' || i.unit_price_agorot::text
-                  || '|' || i.line_total_agorot::text
-                  || '|' || i.internal_cost_agorot::text
-                  || '|' || i.fabric_meters::text
-                  || '|' || i.lining_meters::text,
-                  '||' order by i.sort_order, i.id)
-         from core.quotation_items i
-         where i.version_id = v.id
-       ), '')
-  from core.quotation_versions v
-  where v.id = p_version_id
-$function$;
+create or replace view api.window_details
+  with (security_invoker = on) as
+SELECT w.id AS window_id,
+    w.organization_id,
+    w.project_id,
+    w.room_id,
+    r.name AS room_name,
+    w.name,
+    w.width_cm,
+    w.height_cm,
+    w.model,
+    w.has_lining,
+    w.track,
+    w.fullness,
+    w.quantity,
+    w.fabric_variant_id,
+    fv.color_name AS fabric_color,
+    fp.name AS fabric_product,
+    w.lining_variant_id,
+    w.notes,
+    w.measured_at,
+    w.measured_by,
+        CASE
+            WHEN w.height_cm >= 320::numeric THEN 'tall'::text
+            ELSE 'standard'::text
+        END::core.height_band AS band,
+    round(w.width_cm / 100.0 * w.quantity::numeric, 3) AS running_meters,
+    round(w.width_cm / 100.0 * w.quantity::numeric * w.fullness, 3) AS fabric_meters
+   FROM core.windows w
+     JOIN core.rooms r ON r.id = w.room_id
+     LEFT JOIN core.fabric_variants fv ON fv.id = w.fabric_variant_id
+     LEFT JOIN core.fabric_products fp ON fp.id = fv.product_id;
 
-CREATE OR REPLACE FUNCTION private.version_content_fingerprint(p_version_id uuid)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO ''
-AS $function$
-  select encode(extensions.digest(
-           private.quotation_content_canonical(p_version_id), 'sha256'), 'hex')
-$function$;
+COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 320 = standard، و320 فأكثر = tall (تصحيح المالك 10.8.2026). فوق 500 يحتاج تسعيرة خاصة.';

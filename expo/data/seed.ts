@@ -1450,4 +1450,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v11';
+export const SEED_VERSION = 'baytak-seed-v12';

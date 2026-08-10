@@ -24,6 +24,8 @@ function buildHtml(params: {
   customerCity: string;
   projectTitle: string;
   vatPercent: number;
+  /** מע"מ تظهر في المستند فقط حين اختارها المستخدم في شاشة العرض. */
+  showVat: boolean;
 }): string {
   const {
     version,
@@ -36,6 +38,7 @@ function buildHtml(params: {
     customerCity,
     projectTitle,
     vatPercent,
+    showVat,
   } = params;
   const totalMeters = Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000;
   const rows = version.items
@@ -125,14 +128,18 @@ function buildHtml(params: {
     <div><span>مجموع الأمتار الطولية</span><span>${totalMeters} م</span></div>
     <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
     <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
-    <div><span>المجموع לא כולל מע"מ</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>
+    ${
+      showVat
+        ? `${version.discountAgorot > 0 ? `<div><span>المجموع بعد الخصم</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>` : ''}
     <div><span>מע"מ ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
-    <div class="grand"><span>الإجمالي כולל מע"מ</span><span>${money(version.totalAgorot)}</span></div>
+    <div class="grand"><span>الإجمالي כולל מע"מ</span><span>${money(version.totalAgorot)}</span></div>`
+        : `<div class="grand"><span>الإجمالي</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>`
+    }
   </div>
 
   <div class="foot">
     ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
-    الأسعار לא כולל מע"מ وشاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
+    الأسعار ${showVat ? 'לא כולל מע"מ و' : ''}شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
     <br/>${orgName} - شكرًا لثقتكم.
   </div>
 </body>
@@ -140,7 +147,9 @@ function buildHtml(params: {
 }
 
 export default function QuotationPdfScreen() {
-  const { versionId } = useLocalSearchParams<{ versionId: string }>();
+  const { versionId, vat } = useLocalSearchParams<{ versionId: string; vat?: string }>();
+  /** מע"מ لا تُذكر في المستند إلا حين اختار المستخدم כולל מע"מ في العرض. */
+  const showVat = vat === 'incl';
   const { db } = useStore();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'pdf' | 'share' | null>(null);
@@ -168,8 +177,9 @@ export default function QuotationPdfScreen() {
       customerCity: customer?.city ?? '',
       projectTitle: project?.title ?? '',
       vatPercent: db.settings.vatPercent,
+      showVat,
     });
-  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent]);
+  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent, showVat]);
 
   if (!version || !quotation) {
     return (
@@ -318,25 +328,31 @@ export default function QuotationPdfScreen() {
               - {money(version.discountAgorot)}
             </AppText>
           </Row>
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.muted}>
-              {'المجموع לא כולל מע"מ'}
-            </AppText>
-            <AppText variant="label">
-              {money(version.totalAgorot - version.vatAgorot)}
-            </AppText>
-          </Row>
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.muted}>
-              {'מע"מ'} {db.settings.vatPercent}%
-            </AppText>
-            <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
-          </Row>
+          {showVat && (
+            <>
+              {version.discountAgorot > 0 && (
+                <Row justify="space-between">
+                  <AppText variant="caption" color={palette.muted}>
+                    المجموع بعد الخصم
+                  </AppText>
+                  <AppText variant="label">
+                    {money(version.totalAgorot - version.vatAgorot)}
+                  </AppText>
+                </Row>
+              )}
+              <Row justify="space-between">
+                <AppText variant="caption" color={palette.muted}>
+                  {'מע"מ'} {db.settings.vatPercent}%
+                </AppText>
+                <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
+              </Row>
+            </>
+          )}
           <Divider />
           <Row justify="space-between">
-            <AppText variant="heading">{'الإجمالي כולל מע"מ'}</AppText>
+            <AppText variant="heading">{showVat ? 'الإجمالي כולל מע"מ' : 'الإجمالي'}</AppText>
             <AppText variant="numberLarge" color={palette.olive}>
-              {money(version.totalAgorot)}
+              {money(showVat ? version.totalAgorot : version.totalAgorot - version.vatAgorot)}
             </AppText>
           </Row>
         </Card>

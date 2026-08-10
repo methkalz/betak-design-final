@@ -1777,7 +1777,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (!/^#[0-9a-fA-F]{6}$/.test(input.colorHex))
         return failWith('رمز اللون يجب أن يكون بصيغة ‎#RRGGBB.', 'validation');
       if (!(input.costPerMeterAgorot > 0))
-        return failWith('تكلفة المتر مطلوبة - عليها يقوم الهامش.', 'validation');
+        return failWith('تكلفة المتر مطلوبة - عليها يقوم حساب الربح.', 'validation');
       const sku = input.sku.trim().toUpperCase();
       if (
         sku &&

@@ -866,7 +866,7 @@ function QuoteTab({
           </AppText>
           {showCost && (
             <AppText variant="caption" color={palette.olive}>
-              هامش {percent(version.marginPercent)}
+              نسبة الربح {percent(version.marginPercent)}
             </AppText>
           )}
         </Row>

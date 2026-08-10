@@ -74,7 +74,8 @@
   function price(o) {
     var fabric = o.fabric, lining = o.lining, motor = o.track === 'motorized';
     var hasLining = lining.id !== 'none';
-    var band = o.heightCm >= 330 ? 'tall' : 'standard';
+    // يتغيّر السعر عند 320 سم (تصحيح المالك 10.8.2026)
+    var band = o.heightCm >= 320 ? 'tall' : 'standard';
     var overMax = o.heightCm > 500;
     var cat = (fabric.kind === 'crepe' ? 'crepe' : 'other') + (hasLining ? '_with_lining' : '_without_lining');
     var rule = RULES[band][cat];
@@ -341,7 +342,7 @@
       'عرض ' + num(state.widthCm) + ' سم × ارتفاع ' + num(state.heightCm) + ' سم' +
       (p.units > 1 ? ' × ' + num(p.units) + ' ستائر' : '');
     document.getElementById('band-note').textContent =
-      p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة حتى 329' : 'شريحة 330–500');
+      p.overMax ? 'فوق 500 سم' : (p.band === 'standard' ? 'شريحة أقل من 320' : 'شريحة 320–500');
 
     setAmount(document.getElementById('v-customer'), money(inclVat ? t.net : t.revenue));
     Array.prototype.forEach.call(document.querySelectorAll('.vat-seg button'), function (b) {
@@ -356,7 +357,7 @@
       line(C, 'لا تسعير تلقائي', 'الارتفاع فوق 500 سم', '—', 'muted');
     } else {
       line(C, 'سعر المتر الأساسي',
-        (p.hasLining ? 'مع بطانة' : 'بلا بطانة') + ' • ' + (p.band === 'standard' ? 'حتى 329' : '330–500'),
+        (p.hasLining ? 'مع بطانة' : 'بلا بطانة') + ' • ' + (p.band === 'standard' ? 'أقل من 320' : '320–500'),
         money(p.basePrice));
       if (p.surcharge > 0) {
         line(C, 'زيادة البطانة 100%', 'على المتر الطولي', '+' + money(p.surcharge), 'plus');
@@ -413,9 +414,15 @@
     if (t.discount > 0) {
       line(F, 'الخصم', state.discount + '%', '−' + money(t.discount), 'plus');
     }
-    line(F, 'المجموع לא כולל מע"מ', 'عليه يُقاس الهامش', money(t.revenue));
-    line(F, 'מע"מ', S.vatPercent + '%', '+' + money(t.vat), 'muted');
-    line(F, 'المطلوب من الزبون', 'כולל מע"מ', money(t.net), 'sum rev');
+    /* מע"מ لا تُذكر ولا يظهر حسابها إلا حين يُختار כולל מע"מ: عندها
+       تظهر السلسلة كاملة، وإلا فالعرض كله على أساسٍ واحد بلا ذكرها. */
+    if (inclVat) {
+      if (t.discount > 0) line(F, 'المجموع بعد الخصم', '', money(t.revenue));
+      line(F, 'מע"מ', S.vatPercent + '%', '+' + money(t.vat), 'muted');
+      line(F, 'المطلوب من الزبون', 'כולל מע"מ', money(t.net), 'sum rev');
+    } else {
+      line(F, 'الإجمالي', 'عليه تُقاس نسبة الربح', money(t.revenue), 'sum rev');
+    }
     line(F, 'التكلفة الكاملة', '', '−' + money(p.internalCost));
     line(F, 'الربح', '', money(t.profit), 'sum profit');
 
@@ -423,7 +430,7 @@
     mrow.className = 'lg';
     var ml = document.createElement('span');
     ml.className = 'name';
-    ml.textContent = 'الهامش على الإيراد الصافي';
+    ml.textContent = 'نسبة الربح';
     var mp = document.createElement('span');
     mp.className = 'pill ' + (t.marginPercent >= S.minMarginPercent ? 'ok' : 'bad');
     mp.textContent = t.marginPercent.toFixed(2) + '%';
@@ -434,7 +441,7 @@
     // ─── تفصيل الربح: الإيراد ثم كل بند تكلفة على حدة حتى الربح
     var D = document.getElementById('lg-detail');
     D.textContent = '';
-    line(D, 'الإيراد', 'سعر البيع לא כולל מע"מ', money2(t.revenue));
+    line(D, 'الإيراد', 'سعر البيع بعد الخصم', money2(t.revenue));
     p.costItems.forEach(function (it) {
       line(D, it.label, it.work, '−' + money2(it.amount));
     });
@@ -460,7 +467,7 @@
     } else if (t.marginPercent < S.minMarginPercent && p.lineTotal > 0) {
       var s2 = document.createElement('div');
       s2.className = 'flag warn';
-      s2.textContent = 'الهامش تحت الحد الأدنى 35% - التطبيق ينبّه على هذا البند.';
+      s2.textContent = 'نسبة الربح تحت الحد الأدنى 35% - التطبيق ينبّه على هذا البند.';
       G.appendChild(s2);
     }
     if (state.discount > 10) {
@@ -498,7 +505,8 @@
             td.textContent = txt;
             tr.appendChild(td);
           });
-          [money(pp.unitPrice), money(tt.revenue), money(pp.internalCost),
+          document.getElementById('th-basis').textContent = inclVat ? 'כולל מע"מ' : 'الإجمالي';
+          [money(pp.unitPrice), money(inclVat ? tt.net : tt.revenue), money(pp.internalCost),
            tt.marginPercent.toFixed(1) + '%'].forEach(function (txt, ci) {
             var td = document.createElement('td');
             // الهامش دون الحد الأدنى يُلوَّن: العمود طويل، والعين تمسحه

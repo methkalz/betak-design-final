@@ -16,7 +16,8 @@ import type {
   WindowUnit,
 } from '@/types/domain';
 
-export const TALL_BAND_MIN_CM = 330;
+/** يتغيّر السعر عند 320 سم (تصحيح المالك 10.8.2026 - كان 330). */
+export const TALL_BAND_MIN_CM = 320;
 export const TALL_BAND_MAX_CM = 500;
 
 export function resolveBand(heightCm: number): HeightBand {
@@ -425,7 +426,7 @@ export function priceWindow(input: PriceInput): WindowPricing {
   const marginPercent = lineTotals.marginPercent;
 
   if (marginPercent < settings.minMarginPercent && lineTotalAgorot > 0) {
-    warnings.push('هامش الربح لهذا البند أقل من الحد الأدنى المسموح.');
+    warnings.push('نسبة الربح لهذا البند أقل من الحد الأدنى المسموح.');
   }
 
   return {
@@ -515,6 +516,6 @@ export function checkDiscount(
   if (authority === 'needs_override')
     message = `خصم أكثر من ${settings.adminDiscountLimitPercent}% يلزمه Override موثق: طلب خصم يعتمده الأدمن.`;
   if (belowMinMargin)
-    message = `السعر النهائي ينزل تحت هامش الربح الأدنى (${settings.minMarginPercent}%).`;
+    message = `السعر النهائي ينزل تحت الحد الأدنى لنسبة الربح (${settings.minMarginPercent}%).`;
   return { authority, belowMinMargin, message };
 }

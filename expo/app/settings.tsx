@@ -44,7 +44,7 @@ export default function SettingsScreen() {
         </Row>
         <Row justify="space-between">
           <AppText variant="caption" color={palette.muted}>
-            الحد الأدنى لهامش الربح
+            الحد الأدنى لنسبة الربح
           </AppText>
           <AppText variant="label">{percent(db.settings.minMarginPercent)}</AppText>
         </Row>

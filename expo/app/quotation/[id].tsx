@@ -195,7 +195,7 @@ export default function QuotationScreen() {
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر طولي •{' '}
-                  {item.band === 'standard' ? 'حتى 329 سم' : '330–500 سم'}
+                  {item.band === 'standard' ? 'أقل من 320 سم' : '320–500 سم'}
                 </AppText>
               </View>
               <View style={{ alignItems: 'flex-start' }}>
@@ -218,19 +218,25 @@ export default function QuotationScreen() {
           label={`الخصم (${percent(activeDiscount)})`}
           value={`- ${money(preview.discountAgorot)}`}
         />
-        <SummaryRow label='المجموع לא כולל מע"מ' value={money(preview.revenueExVatAgorot)} />
-        <SummaryRow
-          label={`מע"מ ${db.settings.vatPercent}%`}
-          value={`+ ${money(preview.vatAgorot)}`}
-        />
+        {/* מע"מ لا تُذكر ولا يظهر حسابها إلا حين يُختار כולל מע"מ (قرار
+            المالك 10.8.2026): عندها تظهر السلسلة كاملة، وإلا فالعرض كله
+            على أساسٍ واحد بلا ذكرٍ للضريبة أصلًا. */}
+        {inclVat && (
+          <>
+            {preview.discountAgorot > 0 && (
+              <SummaryRow label="المجموع بعد الخصم" value={money(preview.revenueExVatAgorot)} />
+            )}
+            <SummaryRow
+              label={`מע"מ ${db.settings.vatPercent}%`}
+              value={`+ ${money(preview.vatAgorot)}`}
+            />
+          </>
+        )}
         <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: spacing.md }} />
-        {/* الرقم الكبير هو ما يُقال للزبون، والمفتاح يبدّل أيَّ الرقمين
-            يُقال: بعض الزبائن يسأل عن السعر قبل الضريبة وبعضهم عن المطلوب
-            دفعه. الاثنان معروضان أعلاه على كل حال، فالمفتاح إبرازٌ لا إخفاء. */}
         <Row justify="space-between" align="flex-end">
           <View style={{ flex: 1 }}>
             <AppText variant="heading" color={palette.ivory}>
-              {inclVat ? 'المطلوب כולל מע"מ' : 'الإجمالي לא כולל מע"מ'}
+              {inclVat ? 'المطلوب כולל מע"מ' : 'الإجمالي'}
             </AppText>
             <Pressable onPress={() => setInclVat((v) => !v)} style={vatSwitch}>
               <AppText variant="caption" color={palette.sage}>
@@ -251,17 +257,19 @@ export default function QuotationScreen() {
            لم يعد للسعر تعريفان للهامش: מע"מ يمرّ بالمحل إلى الدولة ولا
            يدخل الحساب أصلًا، فيُعرض للعلم لا للقسمة عليه. */
         <Card>
-          <SectionHeader title="حساب الهامش" subtitle="للأدمن وحده - سلسلة الحساب كاملة" />
+          <SectionHeader title="حساب الربح" subtitle="للأدمن وحده - سلسلة الحساب كاملة" />
           <View style={{ gap: 4 }}>
             <CalcRow
-              label='البيع للزبون (לא כולל מע"מ)'
+              label="البيع للزبون"
               value={money(preview.revenueExVatAgorot)}
               strong
             />
-            <CalcRow
-              label={`מע"מ ${db.settings.vatPercent}% - يُحصَّل للدولة`}
-              value={money(preview.vatAgorot)}
-            />
+            {inclVat && (
+              <CalcRow
+                label={`מע"מ ${db.settings.vatPercent}% - يُحصَّل للدولة`}
+                value={money(preview.vatAgorot)}
+              />
+            )}
             <CalcRow
               label="التكلفة الكاملة (قماش، بطانة، خياطة، سكة، توصيل، قياس وتركيب)"
               value={`- ${money(preview.internalCostAgorot)}`}
@@ -275,7 +283,7 @@ export default function QuotationScreen() {
               بعضه للدولة - رقمٌ لا معنى له يخفض الهامش زورًا. */}
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              {'الهامش على الإيراد (לא כולל מע"מ - المعتمد للحد الأدنى)'}
+              نسبة الربح (المعتمدة للحد الأدنى)
             </AppText>
             <AppText variant="label">{percent(preview.marginPercent)}</AppText>
           </Row>
@@ -296,7 +304,7 @@ export default function QuotationScreen() {
             adminLimit={db.settings.adminDiscountLimitPercent}
             subtotalAgorot={preview.subtotalAgorot}
             discountAgorot={preview.discountAgorot}
-            totalAgorot={preview.totalAgorot}
+            totalAgorot={inclVat ? preview.totalAgorot : preview.revenueExVatAgorot}
           />
 
           <View style={{ marginTop: spacing.md }}>
@@ -372,7 +380,10 @@ export default function QuotationScreen() {
         full
         icon={<Share2 size={18} color={palette.oliveDark} />}
         onPress={() =>
-          router.push({ pathname: '/quotation/pdf', params: { versionId: version.id } })
+          router.push({
+            pathname: '/quotation/pdf',
+            params: { versionId: version.id, vat: inclVat ? 'incl' : 'excl' },
+          })
         }
       />
 

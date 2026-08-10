@@ -269,7 +269,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           {heightCm > 0 && (
             <Row gap={spacing.sm}>
               <Pill
-                label={resolveBand(heightCm) === 'standard' ? 'شريحة حتى 329 سم' : 'شريحة 330–500 سم'}
+                label={resolveBand(heightCm) === 'standard' ? 'شريحة أقل من 320 سم' : 'شريحة 320–500 سم'}
                 bg={resolveBand(heightCm) === 'standard' ? palette.sageSoft : palette.terracottaSoft}
                 fg={resolveBand(heightCm) === 'standard' ? palette.oliveDark : palette.terracotta}
                 small

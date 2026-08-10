@@ -83,7 +83,7 @@ function pagePrice(o: {
 }) {
   const motor = o.track === 'motorized';
   const hasLining = o.lining.id !== 'none';
-  const band = o.heightCm >= 330 ? 'tall' : 'standard';
+  const band = o.heightCm >= 320 ? 'tall' : 'standard';
   const overMax = o.heightCm > 500;
   const cat =
     (o.fabric.kind === 'crepe' ? 'crepe' : 'other') +
@@ -191,7 +191,8 @@ function enginePrice(o: {
 }
 
 const WIDTHS = [100, 165, 320, 427.5];
-const HEIGHTS = [240, 329, 330, 500, 520];
+// حدُّ الشريحة عند 320: الطرفان يُختبران على جانبَي الحدّ نفسه
+const HEIGHTS = [240, 319, 320, 500, 520];
 const FULLNESS = [2, 2.5, 3];
 const QUANTITIES = [1, 3];
 const TRACKS: TrackType[] = ['standard', 'motorized'];

@@ -29,8 +29,8 @@ const CATEGORY_LABELS: Record<PricingCategory, string> = {
 };
 
 const BAND_LABELS: Record<HeightBand, string> = {
-  standard: 'ارتفاع حتى 329 سم',
-  tall: 'ارتفاع 330–500 سم',
+  standard: 'ارتفاع أقل من 320 سم',
+  tall: 'ارتفاع 320–500 سم',
 };
 
 /**
@@ -117,7 +117,7 @@ export default function PricingRulesScreen() {
       <Card>
         <SectionHeader
           title="التكاليف على المحل"
-          subtitle="لا تظهر للزبون - عليها يُحسب الهامش"
+          subtitle="لا تظهر للزبون - عليها تُحسب نسبة الربح"
         />
         <View style={{ gap: spacing.md }}>
           {COST_FIELDS.map((f) => (
