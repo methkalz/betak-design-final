@@ -629,7 +629,7 @@ SELECT w.id AS window_id,
     w.measured_at,
     w.measured_by,
         CASE
-            WHEN w.height_cm >= 330::numeric THEN 'tall'::text
+            WHEN w.height_cm >= 320::numeric THEN 'tall'::text
             ELSE 'standard'::text
         END::core.height_band AS band,
     round(w.width_cm / 100.0 * w.quantity::numeric, 3) AS running_meters,

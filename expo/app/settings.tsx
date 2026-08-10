@@ -3,7 +3,7 @@ import { Building2, RotateCcw, ShieldCheck } from 'lucide-react-native';
 import React from 'react';
 import { Alert, View } from 'react-native';
 
-import { AppText, Button, Card, Divider, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
+import { AppText, Button, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import {
   CAPABILITY_LABELS,
@@ -12,7 +12,7 @@ import {
   levelOf,
   type Capability,
 } from '@/domain/permissions';
-import { money, percent } from '@/lib/format';
+import { money, percent, phone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { Role } from '@/types/domain';
 
@@ -31,20 +31,20 @@ export default function SettingsScreen() {
           <View style={{ flex: 1 }}>
             <AppText variant="heading">{db.organization.name}</AppText>
             <AppText variant="caption" color={palette.muted}>
-              {db.organization.address} • {db.organization.phone}
+              {db.organization.address} • {phone(db.organization.phone)}
             </AppText>
           </View>
         </Row>
         <Divider />
         <Row justify="space-between">
           <AppText variant="caption" color={palette.muted}>
-            ضريبة القيمة المضافة
+            <He>{'מע"מ'}</He>
           </AppText>
           <AppText variant="label">{percent(db.settings.vatPercent)}</AppText>
         </Row>
         <Row justify="space-between">
           <AppText variant="caption" color={palette.muted}>
-            الحد الأدنى لهامش الربح
+            الحد الأدنى لنسبة الربح
           </AppText>
           <AppText variant="label">{percent(db.settings.minMarginPercent)}</AppText>
         </Row>
@@ -57,7 +57,7 @@ export default function SettingsScreen() {
       </Card>
 
       <Card>
-        <SectionHeader title="تكاليف ثابتة لكل متر ركض" subtitle="تُستخدم في حساب التكلفة الداخلية" />
+        <SectionHeader title="تكاليف ثابتة لكل متر طولي" subtitle="تُستخدم في حساب التكلفة الداخلية" />
         {role === 'admin' ? (
           <>
             <CostRow label="المسار" value={money(db.settings.trackCostPerMeterAgorot)} />
@@ -120,7 +120,7 @@ export default function SettingsScreen() {
             <View style={{ flex: 1 }}>
               <AppText variant="label">{p.fullName}</AppText>
               <AppText variant="caption" color={palette.muted}>
-                {p.title} • {p.phone}
+                {p.title} • {phone(p.phone)}
               </AppText>
             </View>
             <Pill

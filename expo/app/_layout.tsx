@@ -1,10 +1,11 @@
 import {
-  IBMPlexSansArabic_400Regular,
-  IBMPlexSansArabic_500Medium,
-  IBMPlexSansArabic_600SemiBold,
-  IBMPlexSansArabic_700Bold,
+  Cairo_400Regular,
+  Cairo_500Medium,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
   useFonts,
-} from '@expo-google-fonts/ibm-plex-sans-arabic';
+} from '@expo-google-fonts/cairo';
+import { Heebo_600SemiBold, Heebo_700Bold } from '@expo-google-fonts/heebo';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,7 +13,10 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
+import { useAndroidBackFallback } from '@/lib/nav';
+import { AuthProvider } from '@/providers/auth';
 import { StoreProvider } from '@/providers/store';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -22,12 +26,17 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
+  useAndroidBackFallback();
+
   return (
     <Stack
       screenOptions={{
-        headerBackTitle: 'رجوع',
+        // زر رجوع خاص بالتطبيق بدل زر الترويسة الأصلي: الأصلي يختفي حين يفرغ
+        // المكدّس فتصير الشاشة بلا مخرج، وهذا يظهر دائمًا ويقود إلى وجهة
+        // منطقية. وهو أيضًا بخط التطبيق لا بخط النظام.
+        headerLeft: () => <HeaderBack />,
         headerStyle: { backgroundColor: palette.ivory },
-        headerTitleStyle: { fontFamily: font.semibold, fontSize: 17, color: palette.charcoal },
+        headerTitleStyle: { fontFamily: font.semibold, fontSize: 18, color: palette.charcoal },
         headerTintColor: palette.olive,
         headerShadowVisible: false,
         contentStyle: { backgroundColor: palette.ivory },
@@ -47,8 +56,14 @@ function RootLayoutNav() {
       <Stack.Screen name="quotation/pdf" options={{ title: 'معاينة العرض', presentation: 'modal' }} />
       <Stack.Screen name="reserve/[projectId]" options={{ title: 'حجز القماش', presentation: 'modal' }} />
       <Stack.Screen name="roll/[id]" options={{ title: 'تفاصيل الرول' }} />
+      <Stack.Screen name="roll/new" options={{ title: 'استلام بضاعة', presentation: 'modal' }} />
       <Stack.Screen name="fabric/[id]" options={{ title: 'القماش' }} />
+      <Stack.Screen name="fabric/new" options={{ title: 'قماش', presentation: 'modal' }} />
+      <Stack.Screen name="fabric/color" options={{ title: 'لون القماش', presentation: 'modal' }} />
       <Stack.Screen name="tailor/[id]" options={{ title: 'أمر الإنتاج' }} />
+      <Stack.Screen name="team/index" options={{ title: 'الطاقم' }} />
+      <Stack.Screen name="team/new" options={{ title: 'موظف جديد', presentation: 'modal' }} />
+      <Stack.Screen name="team/[id]" options={{ title: 'ملف الموظف' }} />
       <Stack.Screen name="discounts" options={{ title: 'طلبات الخصم' }} />
       <Stack.Screen name="payments" options={{ title: 'الدفعات' }} />
       <Stack.Screen name="reports" options={{ title: 'التقارير' }} />
@@ -64,10 +79,13 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const [loaded] = useFonts({
-    IBMPlexSansArabic_400Regular,
-    IBMPlexSansArabic_500Medium,
-    IBMPlexSansArabic_600SemiBold,
-    IBMPlexSansArabic_700Bold,
+    Cairo_400Regular,
+    Cairo_500Medium,
+    Cairo_600SemiBold,
+    Cairo_700Bold,
+    // للعبرية وحدها (מע"מ ونحوها): القاهرة بلا حروف عبرية فتسقط لخط النظام
+    Heebo_600SemiBold,
+    Heebo_700Bold,
   });
 
   useEffect(() => {
@@ -78,12 +96,14 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.ivory }}>
-          <StatusBar style="dark" />
-          <RootLayoutNav />
-        </GestureHandlerRootView>
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.ivory }}>
+            <StatusBar style="dark" />
+            <RootLayoutNav />
+          </GestureHandlerRootView>
+        </StoreProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

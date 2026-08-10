@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,14 +11,34 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, {
+  Easing as REasing,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { font, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
+import { font, fontHe, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
 
 export const RTL_ROW = 'row-reverse' as const;
+
+/**
+ * مقطعٌ عبري داخل نصٍّ عربي: يُعشَّش في AppText فيرث حجمه ولونه، ويستبدل
+ * العائلة وحدها. القاهرة بلا حروف عبرية، فبدونه تسقط מע"מ إلى خطّ النظام -
+ * شكلٌ غريب وسط سطرٍ مضبوط الحرف.
+ */
+export function He({ children, bold }: { children: React.ReactNode; bold?: boolean }) {
+  return (
+    <Text style={{ fontFamily: bold ? fontHe.bold : fontHe.semibold }}>{children}</Text>
+  );
+}
 
 /* ────────────────────────────── Text ────────────────────────────── */
 
@@ -40,15 +61,26 @@ interface AppTextProps {
   numberOfLines?: number;
 }
 
+/**
+ * مقياس قراءة مريح (توصيات iOS HIG وMaterial + خصوصية العربية):
+ * الأساسي ≥16، لا شيء تحت 13، وأسطر ≈1.65 لأن العربية تحتاج تنفسًا رأسيًا.
+ */
 const TEXT_STYLES: Record<TextVariant, TextStyle> = {
-  display: { fontFamily: font.bold, fontSize: 30, lineHeight: 42 },
-  title: { fontFamily: font.bold, fontSize: 22, lineHeight: 34 },
-  heading: { fontFamily: font.semibold, fontSize: 17, lineHeight: 27 },
-  body: { fontFamily: font.regular, fontSize: 15, lineHeight: 25 },
-  label: { fontFamily: font.medium, fontSize: 13.5, lineHeight: 22 },
-  caption: { fontFamily: font.regular, fontSize: 12, lineHeight: 20 },
-  number: { fontFamily: font.semibold, fontSize: 18, lineHeight: 26 },
-  numberLarge: { fontFamily: font.bold, fontSize: 28, lineHeight: 36 },
+  /*
+   * مراجعة تكبير الخط (M9/M12) - رفعٌ مدروس لا قفزة: caption هو الأكثر
+   * انتشارًا (كل السطور الثانوية والتقارير) فرُفع نصف نقطة مع سطره، وbody
+   * وlabel نصفًا كذلك. العناوين والأرقام الكبيرة لم تُمسّ - كبرها كافٍ،
+   * وتضخيمها يكسر بطاقات مضبوطة على مقاسها. Cairo عريض العين أصلًا،
+   * والقفز فوق ذلك يفكّ تراصف الصفوف المحسوبة بارتفاع أدنى 44-52.
+   */
+  display: { fontFamily: font.bold, fontSize: 32, lineHeight: 46 },
+  title: { fontFamily: font.bold, fontSize: 24, lineHeight: 38 },
+  heading: { fontFamily: font.semibold, fontSize: 19, lineHeight: 30 },
+  body: { fontFamily: font.regular, fontSize: 16.5, lineHeight: 28 },
+  label: { fontFamily: font.medium, fontSize: 15, lineHeight: 25 },
+  caption: { fontFamily: font.regular, fontSize: 13.5, lineHeight: 22 },
+  number: { fontFamily: font.semibold, fontSize: 20, lineHeight: 28 },
+  numberLarge: { fontFamily: font.bold, fontSize: 30, lineHeight: 42 },
 };
 
 export const AppText = memo(function AppText({
@@ -110,15 +142,20 @@ export function Card({
   onPress,
   padded = true,
   testID,
+  onLayout,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   padded?: boolean;
   testID?: string;
+  /** موضع البطاقة داخل الصفحة - يلزم للتمرير إليها بعد إنشائها. */
+  onLayout?: (e: LayoutChangeEvent) => void;
 }) {
   const content = (
-    <View style={[styles.card, padded && { padding: spacing.lg }, style]}>{children}</View>
+    <View onLayout={onLayout} style={[styles.card, padded && { padding: spacing.lg }, style]}>
+      {children}
+    </View>
   );
   if (!onPress) return content;
   return (
@@ -217,7 +254,7 @@ export function Button({
           <Text
             style={{
               fontFamily: font.semibold,
-              fontSize: small ? 13.5 : 15,
+              fontSize: small ? 14 : 16,
               color: fg[variant],
             }}
           >
@@ -291,7 +328,7 @@ export function Pill({
       }}
     >
       {icon}
-      <Text style={{ fontFamily: font.medium, fontSize: small ? 11 : 12.5, color: fg }}>
+      <Text style={{ fontFamily: font.medium, fontSize: small ? 12 : 13.5, color: fg }}>
         {label}
       </Text>
     </View>
@@ -331,7 +368,7 @@ export function Chip({
       <Text
         style={{
           fontFamily: font.medium,
-          fontSize: 13.5,
+          fontSize: 14.5,
           color: active ? palette.ivory : palette.charcoal,
         }}
       >
@@ -373,20 +410,50 @@ export function SegmentedControl<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  /**
+   * القرص يسافر ولا يقفز.
+   *
+   * كان السطح الأبيض يُطفأ تحت خيار ويُشعل تحت آخر، فلا شيء يربط الخيارين
+   * في العين. الآن قطعة واحدة تنزلق، وهي الطريقة نفسها التي عولج بها شريط
+   * تبويبات المشروع. العرض يُقاس ولا يُفترض: النصوص العربية تتفاوت أطوالها،
+   * فالقسمة على العدد تُخرج القرص عن كلمته.
+   */
+  const [w, setW] = React.useState(0);
+  const n = options.length;
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  // حسابٌ من قياس الحاوية الفعلي: حشوة 4 من الجانبين وفراغ 4 بين كل خيارين
+  const cell = n > 0 && w > 0 ? (w - 8 - 4 * (n - 1)) / n : 0;
+  // الشريط row-reverse فأول خيار أقصى اليمين: الإزاحة تُعدّ من الطرف الآخر
+  const target = (n - 1 - index) * (cell + 4);
+  const x = useSharedValue(-1);
+  useEffect(() => {
+    if (cell <= 0) return;
+    if (x.value < 0) x.value = target; // أول قياس: يوضع مكانه بلا سفر
+    else x.value = withTiming(target, { duration: 240, easing: REasing.out(REasing.cubic) });
+  }, [target, cell, x]);
+  const thumb = useAnimatedStyle(() => ({
+    transform: [{ translateX: Math.max(0, x.value) }],
+  }));
+
   return (
-    <View style={styles.segment}>
+    <View style={styles.segment} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {cell > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.segmentThumb, { width: cell }, thumb]}
+        />
+      )}
       {options.map((o) => {
         const active = o.value === value;
         return (
-          <Pressable
-            key={o.value}
-            onPress={() => onChange(o.value)}
-            style={[styles.segmentItem, active && styles.segmentItemActive]}
-          >
+          <Pressable key={o.value} onPress={() => onChange(o.value)} style={styles.segmentItem}>
             <Text
               style={{
                 fontFamily: active ? font.semibold : font.regular,
-                fontSize: 13.5,
+                fontSize: 14.5,
                 color: active ? palette.oliveDark : palette.muted,
               }}
             >
@@ -412,6 +479,7 @@ export function Field({
   error,
   editable = true,
   testID,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
@@ -423,6 +491,8 @@ export function Field({
   error?: string | null;
   editable?: boolean;
   testID?: string;
+  /** أرقام الرولات ودفعات الصبغ والرموز المخزنية تُكتب لاتينية كبيرة. */
+  autoCapitalize?: 'none' | 'characters' | 'words' | 'sentences';
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -441,6 +511,7 @@ export function Field({
           testID={testID}
           value={value}
           onChangeText={onChangeText}
+          autoCapitalize={autoCapitalize}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}
           keyboardType={keyboardType ?? 'default'}
@@ -449,7 +520,7 @@ export function Field({
           style={{
             flex: 1,
             fontFamily: font.regular,
-            fontSize: 15,
+            fontSize: 16,
             color: palette.charcoal,
             textAlign: 'right',
             writingDirection: 'rtl',
@@ -523,29 +594,72 @@ export function Skeleton({ height = 96, style }: { height?: number; style?: Styl
   );
 }
 
+/**
+ * شريط تقدّم أنيق: التوصية المعتمدة تقول إن الشريط لا يجب أن يخطف الانتباه،
+ * وأن الحركة تكون خفيفة بمنحنى ناعم لا وميضًا صاخبًا. لذلك:
+ * التعبئة تنزلق بمنحنى out-cubic عند تغيّر القيمة، وبريقٌ شفيف يعبرها
+ * ببطء (وفي الجزء الممتلئ وحده) فيوحي بالحياة بلا ضجيج - ويتوقف تلقائيًا
+ * عند 0% و100% حيث لا شيء «جارٍ» ليُعبَّر عنه.
+ */
 export function ProgressBar({
   value,
   color = palette.olive,
   height = 8,
   track = palette.sand,
+  shimmer = true,
 }: {
   value: number;
   color?: string;
   height?: number;
   track?: string;
+  shimmer?: boolean;
 }) {
   const clamped = Math.max(0, Math.min(1, value));
+  const fill = useSharedValue(0);
+  const sweep = useSharedValue(0);
+
+  useEffect(() => {
+    fill.value = withTiming(clamped, { duration: 900, easing: REasing.out(REasing.cubic) });
+  }, [clamped, fill]);
+
+  const live = shimmer && clamped > 0.02 && clamped < 0.995;
+  useEffect(() => {
+    if (!live) {
+      sweep.value = 0;
+      return;
+    }
+    sweep.value = withRepeat(withTiming(1, { duration: 3400, easing: REasing.inOut(REasing.quad) }), -1, false);
+  }, [live, sweep]);
+
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.value * 100}%` }));
+  // من اليمين إلى اليسار مع اتجاه القراءة: تحريك الحافة اليمنى للبريق
+  const sweepStyle = useAnimatedStyle(() => ({ right: `${sweep.value * 130 - 30}%` }));
+
   return (
     <View style={{ height, backgroundColor: track, borderRadius: height / 2, overflow: 'hidden' }}>
-      <View
-        style={{
-          width: `${clamped * 100}%`,
-          height: '100%',
-          backgroundColor: color,
-          borderRadius: height / 2,
-          alignSelf: 'flex-end',
-        }}
-      />
+      <Animated.View
+        style={[
+          {
+            height: '100%',
+            backgroundColor: color,
+            borderRadius: height / 2,
+            alignSelf: 'flex-end',
+            overflow: 'hidden',
+          },
+          fillStyle,
+        ]}
+      >
+        {live && (
+          <Animated.View style={[{ position: 'absolute', top: 0, bottom: 0, width: '28%' }, sweepStyle]}>
+            <LinearGradient
+              colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.45)', 'rgba(255,255,255,0)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+        )}
+      </Animated.View>
     </View>
   );
 }
@@ -587,6 +701,71 @@ export function Banner({
       </View>
       {action}
     </View>
+  );
+}
+
+/**
+ * ورقة تأكيد سفلية بأسلوب التطبيق — بديل Alert الأصلي الذي يفرض ألوان
+ * النظام وخطوطه فيقطع الهوية البصرية. الممارسة المعتمدة للإجراءات المرتبطة
+ * بالشاشة الحالية: ورقة سفلية غير قاطعة، لا حوار مركزي.
+ */
+export function ConfirmSheet({
+  visible,
+  title,
+  body,
+  confirmLabel,
+  cancelLabel = 'إلغاء',
+  tone = 'primary',
+  icon,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  body?: string;
+  confirmLabel: string;
+  cancelLabel?: string;
+  tone?: 'primary' | 'danger';
+  icon?: React.ReactNode;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.sheetBackdrop} onPress={onCancel} />
+      <View style={styles.sheetWrap} pointerEvents="box-none">
+        <Animated.View entering={SlideInDown.duration(320)} style={styles.sheet}>
+          <View style={styles.sheetGrip} />
+          {!!icon && (
+            <View
+              style={[
+                styles.sheetIcon,
+                { backgroundColor: tone === 'danger' ? palette.dangerSoft : palette.sand },
+              ]}
+            >
+              {icon}
+            </View>
+          )}
+          <AppText variant="title" align="center">
+            {title}
+          </AppText>
+          {!!body && (
+            <AppText variant="body" color={palette.muted} align="center">
+              {body}
+            </AppText>
+          )}
+          <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+            <Button
+              label={confirmLabel}
+              variant={tone === 'danger' ? 'danger' : 'primary'}
+              full
+              onPress={onConfirm}
+            />
+            <Button label={cancelLabel} variant="ghost" full onPress={onCancel} />
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -722,7 +901,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmentItemActive: { backgroundColor: palette.white, ...shadow.card },
+  /** القرص المسافر - خلف النصوص لا فوقها. */
+  segmentThumb: {
+    position: 'absolute',
+    left: 4,
+    top: 4,
+    height: 38,
+    borderRadius: radius.sm,
+    backgroundColor: palette.white,
+    ...shadow.card,
+  },
   empty: {
     alignItems: 'center',
     gap: spacing.sm,
@@ -742,5 +930,41 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     gap: spacing.sm,
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,18,34,0.45)',
+  },
+  sheetWrap: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: palette.white,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.sm,
+    alignItems: 'stretch',
+    ...shadow.raised,
+  },
+  sheetGrip: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.sandDeep,
+    marginBottom: spacing.lg,
+  },
+  sheetIcon: {
+    alignSelf: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
 });

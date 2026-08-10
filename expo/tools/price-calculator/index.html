@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حاسبة أسعار بيتك ديزاين</title>
+<link rel="stylesheet" href="styles.css?v=baba4a5d">
+</head>
+<body>
+<div class="wrap" dir="rtl" lang="ar">
+
+  <header class="top">
+    <div class="brand">
+      <h1>حاسبة أسعار بيتك ديزاين</h1>
+      <span>تدقيق التسعيرة</span>
+    </div>
+    <div class="pleats" aria-hidden="true"></div>
+    <div class="verdict">
+      <div class="lead">
+        <span class="k">الإجمالي للزبون</span>
+        <span class="v v-cust" id="v-customer">₪0</span>
+      </div>
+      <div>
+        <span class="k">التكلفة على المحل</span>
+        <span class="v v-cost" id="v-cost">₪0</span>
+      </div>
+    </div>
+
+    <div class="vat-seg" role="group" aria-label="أساس عرض السعر">
+      <button type="button" data-vat="1" aria-pressed="false">כולל מע"מ</button>
+      <button type="button" data-vat="0" aria-pressed="true">לא כולל מע"מ</button>
+    </div>
+  </header>
+
+  <section class="card input">
+    <h2>الشباك</h2>
+    <p class="sub">غيّر أي خيار وتابع الرقمين في الأعلى.</p>
+
+    <div class="field">
+      <label for="w">المقاس</label>
+      <div class="row2">
+        <label class="nf" for="w"><span>العرض سم</span>
+          <input class="num" id="w" type="number" inputmode="decimal" value="100" min="1" step="1"></label>
+        <label class="nf" for="h"><span>الارتفاع سم</span>
+          <input class="num" id="h" type="number" inputmode="decimal" value="280" min="1" step="1"></label>
+        <label class="nf" for="q"><span>عدد الستائر</span>
+          <input class="num" id="q" type="number" inputmode="numeric" value="1" min="1" step="1"></label>
+      </div>
+      <div class="lg pt-xs">
+        <span class="name" id="dims-note">عرض 100 سم × ارتفاع 280 سم</span>
+        <span class="pill band" id="band-note"></span>
+      </div>
+      <p class="note">
+        كل متر طولي يستهلك 3 أمتار قماش، والبطانة بنسبة درجتها. الحساب
+        تلقائي - لا يُختار.
+      </p>
+    </div>
+
+    <div class="field">
+      <label>القماش</label>
+      <div class="chips two" id="products"></div>
+      <div class="chips" id="colors"></div>
+    </div>
+
+    <div class="field">
+      <label>البطانة</label>
+      <div class="chips three" id="linings"></div>
+    </div>
+
+    <div class="field">
+      <label>المسار</label>
+      <div class="chips two" id="tracks"></div>
+    </div>
+
+  </section>
+
+  <div class="act">النتيجة</div>
+
+  <section class="card">
+    <h2>ما يدفعه الزبون</h2>
+    <p class="sub">سعر المتر مضروبًا في الأمتار الطولية، ثم ما يُضاف للستارة.</p>
+    <div class="ledger" id="lg-customer"></div>
+    <p class="note">
+      كل مبلغ يُنزَّل إلى الشيكل الصحيح - لا أغوروت.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>ما يكلّفك</h2>
+    <p class="sub">معدّل التكلفة لكل متر طولي - لا يظهر للزبون.</p>
+    <div class="ledger" id="lg-cost"></div>
+    <p class="note" id="cost-note"></p>
+  </section>
+
+  <section class="card">
+    <h2>الخصم والنتيجة</h2>
+    <p class="sub">جرّب الخصم وشاهد أثره على الربح مباشرة.</p>
+    <div class="field">
+      <label for="d">نسبة الخصم: <span id="d-label" class="num-face">0%</span></label>
+      <input class="range" id="d" type="range" min="0" max="20" step="1" value="0">
+    </div>
+    <div class="final mt-md" id="lg-final"></div>
+    <div id="flags"></div>
+  </section>
+
+  <section class="card">
+    <h2>كل الاحتمالات</h2>
+    <p class="sub">بالمقاسات نفسها - المظلَّل اختيارك.</p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>القماش</th><th>البطانة</th><th>المسار</th>
+            <th class="n">للمتر</th>
+            <th class="n" id="th-basis">الإجمالي</th>
+            <th class="n">التكلفة</th>
+            <th class="n">نسبة الربح</th>
+          </tr>
+        </thead>
+        <tbody id="matrix"></tbody>
+      </table>
+    </div>
+    <p class="note">
+      السطر المظلَّل هو اختيارك أعلاه. نسبة الربح محسوبة على المجموع بعد
+      الخصم - وهي المعتمدة للحد الأدنى 35%.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>من أين جاء الربح</h2>
+    <p class="sub">بندًا بندًا، بمبالغه الكاملة على الشباك كله.</p>
+    <div class="ledger" id="lg-detail"></div>
+    <p class="note" id="detail-note"></p>
+  </section>
+
+  <footer>
+    الأرقام هنا هي نفسها التي في التطبيق، بالحساب نفسه رقمًا رقمًا.<br>
+    أي فرق - ولو شيكل واحد - يعني خللًا يجب تصحيحه قبل إصدار أي عرض.
+  </footer>
+</div>
+<script src="app.js?v=a311a54b"></script>
+</body>
+</html>

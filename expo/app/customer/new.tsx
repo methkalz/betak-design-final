@@ -1,8 +1,9 @@
-import { useRouter } from 'expo-router';
+﻿import { useRouter } from 'expo-router';
 import { UserPlus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { View } from 'react-native';
 
+import { TownField } from '@/components/TownField';
 import { AppText, Banner, Button, Card, Field, ScrollScreen } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import { useStore } from '@/providers/store';
@@ -27,7 +28,9 @@ export default function NewCustomerScreen() {
       setError(res.error);
       return;
     }
-    router.replace(`/customer/${res.data}`);
+    // العلامة تُشغّل الضوء الكاشف على زر «مشروع جديد» في صفحة الزبون:
+    // الإرشاد يأتي بعد فعل المستخدم لا عند فتح الشاشة اعتباطًا
+    router.replace({ pathname: '/customer/[id]', params: { id: res.data, justCreated: '1' } });
   };
 
   return (
@@ -43,7 +46,7 @@ export default function NewCustomerScreen() {
             placeholder="052-6444414"
             keyboardType="phone-pad"
           />
-          <Field label="البلدة" value={city} onChangeText={setCity} placeholder="كفر قاسم" />
+          <TownField value={city} onChangeText={setCity} />
           <Field label="العنوان" value={address} onChangeText={setAddress} placeholder="الحي، رقم البناية" />
           <Field label="ملاحظات" value={notes} onChangeText={setNotes} multiline placeholder="تفضيلات الزبون، أوقات التواصل..." />
         </View>
@@ -59,7 +62,7 @@ export default function NewCustomerScreen() {
         onPress={submit}
       />
       <AppText variant="caption" color={palette.muted} align="center">
-        يتم حفظ الزبون داخل مؤسستك فقط، ولا تراه أي مؤسسة أخرى.
+        يُحفظ الزبون في معرضك وحده، ولا يراه أي معرض آخر.
       </AppText>
     </ScrollScreen>
   );

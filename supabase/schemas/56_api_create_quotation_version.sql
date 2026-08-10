@@ -55,7 +55,6 @@ begin
     raise exception 'دورك لا يسمح بإنشاء عروض الأسعار.' using errcode = 'BD403';
   end if;
 
-  -- بصمة v3 (§10 ح-2): create|project|discount|note — بلا expected_version
   v_payload := jsonb_build_object(
     'op', 'create_quotation_version', 'user_id', v_uid,
     'project_id', p_project_id, 'discount_percent', v_pct, 'note', v_note);
@@ -70,7 +69,6 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- إخفاق سريع غير حاسم — الفحص الملزم يتكرر تحت قفل المشروع أدناه
   if v_status not in ('measured', 'quotation') then
     raise exception 'لا يمكن إنشاء عرض والمشروع في حالة "%". يلزم أن يكون مقاسًا أو في مرحلة العرض.',
       v_status using errcode = 'BD409';
@@ -81,14 +79,12 @@ begin
       using errcode = 'BD409';
   end if;
 
-  -- ★ اللقطة الذرية: الإعدادات والقواعد في «عبارة واحدة» = لقطة واحدة،
-  -- والمحرك أدناه يقرأ من هذا السياق حصرًا — البنود مطابقة له بالبناء.
   select jsonb_build_object(
-    'calculation_version', 1,
+    'calculation_version', 2,
     'captured_at',         now(),
-    'vat_mode',            'inclusive',
+    'vat_mode',            'exclusive',
     'vat_percent',         bs.vat_percent,
-    'rounding_policy',     'half_away_from_zero_per_stage',
+    'rounding_policy',     'floor_to_whole_shekel_per_stage',
     'currency',            pg_catalog.btrim(bs.currency),
     'validity_days',       bs.quotation_validity_days,
     'min_margin_percent',  bs.min_margin_percent,
@@ -118,12 +114,10 @@ begin
   end if;
   v_vat := (v_context->>'vat_percent')::numeric;
 
-  -- ── الأقفال بالترتيب الملزم: document_sequences ← quotation ── ──────────
   select * into v_quotation from core.quotations q
   where q.organization_id = v_org and q.project_id = p_project_id;
 
   if not found then
-    -- العرض الأول للمشروع: قفل العداد أولًا (لا صف عرض يُقفل بعد)
     v_year := extract(year from (now() at time zone (v_context->'settings'->>'timezone')))::integer;
 
     insert into core.document_sequences (organization_id, doc_type, year, last_number)
@@ -135,8 +129,6 @@ begin
     where ds.organization_id = v_org and ds.doc_type = 'quotation' and ds.year = v_year
     for update;
 
-    -- إعادة الفحص تحت قفل العداد: سباق «عرضين أولين» لنفس المشروع —
-    -- الخاسر يجد العرض الذي أنشأه الفائز ولا يستهلك رقمًا جديدًا
     select * into v_quotation from core.quotations q
     where q.organization_id = v_org and q.project_id = p_project_id;
 
@@ -159,7 +151,6 @@ begin
     v_number := v_quotation.number;
   end if;
 
-  -- إعادة فحص idempotency بعد أول قفل (نمط البيت)
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
   if found then
@@ -170,14 +161,12 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- عرض اعتُمدت نسخة منه لا يقبل نسخًا جديدة (§10 د)
   if exists (select 1 from core.quotation_versions
              where quotation_id = v_quotation.id and status = 'approved') then
-    raise exception 'العرض % معتمد من الزبون — لا نسخ جديدة بعد الاعتماد.',
+    raise exception 'العرض % معتمد من الزبون - لا نسخ جديدة بعد الاعتماد.',
       v_number using errcode = 'BD409';
   end if;
 
-  -- استبدال المسودة القائمة (مسودة واحدة قابلة للعمل)
   update core.quotation_versions
      set status = 'superseded', superseded_at = now(), locked = true
    where quotation_id = v_quotation.id and status = 'draft'
@@ -185,7 +174,6 @@ begin
 
   v_valid_until := now() + make_interval(days => (v_context->>'validity_days')::integer);
 
-  -- ترقيم النسخة تحت قفل صف العرض
   select coalesce(max(version_number), 0) + 1 into v_ver_no
   from core.quotation_versions where quotation_id = v_quotation.id;
 
@@ -196,7 +184,6 @@ begin
     (v_org, v_quotation.id, v_ver_no, v_pct, v_valid_until, v_note, v_uid, v_context)
   returning id into v_version_id;
 
-  -- البنود من المحرك — يقرأ من اللقطة الملتقطة حصرًا
   insert into core.quotation_items
     (organization_id, version_id, window_id, room_name, window_name, description,
      width_cm, height_cm, running_meters, quantity, category, band,
@@ -213,15 +200,20 @@ begin
   from core.quotation_items where version_id = v_version_id;
 
   if v_subtotal = 0 then
-    raise exception 'لا شبابيك مقاسة للمشروع — لا يمكن إنشاء عرض فارغ.'
+    raise exception 'لا شبابيك مقاسة للمشروع - لا يمكن إنشاء عرض فارغ.'
       using errcode = 'BD422';
   end if;
 
-  -- التجميع بسياسة «شاملة الضريبة» (§10 هـ) — الضريبة من اللقطة نفسها
-  v_discount := pg_catalog.round(v_subtotal * v_pct / 100)::bigint;
-  v_net      := v_subtotal - v_discount;
-  v_vat_amt  := v_net - pg_catalog.round(v_net / (1 + v_vat / 100))::bigint;
-  v_rev_ex   := v_net - v_vat_amt;
+  -- ★ كل مرحلة بشيكل صحيح: البنود صحيحة بالبناء، والخصم يُسقط كسره،
+  -- فيبقى الصافي صحيحًا، والضريبة تُسقط كسرها أيضًا فيبقى المجموع صحيحًا.
+  --
+  -- الأسعار قبل מע"מ (قرار المالك 9.8.2026): المجموع بعد الخصم هو الإيراد
+  -- كاملًا، والضريبة تُضاف عليه لا تُستخرج منه. وكانت تُستخرج، فيصل المحلَّ
+  -- 491 من كل 580 يدفعها الزبون - أي أنه كان يتحمّل الضريبة من سعره.
+  v_discount := (pg_catalog.floor(v_subtotal * v_pct / 100 / 100) * 100)::bigint;
+  v_rev_ex   := v_subtotal - v_discount;
+  v_vat_amt  := (pg_catalog.floor(v_rev_ex * v_vat / 100 / 100) * 100)::bigint;
+  v_net      := v_rev_ex + v_vat_amt;
   v_margin   := case when v_rev_ex > 0
                      then pg_catalog.round((v_rev_ex - v_internal)::numeric / v_rev_ex * 100, 2)
                      else 0 end;
@@ -232,7 +224,6 @@ begin
          internal_cost_agorot = v_internal, margin_percent = v_margin
    where id = v_version_id;
 
-  -- المؤشر: يتحرك فقط إذا كان NULL أو على المسودة المستبدلة
   if v_quotation.current_version_id is null
      or v_quotation.current_version_id = v_superseded_draft then
     update core.quotations
@@ -243,7 +234,6 @@ begin
     update core.quotations set updated_at = now() where id = v_quotation.id;
   end if;
 
-  -- ★ المشروع آخر الأقفال دائمًا — الفحوص الحاسمة تحته
   select p.status_code, p.lock_version into v_status, v_lock_ver
   from core.projects p where p.id = p_project_id for update;
 

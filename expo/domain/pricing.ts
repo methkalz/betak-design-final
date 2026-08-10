@@ -16,7 +16,8 @@ import type {
   WindowUnit,
 } from '@/types/domain';
 
-export const TALL_BAND_MIN_CM = 330;
+/** يتغيّر السعر عند 320 سم (تصحيح المالك 10.8.2026 - كان 330). */
+export const TALL_BAND_MIN_CM = 320;
 export const TALL_BAND_MAX_CM = 500;
 
 export function resolveBand(heightCm: number): HeightBand {
@@ -45,6 +46,15 @@ function divRoundHalfAway(numer: number, denom: number): number {
   const q = Math.floor(n / denom);
   const r = n - q * denom;
   return sign * (r * 2 >= denom ? q + 1 : q);
+}
+
+/**
+ * قاعدة المالك: لا أغوروت في أي مبلغ. الكسر يُسقَط لا يُقرَّب، فلا يدفع
+ * الزبون أبدًا أكثر مما تُظهره الحسبة. تُطبَّق على كل مرحلة لا على الإجمالي
+ * وحده، وإلا لم يعد مجموع البنود المعروضة مساويًا للإجمالي المعروض.
+ */
+export function floorToShekel(agorot: number): number {
+  return Math.floor(agorot / 100) * 100;
 }
 
 /** Running meters as integer thousandths: round3(widthCm/100 × quantity). */
@@ -82,6 +92,17 @@ export interface LineArithmeticInput {
   trackCostAgorot: number;
   deliveryCostAgorot: number;
   measureInstallCostAgorot: number;
+  /**
+   * أمتار البطانة لكل متر طولي. غيابه يعني «اتبع المضاعف» - وهو السلوك
+   * الذي قامت عليه المتجهات الذهبية، فتبقى كما هي حرفًا بحرف.
+   */
+  liningMetersPerRunningMeter?: number;
+  /**
+   * مبالغ ثابتة للستارة لا لكل متر: الماتور وجهاز التحكم. تُضاف بعد حساب
+   * الأمتار لأنها لا تتناسب معها - ماتورٌ واحد لستارة طولها متر أو عشرة.
+   */
+  perWindowPriceAgorot?: number;
+  perWindowCostAgorot?: number;
 }
 
 export interface LineArithmeticResult {
@@ -106,16 +127,25 @@ export function lineArithmetic(i: LineArithmeticInput): LineArithmeticResult {
   const fullnessTh = Math.round(i.fullness * 1000);
   // thousandths × thousandths ÷ 1000 → thousandths (round3 of rm × fullness)
   const fabricTh = divRoundHalfAway(rmTh * fullnessTh, 1000);
-  const liningTh = i.hasLining ? fabricTh : 0;
+  // البطانة قد تستهلك نسبةً غير المضاعف؛ غياب القيمة يعيد سلوك المضاعف
+  const liningMulTh =
+    i.liningMetersPerRunningMeter != null
+      ? Math.round(i.liningMetersPerRunningMeter * 1000)
+      : fullnessTh;
+  const liningTh = i.hasLining ? divRoundHalfAway(rmTh * liningMulTh, 1000) : 0;
 
-  const lineTotalAgorot = divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000);
+  const lineTotalAgorot =
+    floorToShekel(divRoundHalfAway(i.unitPriceAgorot * rmTh, 1000)) +
+    (i.perWindowPriceAgorot ?? 0);
 
   const costPerRunningMeterMilli =
     i.fabricCostAgorot * fullnessTh +
-    (i.hasLining ? i.liningCostAgorot * fullnessTh : 0) +
+    (i.hasLining ? i.liningCostAgorot * liningMulTh : 0) +
     (i.tailorCostAgorot + i.trackCostAgorot + i.deliveryCostAgorot + i.measureInstallCostAgorot) * 1000;
 
-  const internalCostAgorot = divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000);
+  const internalCostAgorot =
+    floorToShekel(divRoundHalfAway(costPerRunningMeterMilli * rmTh, 1_000_000)) +
+    (i.perWindowCostAgorot ?? 0);
 
   return {
     runningMeters: rmTh / 1000,
@@ -137,9 +167,15 @@ export interface TotalsArithmeticResult {
 }
 
 /**
- * Aggregation under the owner's VAT-inclusive policy (§10 هـ):
- * total = net; VAT is extracted (never added on top); margin is measured
- * against VAT-exclusive revenue.
+ * التجميع: الأسعار قبل מע"מ، والضريبة تُضاف على المجموع (قرار المالك
+ * 9.8.2026 - نقضَ ما قبله).
+ *
+ * كانت الأسعار تُعدّ شاملةً فتُستخرَج الضريبة منها: يدفع الزبون 580 فيصل
+ * المحلَّ 491 والباقي للدولة. الآن يدفع 684 ويصل المحلَّ 580 كاملةً. أي
+ * أن المحل كان يتحمّل الضريبة من سعره - فرقٌ يقارب سُبع كل عرض سعر.
+ *
+ * والهامش يبقى مقيسًا على الإيراد الصافي - وهو هنا المجموع قبل الضريبة -
+ * فالضريبة مالُ الدولة تمرّ بالمحل ولا تُحسب له ربحًا.
  */
 export function totalsArithmetic(
   subtotalAgorot: number,
@@ -150,10 +186,22 @@ export function totalsArithmetic(
   const pctHundredths = Math.round(discountPercent * 100);
   const vatHundredths = Math.round(vatPercent * 100);
 
-  const discountAgorot = divRoundHalfAway(subtotalAgorot * pctHundredths, 10_000);
-  const net = subtotalAgorot - discountAgorot;
-  const revenueExVatAgorot = divRoundHalfAway(net * 10_000, 10_000 + vatHundredths);
-  const vatAgorot = net - revenueExVatAgorot;
+  /**
+   * إسقاطٌ إلى الشيكل بخطوة واحدة، مطابقًا لـ SQL حرفًا:
+   * `floor(المبلغ × النسبة ÷ 10000) × 100`.
+   *
+   * كان التقريب يسبق الإسقاط في هذا الطرف والإسقاط وحده في ذاك. يتفقان عند
+   * 18% بالمصادفة لا بالبناء: لو صارت النسبة 19.99% لأعطى هذا الطرف شيكلًا
+   * حيث يعطي ذاك صفرًا. والمرآة تُبنى ولا تُترك للحظّ.
+   */
+  const floorPercentToShekel = (amount: number, hundredths: number) =>
+    Math.floor((amount * hundredths) / 1_000_000) * 100;
+
+  const discountAgorot = floorPercentToShekel(subtotalAgorot, pctHundredths);
+  // الصافي قبل الضريبة هو الإيراد نفسه: لم يعد جزءٌ منه مالَ الدولة
+  const revenueExVatAgorot = subtotalAgorot - discountAgorot;
+  // والضريبة تُسقط كسرها كغيرها، فيبقى المجموع شيكلًا صحيحًا
+  const vatAgorot = floorPercentToShekel(revenueExVatAgorot, vatHundredths);
   const marginPercent =
     revenueExVatAgorot > 0
       ? divRoundHalfAway((revenueExVatAgorot - internalCostAgorot) * 10_000, revenueExVatAgorot) / 100
@@ -163,7 +211,7 @@ export function totalsArithmetic(
     subtotalAgorot,
     discountAgorot,
     vatAgorot,
-    totalAgorot: net,
+    totalAgorot: revenueExVatAgorot + vatAgorot,
     revenueExVatAgorot,
     marginPercent,
   };
@@ -228,6 +276,14 @@ export function priceWindow(input: PriceInput): WindowPricing {
   const category = resolveCategory(kind, win.hasLining);
   const rule = findRule(rules, band, category);
 
+  // نسبة استهلاك البطانة خاصة بدرجتها؛ صفر يعني «اتبع المضاعف». تُحسب قبل
+  // فرع الـ500 لأن ذلك الفرع يعرض الأمتار أيضًا - وكان يعرضها بالمضاعف،
+  // فيقرأ الأدمن رقم بطانة خاطئًا في الشباك الذي يسعّره بيده أصلًا.
+  const liningPerRm =
+    liningVariant?.metersPerRunningMeter && liningVariant.metersPerRunningMeter > 0
+      ? liningVariant.metersPerRunningMeter
+      : win.fullness;
+
   // فوق 500 سم: لا تسعير تلقائي إطلاقًا — مطابقة لمحرك SQL (BD422).
   // الأمتار تُعرض للمعلومة؛ كل الأرقام المالية صفر حتى يسعّر الأدمن يدويًا.
   if (win.heightCm > TALL_BAND_MAX_CM) {
@@ -236,7 +292,9 @@ export function priceWindow(input: PriceInput): WindowPricing {
       category,
       runningMeters: runningMeters(win.widthCm, win.quantity),
       fabricMeters: fabricMeters(win.widthCm, win.quantity, win.fullness),
-      liningMeters: win.hasLining ? fabricMeters(win.widthCm, win.quantity, win.fullness) : 0,
+      liningMeters: win.hasLining
+        ? fabricMeters(win.widthCm, win.quantity, liningPerRm)
+        : 0,
       unitPriceAgorot: 0,
       lineTotalAgorot: 0,
       internalCostAgorot: 0,
@@ -244,15 +302,48 @@ export function priceWindow(input: PriceInput): WindowPricing {
       marginAgorot: 0,
       marginPercent: 0,
       requiresAdminPricing: true,
-      warnings: ['الارتفاع يتجاوز 500 سم — لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
+      warnings: ['الارتفاع يتجاوز 500 سم - لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
     };
   }
 
   if (!rule) {
-    warnings.push('لا توجد قاعدة تسعير مطابقة — راجع إعدادات التسعير.');
+    warnings.push('لا توجد قاعدة تسعير مطابقة - راجع إعدادات التسعير.');
   }
 
-  const unitPriceAgorot = rule?.customerPricePerMeterAgorot ?? 0;
+  /**
+   * سعر المتر = قاعدة الشريحة + زيادة البطانة المختارة إن وُجدت.
+   *
+   * البطانة 70% داخلة في السعر المحدد (زيادتها صفر)، و100% تزيده بما يضعه
+   * الأدمن على اللون. الزيادة تُضاف إلى سعر المتر الطولي - وهو الأساس الذي
+   * قِيس عليه السعر الأصلي - فتضرب في الأمتار الطولية لا في أمتار القماش.
+   *
+   * تُجمَع هنا في تجميع السعر لا داخل النواة الحسابية، فتبقى النواة - ومعها
+   * المتجهات الذهبية الثمانية المرآة مع SQL - كما هي حرفًا بحرف.
+   */
+  const liningSurcharge =
+    win.hasLining ? (liningVariant?.customerSurchargePerMeterAgorot ?? 0) : 0;
+
+  /**
+   * المسار الكهربائي (تسعيرة المالك): العادي داخلٌ في سعر القماش فلا يُزاد
+   * على الزبون ويبقى تكلفةً على المحل، والكهربائي له سعره المستقل للمتر
+   * ومعه ماتور وجهاز تحكم لكل ستارة - لا لكل متر، فماتورٌ واحد يكفي ستارة
+   * طولها متر أو عشرة.
+   */
+  const isMotorized = win.track === 'motorized';
+  const trackCostPerM = isMotorized
+    ? settings.motorizedTrackCostPerMeterAgorot
+    : settings.trackCostPerMeterAgorot;
+  const trackPricePerM = isMotorized ? settings.motorizedTrackPricePerMeterAgorot : 0;
+  const units = Math.max(1, win.quantity);
+  const perWindowPriceAgorot = isMotorized
+    ? (settings.motorPriceAgorot + settings.remotePriceAgorot) * units
+    : 0;
+  const perWindowCostAgorot = isMotorized
+    ? (settings.motorCostAgorot + settings.remoteCostAgorot) * units
+    : 0;
+
+  const unitPriceAgorot =
+    (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge + trackPricePerM;
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
 
@@ -265,9 +356,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
     tailorCostAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
     fabricCostAgorot: fabricCostPerM,
     liningCostAgorot: liningCostPerM,
-    trackCostAgorot: settings.trackCostPerMeterAgorot,
+    trackCostAgorot: trackCostPerM,
     deliveryCostAgorot: settings.deliveryCostPerMeterAgorot,
     measureInstallCostAgorot: settings.measureInstallCostPerMeterAgorot,
+    liningMetersPerRunningMeter: liningPerRm,
+    perWindowPriceAgorot,
+    perWindowCostAgorot,
   });
   const rm = line.runningMeters;
   const fm = line.fabricMeters;
@@ -285,9 +379,9 @@ export function priceWindow(input: PriceInput): WindowPricing {
   ];
   if (win.hasLining) {
     costLines.push({
-      label: 'البطانة',
-      detail: `${(liningCostPerM / 100).toFixed(0)} × ${win.fullness}`,
-      amountAgorot: divRoundHalfAway(liningCostPerM * fullnessTh, 1000),
+      label: `البطانة ${liningVariant?.colorName ?? ''}`.trim(),
+      detail: `${(liningCostPerM / 100).toFixed(0)} × ${liningPerRm}`,
+      amountAgorot: divRoundHalfAway(liningCostPerM * Math.round(liningPerRm * 1000), 1000),
     });
   }
   costLines.push({
@@ -296,30 +390,43 @@ export function priceWindow(input: PriceInput): WindowPricing {
     amountAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
   });
   costLines.push({
-    label: 'المسار',
-    detail: 'لكل متر ركض',
-    amountAgorot: settings.trackCostPerMeterAgorot,
+    label: isMotorized ? 'مسار كهربائي' : 'مسار عادي',
+    detail: 'لكل متر طولي',
+    amountAgorot: trackCostPerM,
   });
+  if (isMotorized) {
+    // مبالغ للستارة لا للمتر - تُعرض بمجموعها لا مقسومة، وإلا بدت كأنها
+    // تتضاعف مع الطول
+    costLines.push({
+      label: 'ماتور',
+      detail: units > 1 ? `${units} ستائر` : 'لكل ستارة',
+      amountAgorot: settings.motorCostAgorot * units,
+    });
+    costLines.push({
+      label: 'جهاز تحكم',
+      detail: units > 1 ? `${units} ستائر` : 'لكل ستارة',
+      amountAgorot: settings.remoteCostAgorot * units,
+    });
+  }
   costLines.push({
     label: 'التوصيل',
-    detail: 'لكل متر ركض',
+    detail: 'لكل متر طولي',
     amountAgorot: settings.deliveryCostPerMeterAgorot,
   });
   costLines.push({
     label: 'القياس والتركيب',
-    detail: 'لكل متر ركض',
+    detail: 'لكل متر طولي',
     amountAgorot: settings.measureInstallCostPerMeterAgorot,
   });
 
-  // Owner decision (2026-08-03): customer prices are FINAL, VAT-inclusive.
-  // Margin is always measured against VAT-exclusive revenue — measuring it
-  // against the inclusive price overstates it and hides min-margin breaches.
+  // قرار المالك 9.8.2026: الأسعار قبل מע"מ والضريبة تُضاف عليها. والهامش
+  // مقيسٌ على الإيراد قبل الضريبة - وهو هنا سعر البند نفسه.
   const lineTotals = totalsArithmetic(lineTotalAgorot, internalCostAgorot, 0, settings.vatPercent);
   const marginAgorot = lineTotals.revenueExVatAgorot - internalCostAgorot;
   const marginPercent = lineTotals.marginPercent;
 
   if (marginPercent < settings.minMarginPercent && lineTotalAgorot > 0) {
-    warnings.push('هامش الربح لهذا البند أقل من الحد الأدنى المسموح.');
+    warnings.push('نسبة الربح لهذا البند أقل من الحد الأدنى المسموح.');
   }
 
   return {
@@ -342,7 +449,10 @@ export function priceWindow(input: PriceInput): WindowPricing {
 export interface QuotationTotals {
   subtotalAgorot: number;
   discountAgorot: number;
+  /** المجموع بعد الخصم وقبل מע"מ - وهو إيراد المحل كاملًا. */
+  revenueExVatAgorot: number;
   vatAgorot: number;
+  /** ما يدفعه الزبون: الإيراد + מע"מ. */
   totalAgorot: number;
   internalCostAgorot: number;
   marginAgorot: number;
@@ -356,13 +466,13 @@ export function computeTotals(
 ): QuotationTotals {
   const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
   const internalCostAgorot = items.reduce((s, i) => s + i.internalCostAgorot, 0);
-  // Owner decision (2026-08-03): prices are VAT-inclusive. The customer pays
-  // `net` as-is; VAT is extracted from it for reporting/PDF, never added on
-  // top. Margin compares VAT-exclusive revenue to internal cost.
+  // الأسعار قبل מע"מ: المجموع هو الإيراد، والضريبة تُضاف عليه فيخرج ما
+  // يدفعه الزبون. والهامش يقارن الإيراد قبل الضريبة بالتكلفة.
   const t = totalsArithmetic(subtotalAgorot, internalCostAgorot, discountPercent, settings.vatPercent);
   return {
     subtotalAgorot,
     discountAgorot: t.discountAgorot,
+    revenueExVatAgorot: t.revenueExVatAgorot,
     vatAgorot: t.vatAgorot,
     totalAgorot: t.totalAgorot,
     internalCostAgorot,
@@ -406,6 +516,6 @@ export function checkDiscount(
   if (authority === 'needs_override')
     message = `خصم أكثر من ${settings.adminDiscountLimitPercent}% يلزمه Override موثق: طلب خصم يعتمده الأدمن.`;
   if (belowMinMargin)
-    message = `السعر النهائي ينزل تحت هامش الربح الأدنى (${settings.minMarginPercent}%).`;
+    message = `السعر النهائي ينزل تحت الحد الأدنى لنسبة الربح (${settings.minMarginPercent}%).`;
   return { authority, belowMinMargin, message };
 }

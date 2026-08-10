@@ -1,0 +1,465 @@
+  /* ───────── الخط ─────────
+     القاهرة (Cairo) - الخطّ نفسه الذي يعمل به التطبيق، فما يدقّقه صاحب
+     المحل هنا يشبه ما يراه هناك حرفًا بحرف.
+
+     مضمَّنٌ في الملف لا مُحمَّلٌ من جوجل: الصفحة تُفتح بلا إنترنت، وسياسة
+     أمن المحتوى تمنع الجلب من خارجها أصلًا. ومُقتَصرٌ على حروف هذه
+     الصفحة وحدها - 31 كيلوبايت للوزن بدل 95. */
+  @font-face {
+    font-family: 'Cairo';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('cairo-400.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Cairo';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('cairo-600.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Cairo';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('cairo-700.ttf') format('truetype');
+  }
+
+  /* חיבו (Heebo) - خطّ واجهاتٍ عبريّ، لما كُتب بالعبرية وحده:
+     מע"מ وأخواتها. القاهرة بلا حروفٍ عبرية، فكانت تسقط إلى خطّ النظام -
+     شكلٌ غريب وسط صفحةٍ مضبوطة الحرف. */
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    /* للحروف العبرية وحدها: نطاق اليونيكود يحصره فيها، فتبقى العربية لقاهرتها */
+    unicode-range: U+0590-05FF, U+0022;
+    src: url('heebo-600.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    /* للحروف العبرية وحدها: نطاق اليونيكود يحصره فيها، فتبقى العربية لقاهرتها */
+    unicode-range: U+0590-05FF, U+0022;
+    src: url('heebo-700.ttf') format('truetype');
+  }
+
+  /* ───────── الرموز ─────────
+     النيلي من التطبيق نفسه ليقرأها صاحب المحل كامتداد لما بين يديه.
+     الحياد مائل نحو النيلي قليلًا - رمادٌ صافٍ يبدو غير مقصود. */
+  :root {
+    direction: rtl;
+
+    --paper:      #F4F4FA;
+    --card:       #FFFFFF;
+    --card-2:     #FAFAFE;
+    --sunken:     #F0F0F8;
+    --line:       #E4E4F1;
+    --line-soft:  #EFEFF8;
+    --ink:        #14172B;
+    --ink-2:      #4A5070;
+    --ink-3:      #858BA8;
+
+    --indigo:     #4F46E5;
+    --indigo-ink: #3B32C4;
+    --indigo-bg:  #ECEBFE;
+    --deep:       #211D63;
+    --coral:      #E05A50;
+    --coral-bg:   #FFE9E6;
+    --mint:       #0B8F6B;
+    --mint-bg:    #DDF6EE;
+    --amber:      #B0730A;
+    --amber-bg:   #FDF0D8;
+
+    --shadow: 0 1px 2px rgba(20, 23, 43, .05), 0 8px 24px -16px rgba(20, 23, 43, .18);
+
+    --ar: 'Heebo', 'Cairo', "SF Arabic", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+    /* الأرقام بخطّ الصفحة نفسه. كانت بخطٍّ أحاديّ العرض فتخرج فاصلة الآلاف
+       من عائلةٍ أخرى: ضخمةً هابطة، تُرى قبل الرقم الذي تفصله. */
+    --num: 'Cairo', "SF Arabic", "Segoe UI", Tahoma, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #0D0F1E;
+      --card:       #171A2E;
+      --card-2:     #1D2038;
+      --sunken:     #101228;
+      --line:       #2B2F4A;
+      --line-soft:  #23273F;
+      --ink:        #EDEEF6;
+      --ink-2:      #A9AFC9;
+      --ink-3:      #767D9C;
+
+      --indigo:     #8B85F5;
+      --indigo-ink: #A5A0F8;
+      --indigo-bg:  #262457;
+      --deep:       #C7C3FB;
+      --coral:      #FF8F86;
+      --coral-bg:   #45241F;
+      --mint:       #4ED8AC;
+      --mint-bg:    #10382C;
+      --amber:      #F0B44E;
+      --amber-bg:   #3B2C0E;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .7);
+    }
+  }
+
+  /* مبدّل العارض يعلو على تفضيل النظام في الاتجاهين */
+  :root[data-theme="light"] {
+    --paper: #F4F4FA; --card: #FFFFFF; --card-2: #FAFAFE; --sunken: #F0F0F8;
+    --line: #E4E4F1; --line-soft: #EFEFF8;
+    --ink: #14172B; --ink-2: #4A5070; --ink-3: #858BA8;
+    --indigo: #4F46E5; --indigo-ink: #3B32C4; --indigo-bg: #ECEBFE;
+    --deep: #211D63; --coral: #E05A50; --coral-bg: #FFE9E6;
+    --mint: #0B8F6B; --mint-bg: #DDF6EE; --amber: #B0730A; --amber-bg: #FDF0D8;
+    --shadow: 0 1px 2px rgba(20,23,43,.05), 0 8px 24px -16px rgba(20,23,43,.18);
+  }
+  :root[data-theme="dark"] {
+    --paper: #0D0F1E; --card: #171A2E; --card-2: #1D2038; --sunken: #101228;
+    --line: #2B2F4A; --line-soft: #23273F;
+    --ink: #EDEEF6; --ink-2: #A9AFC9; --ink-3: #767D9C;
+    --indigo: #8B85F5; --indigo-ink: #A5A0F8; --indigo-bg: #262457;
+    --deep: #C7C3FB; --coral: #FF8F86; --coral-bg: #45241F;
+    --mint: #4ED8AC; --mint-bg: #10382C; --amber: #F0B44E; --amber-bg: #3B2C0E;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ar);
+    font-size: 16px;
+    line-height: 1.65;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 30rem;
+    margin: 0 auto;
+    padding: 0 1rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ───────── الترويسة ─────────
+     رقما الحكم ملتصقان بأعلى الشاشة: يتغيّران تحت الإبهام وهو يبدّل
+     الخيارات، فلا يحتاج أن يعود إليهما بالتمرير في كل مرة. */
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    padding: .75rem 0 .5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: .5rem; padding-bottom: .5rem;
+  }
+  /* طيّاتٌ رفيعة تحت العنوان - إيماءةٌ إلى ما تحسبه الصفحة، بلا زخرفة.
+     شرطاتٌ لا `border-image`: الأخيرة لا تُرسَم على حافةٍ واحدة بثبات. */
+  .pleats {
+    height: 4px; margin-bottom: .625rem;
+    background: repeating-linear-gradient(
+      to left, var(--line) 0 1px, transparent 1px 6px);
+  }
+  .brand h1 { margin: 0; font-size: 1.1875rem; font-weight: 700; letter-spacing: -.02em; }
+  .brand span { font-size: .75rem; color: var(--ink-3); }
+
+  /* الرقمان ليسا سواءً: ما يدفعه الزبون هو الحكم، والتكلفة سندُه */
+  .verdict { display: grid; grid-template-columns: 1.35fr 1fr; gap: .5rem; }
+  .verdict > div {
+    border-radius: .75rem; padding: .5rem .75rem;
+    border: 1px solid var(--line);
+    background: var(--card);
+    text-align: center;
+  }
+  .verdict > div.lead { border-color: var(--indigo); background: var(--indigo-bg); }
+  .verdict .k { font-size: .6875rem; color: var(--ink-3); display: block; }
+  /* ───────── أساس العرض ─────────
+     مفتاحٌ مستقلٌّ تحت المربعين لا نصٌّ داخل أحدهما: هو يحكم الرقمين معًا،
+     فسكناه في أحدهما توحي بأنه يخصّه وحده.
+
+     ومسارٌ هادئ يعلوه قرصٌ مرفوع - اصطلاح التطبيق نفسه في أشرطته
+     المقسومة - لا زرّان مصمتان يتنازعان النظر مع الرقم فوقهما. */
+  .vat-seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+    margin-top: .5rem; padding: 3px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+  }
+  .vat-seg button {
+    /* بلا هذا يرسم سفاري على الهاتف زرَّه الأصلي - حافةً ومنحدرًا رماديًا -
+       فوق ما نضعه، فيبدو الشريط قديمًا مهما لُوّن */
+    -webkit-appearance: none; appearance: none;
+    min-height: 2.125rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: transparent; color: var(--ink-2);
+    font-family: var(--ar); font-size: .8125rem; font-weight: 600;
+    letter-spacing: -.01em;
+    transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+  }
+  .vat-seg button[aria-pressed="true"] {
+    background: var(--card); color: var(--indigo-ink);
+    box-shadow: 0 1px 2px rgba(20, 23, 43, .1);
+  }
+  .vat-seg button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
+  .verdict .v {
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-weight: 700; line-height: 1.15;
+    letter-spacing: -.03em; display: block;
+  }
+  .v-cust { color: var(--indigo-ink); font-size: 1.75rem; }
+  .v-cost { color: var(--ink-2); font-size: 1.25rem; }
+
+  /* ───────── البطاقات ───────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+    padding: 1rem 1rem 1.125rem;
+    box-shadow: var(--shadow);
+  }
+  /* بطاقة الإدخال غائرة بلا ظل: ما يُملأ ليس كما يُقرأ. ولها لونها الخاص
+     لأن «الغائر» في الوضع الفاتح أغمق من السطح، وفي الداكن أغمق أيضًا -
+     لا انعكاسٌ آليّ للنهار. */
+  .card.input { background: var(--sunken); box-shadow: none; }
+
+  /* العنوان يعلو ما تحته لا يختفي دونه - كان أصغر من عناوين حقوله */
+  .card > h2 {
+    margin: 0 0 .125rem;
+    font-size: 1rem; font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .card > h2 + .sub {
+    margin: 0 0 .875rem;
+    font-size: .75rem; color: var(--ink-3); line-height: 1.5;
+  }
+  .card > h2:last-of-type { margin-bottom: .875rem; }
+
+  /* فاصلٌ يقسم الصفحة فصلين: ما تُدخله، وما ينتج عنه */
+  .act {
+    display: flex; align-items: center; gap: .75rem;
+    margin: .375rem .25rem -.25rem;
+    font-size: .75rem; font-weight: 700; color: var(--ink-3);
+    letter-spacing: .08em;
+  }
+  .act::before, .act::after {
+    content: ''; height: 1px; background: var(--line); flex: 1;
+  }
+
+  .field { display: flex; flex-direction: column; gap: .375rem; }
+  .field + .field { margin-top: .875rem; }
+  .field > label { font-size: .8125rem; color: var(--ink-2); font-weight: 600; }
+
+  /* رقاقات بحجم الإبهام: 44px الحد الأدنى للمس المريح. وعدد الأعمدة مثبَّت
+     لكل صفٍّ بحسب طول أسمائه - الالتفاف التلقائي كان يترك رقاقةً وحيدة
+     مضغوطة بجانب أختين واسعتين. */
+  .chips { display: grid; gap: .375rem; }
+  .chips.two   { grid-template-columns: repeat(2, 1fr); }
+  .chips.three { grid-template-columns: repeat(3, 1fr); }
+  /* صفّ الألوان يوزّع نفسه على عدد ألوان النوع المختار - لونان أو ثلاثة */
+  #colors { grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr)); }
+  .chip {
+    position: relative;
+    min-height: 2.75rem;
+    padding: .375rem 1.25rem .375rem .75rem;
+    border-radius: .625rem;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    font-family: var(--ar); font-size: .875rem; line-height: 1.3;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: background .12s ease, box-shadow .12s ease, color .12s ease;
+  }
+  .chip small { font-size: .6875rem; color: var(--ink-3); }
+
+  /* ───────── حالة الاختيار ─────────
+     أربعة صفوفٍ متتابعة، ولو مُلئ المختار منها بالنيليّ الصريح لصارت أربع
+     كتلٍ صارخة متجاورة: تلوّثٌ بصريّ، ولا يُعرف منها أيّ صفٍّ أهمّ. واللون
+     المصمت في نُظُم التصميم محجوزٌ للفعل الرئيسي - وليس في هذه الصفحة فعل،
+     إنما إجاباتٌ عن أسئلة.
+
+     فالمختار يُعلَّم بأرضيةٍ خافتة وإطارٍ ملوَّن وعلامة صحّ: يُرى بلا صياح،
+     ويبقى النيليّ المصمت للنتيجة وحدها فتعلو الصفحة على نموذجها. وهو نفسه
+     ما يفعله التطبيق - قرصٌ فاتح وإطارٌ ملوّن، لا سطحٌ مصمَت. */
+  .chip[aria-pressed="true"] {
+    background: var(--indigo-bg);
+    color: var(--indigo-ink);
+    /* ظلٌّ داخلي بدل تثخين الإطار، فلا يتزحزح المحتوى عند الاختيار */
+    box-shadow: inset 0 0 0 1.5px var(--indigo);
+    border-color: transparent;
+  }
+  .chip[aria-pressed="true"] small { color: var(--ink-2); }
+  /* علامةٌ لا لونًا وحده: من لا يميّز الدرجتين يميّز الصحّ */
+  .chip[aria-pressed="true"]::after {
+    content: '✓';
+    position: absolute; inset-block-start: .25rem; inset-inline-start: .4375rem;
+    font-size: .6875rem; line-height: 1; color: var(--indigo);
+  }
+  .chip:focus-visible, .num:focus-visible, .range:focus-visible {
+    outline: 2px solid var(--indigo); outline-offset: 2px;
+  }
+  .pill.band {
+    font-size: .6875rem; font-weight: 600;
+    padding: .125rem .5rem; border-radius: 999px;
+    background: var(--indigo-bg); color: var(--indigo-ink);
+    white-space: nowrap;
+  }
+
+  /* حدُّ العيّنة رماديٌّ شفّاف ليُرى الأبيض على الفاتح والداكن معًا */
+  /* عيّنة اللون svg لا div: لون القماش بيانٌ لا زخرفة، ولا يمكن وضعه في
+     صنف. و`style` على العنصر تمنعه سياسة أمن المحتوى على الخوادم، أما
+     `fill` فخاصيةُ عرضٍ لا أسلوبٌ داخلي - فتمرّ حيث يُمنع غيرها. */
+  .sw {
+    width: .875rem; height: .875rem;
+    border-radius: 50%;
+    border: 1px solid rgba(128, 128, 140, .45);
+    display: block;
+  }
+
+  /* بدائل لكل `style` كان في الترميز: أيّ منها تُسقطه السياسة بلا إنذار */
+  .mt-md { margin-top: .75rem; }
+  .pt-xs { padding-top: .25rem; }
+  .num-face { font-family: var(--num); }
+  th.n { text-align: end; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
+  .nf { display: flex; flex-direction: column; gap: .25rem; }
+  .nf > span {
+    font-size: .6875rem; color: var(--ink-3); text-align: center;
+  }
+  .num {
+    width: 100%; box-sizing: border-box;
+    min-height: 2.75rem; padding: .25rem .625rem;
+    border: 1px solid var(--line); border-radius: .625rem;
+    background: var(--card-2); color: var(--ink);
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-size: 1rem; text-align: center;
+  }
+  .range { width: 100%; accent-color: var(--indigo); }
+
+  /* المبالغ جزرٌ لاتينية داخل نصّ عربي: بلا عزلها تهاجر إشارة الناقص إلى
+     الطرف الآخر فيقرأ العين «42₪−» بدل «−₪42» - وفي ورقة تدقيقٍ إشارةٌ
+     مهاجرة تكفي لقلب المعنى. */
+  .amt, .verdict .v, tbody td.n {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  /* الشيكل علامةُ وحدةٍ لا رقم: أصغر قليلًا وبينه وبين المبلغ فرجة، فيُقرأ
+     الرقم أولًا وتبقى العلامة سندًا له */
+  .cur { font-size: .78em; margin-inline-end: .14em; }
+  /* الوصف يخلط رقمًا بحرف عربي («14 × 3 × 1 م»)، وترتيبه الطبيعي في فقرة
+     عربية هو الصحيح - فرضُ اللاتينية عليه يقذف «م» إلى الطرف الخطأ. */
+  .lg .work.calc { unicode-bidi: isolate; }
+
+  /* ───────── ورقة الحساب ─────────
+     هذا هو قلب الصفحة: لا رقم بلا العمليّة التي أنتجته. الغرض تدقيقٌ
+     لا تسعير، ومن يدقّق يحتاج المضروب والمضروب فيه لا الناتج وحده. */
+  .ledger { display: flex; flex-direction: column; }
+  .lg {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .3125rem 0;
+    font-size: .875rem;
+  }
+  .lg .name { color: var(--ink-2); }
+  /* الوصف كلامًا يبقى بالخط العربي؛ ولا يصير أحاديّ العرض إلا حين يكون
+     عمليةً حسابية - فالمونو بلا حروف عربية يتراخى تباعده ويبدو خطأً */
+  .lg .work { font-size: .75rem; color: var(--ink-3); margin-inline-start: .375rem; }
+  .lg .work.calc { font-family: var(--num); font-variant-numeric: tabular-nums; }
+  .lg .amt {
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    font-size: .9375rem; font-weight: 600; white-space: nowrap;
+  }
+  /* المجموع يُعلَّم بخطٍّ فوقه ثم بأرضيةٍ بلون دوره: إيرادٌ، أم تكلفة،
+     أم ربح. كان الثلاثة بشكل واحد فلا يُفرَّق بينها إلا بالقراءة. */
+  /* الهامش السالب يعادل الحشو، فتبقى أعمدة الأرقام على استقامتها بينما
+     تمتدّ الأرضية أوسع من السطر - شريطُ إبرازٍ لا سطرٌ مزاح */
+  .lg.sum {
+    border-top: 1.5px solid var(--ink);
+    margin: .375rem -.625rem 0; padding: .5rem .625rem;
+    border-radius: .5rem;
+  }
+  .lg.sum .name { color: var(--ink); font-weight: 700; }
+  .lg.sum .amt { font-size: 1.0625rem; }
+  .lg.sum.rev   { background: var(--indigo-bg); border-top-color: var(--indigo); }
+  .lg.sum.rev .amt { color: var(--indigo-ink); }
+  .lg.sum.spend { background: var(--card-2); }
+  .lg.sum.profit { background: var(--mint-bg); border-top-color: var(--mint); }
+
+  /* مجموعٌ وسطيّ لا نهائي: خطٌّ رفيع واسمٌ ثخين بلا أرضية. شريطان ملوّنان
+     في بطاقةٍ واحدة يتنازعان النظر، والرقم الأخير هو المقصود. */
+  .lg.subtotal {
+    border-top: 1px solid var(--line);
+    margin-top: .25rem; padding-top: .4375rem;
+  }
+  .lg.subtotal .name { color: var(--ink); font-weight: 700; }
+  .lg.plus .amt { color: var(--indigo); }
+  .lg.muted .amt { color: var(--ink-3); }
+
+  /* الملاحظة كانت بلون حقول الإدخال نفسه فتُقرأ حقلًا معطَّلًا؛ صارت
+     نصًّا هامشيًا بعلامةٍ رفيعة على حافته */
+  .note {
+    margin: .75rem 0 0;
+    padding: 0 .625rem;
+    border-inline-start: 2px solid var(--line);
+    font-size: .75rem; color: var(--ink-3); line-height: 1.6;
+  }
+
+  .flag {
+    margin-top: .75rem; padding: .625rem .75rem;
+    border-radius: .625rem; font-size: .8125rem; line-height: 1.5;
+  }
+  .flag.warn { background: var(--amber-bg); color: var(--amber); }
+  .flag.stop { background: var(--coral-bg); color: var(--coral); }
+
+  .final { display: flex; flex-direction: column; gap: .125rem; }
+  .final .lg .amt { font-size: 1rem; }
+  .profit .amt { color: var(--mint); }
+  .pill {
+    display: inline-block; padding: .0625rem .5rem; border-radius: 999px;
+    font-family: var(--num); font-size: .8125rem; font-weight: 600;
+  }
+  .pill.ok  { background: var(--mint-bg);  color: var(--mint); }
+  .pill.bad { background: var(--coral-bg); color: var(--coral); }
+
+  /* ───────── جدول الاحتمالات ───────── */
+  .scroller { overflow-x: auto; margin: 0 -1rem; padding: 0 1rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .8125rem; }
+  th, td { padding: .4375rem .375rem; text-align: start; white-space: nowrap; }
+  thead th {
+    font-size: .6875rem; color: var(--ink-3); font-weight: 600;
+    border-bottom: 1px solid var(--line);
+  }
+  tbody td { border-bottom: 1px solid var(--line-soft); }
+  tbody td.n {
+    font-family: var(--num); font-variant-numeric: tabular-nums; text-align: end;
+  }
+  tbody tr.here td { background: var(--indigo-bg); font-weight: 600; }
+  tbody tr.block-start td { border-top: 1.5px solid var(--line); }
+  tbody td.low { color: var(--coral); }
+  tbody tr.here td:first-child { border-start-start-radius: .375rem; border-end-start-radius: .375rem; }
+  tbody tr.here td:last-child  { border-start-end-radius: .375rem;  border-end-end-radius: .375rem; }
+
+  footer {
+    text-align: center; font-size: .75rem; color: var(--ink-3);
+    line-height: 1.7; padding-top: .5rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }

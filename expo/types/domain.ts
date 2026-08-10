@@ -62,7 +62,17 @@ export interface Project {
   title: string;
   status: ProjectStatus;
   priority: Priority;
-  fieldWorkerId: UUID | null;
+  /**
+   * القياس والتركيب دوران مختلفان لا دورٌ واحد.
+   *
+   * كان حقلٌ واحد `fieldWorkerId` يخدمهما معًا، فيُلزم أن يقيس ويركّب الشخصُ
+   * نفسه - وهذا ليس واقع الورشة: القياس يسبق بأسابيع، وقد يركّب غيره.
+   * القائس يلزم عند الإنشاء (بلا قائس لا يبدأ المشروع)، والمركّب يُختار
+   * وقتما شئت: عند الإنشاء أو حين تجهز الورشة، ويقبل التبديل.
+   */
+  measurementWorkerId: UUID | null;
+  installerId: UUID | null;
+  /** الخياط إلزامي عند الإنشاء - لا مشروع بلا من ينفّذه. */
   tailorId: UUID | null;
   measurementDate: string | null;
   installationDate: string | null;
@@ -81,8 +91,12 @@ export interface Room {
   sortOrder: number;
 }
 
-export type CurtainModel = 'wave' | 'pinch_pleat' | 'eyelet' | 'roman' | 'sheer_panel';
-export type TrackType = 'ceiling_rail' | 'wall_rod' | 'motorized' | 'double_rail';
+/**
+ * نوعان لا أربعة (قرار المالك 6.8.2026): عادي أو كهربائي.
+ * ما كان يُعرض من «قضيب حائط» و«مسار مزدوج» تفاصيل تركيب لا أنواع مسار،
+ * وحضورها في الاختيار كان يُبطئ الإدخال بقرارٍ لا وجود له في المحل.
+ */
+export type TrackType = 'standard' | 'motorized';
 
 export interface WindowUnit {
   id: UUID;
@@ -92,7 +106,6 @@ export interface WindowUnit {
   name: string;
   widthCm: number;
   heightCm: number;
-  model: CurtainModel;
   hasLining: boolean;
   track: TrackType;
   fullness: number;
@@ -126,6 +139,23 @@ export interface FabricVariant {
   sku: string;
   /** Internal wholesale cost per meter, in agorot. Hidden from field/tailor. */
   costPerMeterAgorot: number;
+  /**
+   * زيادة على سعر المتر الطولي للزبون حين يُختار هذا اللون (بالأغورة).
+   *
+   * وُضعت على اللون لا في قاعدة تسعير رابعة: البطانة 70% داخلة في السعر
+   * المحدد، و100% تزيده - وهذه خاصية الصنف نفسه لا خاصية شريحة الارتفاع.
+   * صفر لكل الأقمشة العادية، فلا يتغيّر شيء إلا حيث وضع الأدمن رقمًا.
+   */
+  customerSurchargePerMeterAgorot: number;
+  /**
+   * كم مترًا من هذا الصنف يلزم لكل متر طولي من الستارة.
+   *
+   * للبطانة وحدها معنى مستقل: 70% تحتاج 3 أمتار لكل متر طولي، و100% تحتاج
+   * مترًا ونصفًا - نسبتان ثابتتان لا تتبعان مضاعف الستارة، لأن البطانتين
+   * لا تُكسَّران بالطريقة نفسها. صفر يعني «اتبع مضاعف الشباك» وهو سلوك
+   * القماش الأساسي: أمتاره = المتر الطولي × المضاعف.
+   */
+  metersPerRunningMeter: number;
   imageUrl: string;
 }
 
@@ -138,6 +168,11 @@ export interface FabricRoll {
   location: string;
   initialMeters: number;
   isMiniRoll: boolean;
+  /**
+   * بضاعة أمانة (M24): الرول المسنَد لخياط موجود فعليًا في معمله، يراه
+   * قراءةً مع إحصاءاته، ولا يظهر لغيره من الخياطين. `null` = في مخزن المعرض.
+   */
+  assignedTailorId: UUID | null;
   createdAt: string;
 }
 
@@ -212,6 +247,13 @@ export interface FabricUsage {
   id: UUID;
   organizationId: UUID;
   projectId: UUID;
+  /**
+   * الشباك الذي استُهلك القماش لأجله.
+   * الاستهلاك يُسجَّل عند إنهاء شباك بعينه لا دفعةً على المشروع، فهذا الحقل
+   * هو ما يجعل «أُنجز هذا الشباك» واقعةً مسجَّلة لا خانةً تُعلَّم.
+   * `null` للسجلات القديمة السابقة على هذه القاعدة.
+   */
+  windowId: UUID | null;
   reservationId: UUID;
   rollId: UUID;
   plannedM: number;
@@ -253,6 +295,23 @@ export interface BusinessSettings {
   quotationValidityDays: number;
   vatPercent: number;
   currency: 'ILS';
+  /** أجرة الزيارة الميدانية بالأغورة (M26) - تُستحق مع إكمال كل زيارة. */
+  fieldVisitWageAgorot: number;
+
+  /* ── المسار الكهربائي وملحقاته (تسعيرة المالك 6.8.2026) ──────────────
+     المسار العادي تكلفةٌ فقط: داخلٌ في سعر القماش فلا يُزاد على الزبون،
+     ويبقى محسوبًا على المحل. أما الكهربائي فله سعره المستقل، ومعه ماتور
+     وجهاز تحكم لكل ستارة. كلها أرقام يملكها الأدمن من لوحته. */
+  /** تكلفة المتر من المسار الكهربائي على المحل. */
+  motorizedTrackCostPerMeterAgorot: number;
+  /** ما يُضاف للزبون عن كل متر طولي حين يكون المسار كهربائيًا. */
+  motorizedTrackPricePerMeterAgorot: number;
+  /** الماتور: لكل ستارة كهربائية، لا لكل متر. */
+  motorCostAgorot: number;
+  motorPriceAgorot: number;
+  /** جهاز التحكم: لازمٌ لكل ستارة كهربائية. */
+  remoteCostAgorot: number;
+  remotePriceAgorot: number;
   /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
   timezone?: string;
 }
@@ -413,6 +472,10 @@ export interface Payment {
   amountAgorot: number;
   kind: PaymentKind;
   method: PaymentMethod;
+  /** للشيكات: تاريخ الصرف. الدفعة تُسجَّل يوم استلام الشيك وتُصرف في موعده. */
+  dueAt?: string | null;
+  /** صورة الشيك (اختيارية) - تُضغط webp/jpeg لتصغير الحجم وتسهيل المعاينة. */
+  photoUri?: string | null;
   reference: string;
   note: string;
   reversedPaymentId: UUID | null;
@@ -441,6 +504,21 @@ export interface Attachment {
   createdAt: string;
   /** Local-first: photos live on device until the upload queue drains. */
   uploaded: boolean;
+}
+
+/**
+ * قيد دفتر الطاقم: دفعةٌ من المعرض لموظف (M8/M26).
+ * الاستحقاقات لا تُخزَّن هنا - تُشتق من الورشات والزيارات (انظر staffLedger).
+ */
+export interface StaffLedgerEntry {
+  id: UUID;
+  organizationId: UUID;
+  staffId: UUID;
+  /** بالأغورة، موجب دائمًا: مبلغ خرج من المعرض للموظف. */
+  amountAgorot: number;
+  note: string;
+  createdBy: UUID;
+  createdAt: string;
 }
 
 export type NotificationKind =

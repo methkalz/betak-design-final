@@ -26,3 +26,6 @@ supabase/tests/extracted/
 
 # مخرجات مجموعات الاختبار في CI
 logs/
+
+# مضغوطُ الحاسبة - مبنيٌّ من expo/tools/price-calculator/ لا مصدر
+expo/tools/price-calculator.zip

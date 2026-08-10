@@ -1,6 +1,5 @@
-import { useRouter } from 'expo-router';
-import { Calculator, Check, Save, Trash2 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import {
@@ -12,16 +11,51 @@ import {
   Field,
   Pill,
   Row,
+  RTL_ROW,
   ScrollScreen,
   SectionHeader,
   SegmentedControl,
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { CURTAIN_MODEL_LABELS, TRACK_LABELS } from '@/domain/labels';
-import { priceWindow, resolveBand } from '@/domain/pricing';
+import { TRACK_LABELS } from '@/domain/labels';
+import { priceWindow, resolveBand, TALL_BAND_MAX_CM } from '@/domain/pricing';
+import { meters, money, percent } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
-import type { CurtainModel, TrackType, WindowUnit } from '@/types/domain';
+import type { FabricVariant, TrackType, WindowUnit } from '@/types/domain';
+
+/**
+ * التسمية الترتيبية تكتب نفسها (M1): أول شباك في الغرفة يُقترح «الشباك
+ * الأول»، والذي بعده «الثاني»، وهكذا حسب العدّ الفعلي - لا قائمة ثابتة
+ * يختار منها المستخدم ما عدّه بنفسه.
+ */
+const ORDINALS = [
+  'الأول',
+  'الثاني',
+  'الثالث',
+  'الرابع',
+  'الخامس',
+  'السادس',
+  'السابع',
+  'الثامن',
+  'التاسع',
+  'العاشر',
+] as const;
+
+/** اسم الشباك التالي لغرفةٍ فيها `count` شباكًا. */
+export function nextWindowName(count: number): string {
+  return count < ORDINALS.length ? `الشباك ${ORDINALS[count]}` : `الشباك ${count + 1}`;
+}
+
+/**
+ * كل متر طولي يستهلك ثلاثة أمتار قماش - قاعدة المحل لا خيار الشباك.
+ *
+ * كان شريطًا يُختار منه، وكل اختيارٍ لا يُتّخذ فعلًا بابُ خطأ: يُترك على
+ * قيمةٍ سهوًا فيخرج عرض سعر بأمتار غير التي ستُقص. الحقل باقٍ في النموذج
+ * لأن محرك SQL ومتجهاته الذهبية مبنيّة عليه، لكنه لم يعد سؤالًا.
+ */
+const FULLNESS = 3;
 
 interface Props {
   projectId: string;
@@ -31,28 +65,36 @@ interface Props {
 
 export function WindowEditor({ projectId, roomId, existing }: Props) {
   const { db, role, saveWindow, deleteWindow } = useStore();
-  const router = useRouter();
+  const goBack = useGoBack('/projects');
 
-  const [name, setName] = useState<string>(existing?.name ?? '');
+  const roomCount = db.windows.filter((w) => w.roomId === roomId).length;
+  const [name, setName] = useState<string>(existing?.name ?? nextWindowName(roomCount));
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
-  const [model, setModel] = useState<CurtainModel>(existing?.model ?? 'wave');
-  const [track, setTrack] = useState<TrackType>(existing?.track ?? 'ceiling_rail');
+  const [track, setTrack] = useState<TrackType>(existing?.track ?? 'standard');
   const [hasLining, setHasLining] = useState<boolean>(existing?.hasLining ?? true);
-  const [fullness, setFullness] = useState<number>(existing?.fullness ?? 3);
   const [fabricVariantId, setFabricVariantId] = useState<string | null>(
     existing?.fabricVariantId ?? null,
   );
   const [liningVariantId, setLiningVariantId] = useState<string | null>(
-    existing?.liningVariantId ?? db.fabricVariants.find((v) => v.sku === 'LN-OFFWHITE')?.id ?? null,
+    // الافتراضي 70% - الداخلة في السعر المحدد، فلا يُزاد سعرٌ بلا اختيار
+    existing?.liningVariantId ?? db.fabricVariants.find((v) => v.sku === 'LN-70')?.id ?? null,
   );
   const [notes, setNotes] = useState<string>(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
 
+  const fabricProducts = db.fabricProducts.filter((p) => p.kind !== 'lining');
   const fabricVariants = db.fabricVariants.filter((v) => {
     const p = db.fabricProducts.find((x) => x.id === v.productId);
     return p?.kind !== 'lining';
   });
+  const [productId, setProductId] = useState<string>(
+    () =>
+      db.fabricVariants.find((v) => v.id === existing?.fabricVariantId)?.productId ??
+      fabricProducts[0]?.id ??
+      '',
+  );
   const liningVariants = db.fabricVariants.filter((v) => {
     const p = db.fabricProducts.find((x) => x.id === v.productId);
     return p?.kind === 'lining';
@@ -62,8 +104,41 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const heightCm = parseFloat(height || '0');
   const showCost = role === 'admin';
 
+  /**
+   * سعر المتر لكل بديل بطانة، محسوبًا بمحرك التسعير نفسه.
+   *
+   * إلغاء البطانة لا يحذف بندًا بل يغيّر فئة التسعير كلها، و100% تزيد على
+   * المتر. فبدل أن يُقال ذلك كلامًا يُعرض رقمه على الخيار لحظة النظر إليه -
+   * فلا يُكتشف فرق السعر في الإجمالي بعد الحفظ.
+   */
+  const unitPriceFor = useCallback(
+    (lining: FabricVariant | null): number | null => {
+      if (!fabricVariantId || !(heightCm > 0) || heightCm > TALL_BAND_MAX_CM) return null;
+      const variant = db.fabricVariants.find((v) => v.id === fabricVariantId) ?? null;
+      const product = db.fabricProducts.find((p) => p.id === variant?.productId) ?? null;
+      return priceWindow({
+        window: {
+          id: 'probe', organizationId: db.organization.id, projectId, roomId, name,
+          widthCm: widthCm > 0 ? widthCm : 100, heightCm,
+          hasLining: !!lining, track, fullness: FULLNESS,
+          fabricVariantId, liningVariantId: lining?.id ?? null,
+          quantity: 1, notes: '', measuredAt: null, measuredBy: null,
+        },
+        product,
+        variant,
+        liningVariant: lining,
+        rules: db.pricingRules,
+        settings: db.settings,
+      }).unitPriceAgorot;
+    },
+    [db, fabricVariantId, heightCm, widthCm, track, projectId, roomId, name],
+  );
+
   const preview = useMemo(() => {
     if (!(widthCm > 0) || !(heightCm > 0)) return null;
+    // بلا قماش يسقط أكبر بند تكلفة، فيظهر إجمالي أقلّ من الحقيقة وهامش أعلى
+    // منها. القماش إلزامي أصلًا، فالانتظار حتى اختياره أصدق من رقم مؤقّت.
+    if (!fabricVariantId) return null;
     const variant = db.fabricVariants.find((v) => v.id === fabricVariantId) ?? null;
     const product = db.fabricProducts.find((p) => p.id === variant?.productId) ?? null;
     const lining = db.fabricVariants.find((v) => v.id === liningVariantId) ?? null;
@@ -76,10 +151,9 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
         name,
         widthCm,
         heightCm,
-        model,
         hasLining,
         track,
-        fullness,
+        fullness: FULLNESS,
         fabricVariantId,
         liningVariantId,
         quantity: 1,
@@ -102,14 +176,12 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     projectId,
     roomId,
     name,
-    model,
     hasLining,
     track,
-    fullness,
     notes,
   ]);
 
-  const submit = () => {
+  const save = () => {
     setError(null);
     const res = saveWindow({
       id: existing?.id,
@@ -118,17 +190,41 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       name,
       widthCm,
       heightCm,
-      model,
       hasLining,
       track,
-      fullness,
+      fullness: FULLNESS,
       fabricVariantId,
       liningVariantId,
       quantity: 1,
       notes,
     });
-    if (!res.ok) return setError(res.error);
-    router.back();
+    if (!res.ok) {
+      setError(res.error);
+      return false;
+    }
+    return true;
+  };
+
+  const submit = () => {
+    if (save()) goBack();
+  };
+
+  /**
+   * الإدخال المتتابع (M2): الحفظ يبقيك في المحرر جاهزًا للشباك التالي.
+   *
+   * ما يتكرر في شبابيك الغرفة الواحدة يُحمَل (المسار والقماش
+   * والبطانة) لأن غرفةً تُفصَّل غالبًا بلغة واحدة، وما يخصّ كل
+   * شباك وحده يُصفَّر (المقاسات، الملاحظات، الاسم يتقدّم للترتيب التالي).
+   * هكذا تُدخَل خمسة شبابيك بخمسة قياسات لا بخمسة نماذج كاملة.
+   */
+  const submitAndNext = () => {
+    const saved = name;
+    if (!save()) return;
+    setName(nextWindowName(roomCount + 1));
+    setWidth('');
+    setHeight('');
+    setNotes('');
+    setSavedFlash(`حُفظ «${saved}» - أدخل قياسات التالي.`);
   };
 
   return (
@@ -136,7 +232,18 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       <Card>
         <AppText variant="heading">القياس</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-          <Field label="اسم الشباك" value={name} onChangeText={setName} placeholder="الشباك الرئيسي" />
+          <Field label="اسم الشباك" value={name} onChangeText={setName} placeholder="الشباك الأول" />
+          {/* الاسم الترتيبي مكتوب سلفًا؛ يبقى «الرئيسي» بديلًا بلمسة لمن
+              يسمّي شباك الصدارة به */}
+          {!existing && name !== 'الشباك الرئيسي' && (
+            <Row gap={spacing.sm} wrap>
+              <Pressable onPress={() => setName('الشباك الرئيسي')} style={suggestChip}>
+                <AppText variant="caption" color={palette.oliveDark}>
+                  الشباك الرئيسي
+                </AppText>
+              </Pressable>
+            </Row>
+          )}
           <Row gap={spacing.md}>
             <View style={{ flex: 1 }}>
               <Field
@@ -162,7 +269,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           {heightCm > 0 && (
             <Row gap={spacing.sm}>
               <Pill
-                label={resolveBand(heightCm) === 'standard' ? 'شريحة حتى 329 سم' : 'شريحة 330–500 سم'}
+                label={resolveBand(heightCm) === 'standard' ? 'شريحة أقل من 320 سم' : 'شريحة 320–500 سم'}
                 bg={resolveBand(heightCm) === 'standard' ? palette.sageSoft : palette.terracottaSoft}
                 fg={resolveBand(heightCm) === 'standard' ? palette.oliveDark : palette.terracotta}
                 small
@@ -173,111 +280,126 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       <Card>
-        <AppText variant="heading">الموديل والتركيب</AppText>
-        <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-          <AppText variant="label" color={palette.muted}>
-            موديل الستارة
-          </AppText>
-          <Row gap={spacing.sm} wrap>
-            {(Object.keys(CURTAIN_MODEL_LABELS) as CurtainModel[]).map((m) => (
-              <Pressable key={m} onPress={() => setModel(m)} style={[chipStyle, model === m && chipActive]}>
-                <AppText variant="label" color={model === m ? palette.ivory : palette.charcoal}>
-                  {CURTAIN_MODEL_LABELS[m]}
-                </AppText>
-              </Pressable>
-            ))}
-          </Row>
-
-          <AppText variant="label" color={palette.muted}>
-            المسار
-          </AppText>
-          <Row gap={spacing.sm} wrap>
-            {(Object.keys(TRACK_LABELS) as TrackType[]).map((t) => (
-              <Pressable key={t} onPress={() => setTrack(t)} style={[chipStyle, track === t && chipActive]}>
-                <AppText variant="label" color={track === t ? palette.ivory : palette.charcoal}>
-                  {TRACK_LABELS[t]}
-                </AppText>
-              </Pressable>
-            ))}
-          </Row>
-
-          <AppText variant="label" color={palette.muted}>
-            المضاعف (Fullness)
-          </AppText>
+        <AppText variant="heading">المسار</AppText>
+        <View style={{ marginTop: spacing.md }}>
+          {/* خياران اثنان: الشريط المقسوم أسرع من رقاقات متناثرة، ويُظهر
+              البديل حاضرًا بدل أن يُطلب البحث عنه */}
           <SegmentedControl
-            value={String(fullness)}
-            onChange={(v) => setFullness(parseFloat(v))}
-            options={[
-              { value: '2', label: '×2' },
-              { value: '2.5', label: '×2.5' },
-              { value: '3', label: '×3' },
-            ]}
+            value={track}
+            onChange={setTrack}
+            options={(Object.keys(TRACK_LABELS) as TrackType[]).map((t) => ({
+              value: t,
+              label: TRACK_LABELS[t],
+            }))}
           />
-
-          <Divider />
-          <Row justify="space-between">
-            <AppText variant="label">بطانة</AppText>
-            <SegmentedControl
-              value={hasLining ? 'yes' : 'no'}
-              onChange={(v) => setHasLining(v === 'yes')}
-              options={[
-                { value: 'yes', label: 'مع بطانة' },
-                { value: 'no', label: 'بدون' },
-              ]}
-            />
-          </Row>
         </View>
       </Card>
 
       <Card>
-        <SectionHeader title="القماش" subtitle="اختر اللون من مكتبة الأقمشة" />
-        <Row gap={spacing.sm} wrap>
-          {fabricVariants.map((v) => {
-            const p = db.fabricProducts.find((x) => x.id === v.productId);
-            const active = fabricVariantId === v.id;
+        {/* لم يعد اختياريًا: عليه يقوم السعر والحجز التلقائي بعد الاعتماد.
+            يُقال هنا قبل الحفظ لا في رسالة خطأ بعده. */}
+        <SectionHeader
+          title="القماش"
+          subtitle={fabricVariantId ? 'النوع ثم اللون' : 'مطلوب - عليه يقوم السعر والحجز'}
+        />
+        {/* النوع أولًا ثم ألوانه: سردُ كل الألوان معًا يُخفي أنها صنفان،
+            وتطول القائمة كلما دخل لونٌ جديد على المكتبة. */}
+        <SegmentedControl
+          value={productId}
+          onChange={(id) => {
+            setProductId(id);
+            // تبديل النوع يُلغي اللون: ألوان الأول لا وجود لها في الثاني،
+            // وحمل لونٍ سابقًا إلى نوعٍ جديد يعني قماشًا لا يملكه المحل
+            setFabricVariantId(null);
+          }}
+          options={fabricProducts.map((p) => ({ value: p.id, label: p.name }))}
+        />
+        <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
+          {fabricVariants
+            .filter((v) => v.productId === productId)
+            .map((v) => {
+              const active = fabricVariantId === v.id;
+              return (
+                <Pressable
+                  key={v.id}
+                  accessibilityRole="radio"
+                  aria-checked={active}
+                  onPress={() => setFabricVariantId(v.id)}
+                  style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
+                >
+                  <Swatch color={v.colorHex} size={40} />
+                  <AppText variant="label">{v.colorName}</AppText>
+                  {active && <Check size={16} color={palette.olive} />}
+                </Pressable>
+              );
+            })}
+        </Row>
+
+        <Divider />
+        {/* سؤالٌ واحد بثلاثة أجوبة، لا مفتاح «مع/بدون» ثم قائمة درجاتٍ تظهر
+            بعده. البطانة عند المالك ثلاث حالات لا اثنتان، وتقسيمها على
+            بطاقتين كان يُخفي الدرجة عمّن اختار «بدون» ثم عاد.
+            وتحت كل حالة ما يفرّقها فعلًا: كم تستهلك، وبكم تُحاسب. */}
+        <AppText variant="label">البطانة</AppText>
+        <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+          {[null, ...liningVariants].map((v) => {
+            const active = v ? hasLining && liningVariantId === v.id : !hasLining;
+            const extra = v?.customerSurchargePerMeterAgorot ?? 0;
+            const unit = unitPriceFor(v);
             return (
               <Pressable
-                key={v.id}
-                onPress={() => setFabricVariantId(v.id)}
-                style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
+                key={v?.id ?? 'none'}
+                role="radio"
+                // تُمرَّر صريحةً: `accessibilityState.checked` لا تصل إلى
+                // `aria-checked` على الويب هنا - فحصتُها في المتصفح فوجدتها
+                // فارغة، فيصير الصفّ زرَّ اختيارٍ لا يُعرف أيّه مختار
+                aria-checked={active}
+                onPress={() => {
+                  setHasLining(!!v);
+                  if (v) setLiningVariantId(v.id);
+                }}
+                style={[optionRow, active && optionRowActive]}
               >
-                <Swatch color={v.colorHex} size={40} />
-                <View>
-                  <AppText variant="caption">{p?.name}</AppText>
+                <View style={[radio, active && radioActive]}>
+                  {active && <Check size={13} color={palette.white} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="label">
+                    {v ? `بطانة ${v.colorName.replace('تغطية ', '')}` : 'بدون بطانة'}
+                  </AppText>
                   <AppText variant="caption" color={palette.muted}>
-                    {v.colorName}
+                    {v
+                      ? `${meters(v.metersPerRunningMeter)} لكل متر طولي` +
+                        (extra > 0 ? ` • +${money(extra)} على سعر المتر` : ' • ضمن سعر المتر')
+                      : 'ستارة بطبقة واحدة'}
                   </AppText>
                 </View>
-                {active && <Check size={16} color={palette.olive} />}
+                {unit != null && (
+                  <View style={{ alignItems: 'flex-start' }}>
+                    <AppText variant="label" color={active ? palette.oliveDark : palette.charcoal}>
+                      {money(unit)}
+                    </AppText>
+                    <AppText variant="caption" color={palette.muted}>
+                      للمتر
+                    </AppText>
+                  </View>
+                )}
               </Pressable>
             );
           })}
-        </Row>
-
-        {hasLining && (
-          <>
-            <Divider />
-            <AppText variant="label" color={palette.muted}>
-              لون البطانة
-            </AppText>
-            <Row gap={spacing.sm} wrap style={{ marginTop: spacing.sm }}>
-              {liningVariants.map((v) => {
-                const active = liningVariantId === v.id;
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => setLiningVariantId(v.id)}
-                    style={[swatchCard, active && { borderColor: palette.olive, backgroundColor: palette.sageSoft }]}
-                  >
-                    <Swatch color={v.colorHex} size={32} />
-                    <AppText variant="caption">{v.colorName}</AppText>
-                  </Pressable>
-                );
-              })}
-            </Row>
-          </>
-        )}
+        </View>
       </Card>
+
+      {!preview && widthCm > 0 && heightCm > 0 && !fabricVariantId && (
+        <Card>
+          <Row gap={spacing.sm}>
+            <Calculator size={18} color={palette.muted} />
+            <AppText variant="caption" color={palette.muted}>
+              اختر القماش ليظهر السعر - سعر بلا قماش ناقص.
+            </AppText>
+          </Row>
+        </Card>
+      )}
 
       {preview && (
         <Card style={{ backgroundColor: palette.oliveDeepest, borderColor: palette.oliveDeepest }}>
@@ -289,18 +411,18 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               </AppText>
             </Row>
             <AppText variant="numberLarge" color={palette.ivory}>
-              ₪{(preview.lineTotalAgorot / 100).toLocaleString('en-US')}
+              {money(preview.lineTotalAgorot)}
             </AppText>
           </Row>
           <View style={{ marginTop: spacing.md, gap: 6 }}>
-            <PreviewRow label="متر ركض" value={`${preview.runningMeters} م`} />
-            <PreviewRow label="قماش مطلوب" value={`${preview.fabricMeters} م`} />
-            {hasLining && <PreviewRow label="بطانة مطلوبة" value={`${preview.liningMeters} م`} />}
-            <PreviewRow label="سعر المتر" value={`₪${preview.unitPriceAgorot / 100}`} />
+            <PreviewRow label="متر طولي" value={meters(preview.runningMeters)} />
+            <PreviewRow label="قماش مطلوب" value={meters(preview.fabricMeters)} />
+            {hasLining && <PreviewRow label="بطانة مطلوبة" value={meters(preview.liningMeters)} />}
+            <PreviewRow label="سعر المتر" value={money(preview.unitPriceAgorot)} />
             {showCost && (
               <>
-                <PreviewRow label="التكلفة الداخلية" value={`₪${preview.internalCostAgorot / 100}`} />
-                <PreviewRow label="هامش الربح" value={`${preview.marginPercent}%`} highlight />
+                <PreviewRow label="التكلفة الداخلية" value={money(preview.internalCostAgorot)} />
+                <PreviewRow label="نسبة الربح" value={percent(preview.marginPercent)} highlight />
               </>
             )}
           </View>
@@ -317,13 +439,34 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       {!!error && <Banner tone="danger" title="تعذر الحفظ" body={error} />}
+      {!!savedFlash && <Banner tone="success" title={savedFlash} />}
 
-      <Button
-        label={existing ? 'حفظ التعديلات' : 'حفظ الشباك'}
-        full
-        icon={<Save size={18} color={palette.ivory} />}
-        onPress={submit}
-      />
+      {existing ? (
+        <Button
+          label="حفظ التعديلات"
+          full
+          icon={<Save size={18} color={palette.ivory} />}
+          onPress={submit}
+        />
+      ) : (
+        <>
+          {/* الإدخال المتتابع هو الحالة الغالبة (غرفة = عدة شبابيك)،
+              فزرّه هو الأساسي والإغلاق يليه */}
+          <Button
+            label="حفظ وإضافة التالي"
+            full
+            icon={<Plus size={18} color={palette.ivory} />}
+            onPress={submitAndNext}
+          />
+          <Button
+            label="حفظ وإغلاق"
+            variant="secondary"
+            full
+            icon={<Save size={17} color={palette.oliveDark} />}
+            onPress={submit}
+          />
+        </>
+      )}
 
       {!!existing && (
         <Button
@@ -339,7 +482,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
                 style: 'destructive',
                 onPress: () => {
                   deleteWindow(existing.id);
-                  router.back();
+                  goBack();
                 },
               },
             ])
@@ -374,16 +517,47 @@ function PreviewRow({
   );
 }
 
-const chipStyle = {
-  paddingHorizontal: spacing.lg,
-  minHeight: 44,
-  justifyContent: 'center' as const,
-  borderRadius: radius.pill,
+/**
+ * صفُّ اختيارٍ كامل العرض بدل رقاقة ضيّقة: القرار له ثلاثة بدائل لكلٍّ منها
+ * سطرُ شرحٍ ورقمُ سعر، ولا يتّسع لذلك عرضُ ثلثِ شاشة.
+ */
+const optionRow = {
+  // اصطلاح التطبيق للصفوف: يبدأ الصفّ من اليمين حيث تبدأ القراءة
+  flexDirection: RTL_ROW,
+  alignItems: 'center' as const,
+  gap: spacing.md,
+  minHeight: 56,
+  paddingHorizontal: spacing.md,
+  paddingVertical: spacing.sm,
+  borderRadius: radius.md,
   borderWidth: 1,
   borderColor: palette.line,
   backgroundColor: palette.white,
 };
-const chipActive = { backgroundColor: palette.olive, borderColor: palette.olive };
+const optionRowActive = {
+  borderColor: palette.olive,
+  backgroundColor: palette.sageSoft,
+};
+const radio = {
+  width: 22,
+  height: 22,
+  borderRadius: 11,
+  borderWidth: 1.5,
+  borderColor: palette.line,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
+const radioActive = { backgroundColor: palette.olive, borderColor: palette.olive };
+
+const suggestChip = {
+  paddingHorizontal: spacing.md,
+  height: 36,
+  justifyContent: 'center' as const,
+  borderRadius: radius.pill,
+  borderWidth: 1,
+  borderColor: palette.line,
+  backgroundColor: palette.sand,
+};
 const swatchCard = {
   flexDirection: 'row-reverse' as const,
   alignItems: 'center' as const,

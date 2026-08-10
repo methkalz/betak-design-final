@@ -4,6 +4,26 @@
 
 const AR = 'ar-EG';
 
+/**
+ * عزل اتجاهي (U+2066 … U+2069): رقمٌ ورمزُه وحدةٌ واحدة لا تعيد خوارزمية
+ * الاتجاه ترتيبها مهما سبقها أو تلاها من نص عربي.
+ *
+ * بدونه يتنقّل رمز ₪ بين يمين الرقم ويساره حسب الحرف المجاور — لأن الرموز
+ * والأرقام «محايدة» في خوارزمية Unicode ثنائية الاتجاه فترث اتجاه جارها.
+ * محرفا العزل بلا عرض ولا يظهران للمستخدم.
+ */
+const isolate = (s: string): string => `⁦${s}⁩`;
+
+/**
+ * رقم هاتف كوحدة واحدة: الشرطات والأرقام محايدة في خوارزمية الاتجاه، فرقم
+ * مثل 052-644-4414 داخل نص عربي تنقلب مقاطعه فيُقرأ خطأً. العزل الاتجاهي
+ * يثبّت ترتيبه كما كُتب - وهو الفرق بين رقم يُتصل به ورقم يضلّل.
+ */
+export function phone(value: string | null | undefined): string {
+  if (!value) return '-';
+  return isolate(value);
+}
+
 export function agorotToShekel(agorot: number): number {
   return agorot / 100;
 }
@@ -12,57 +32,53 @@ export function shekelToAgorot(shekel: number): number {
   return Math.round(shekel * 100);
 }
 
-/** `₪1,240` — no decimals when the amount is whole, otherwise two. */
+/**
+ * `₪1,240` — الرمز قبل المبلغ (قرار مالك: على يسار الرقم، وهو العُرف
+ * المتبع في إسرائيل)، ومعزول اتجاهيًا فيظهر بالشكل ذاته في كل موضع من
+ * التطبيق مهما كان النص المحيط.
+ *
+ * شيكل صحيح دائمًا - هذا آخر خط دفاع لقاعدة «لا أغورة»: المحرك يُقعّد كل
+ * مبلغ مخزَّن، لكن القيم العابرة (عدّاد متحرك يمرّ بكسور مثلًا) كانت تُعرض
+ * بمنزلتين فتكبر خانات الرقم أثناء الحركة ثم تنكمش عند الاستقرار. البتر هنا
+ * يجعل الكسر مستحيل الظهور من أي مسار، حاضرًا أو قادمًا.
+ */
 export function money(agorot: number, opts?: { compact?: boolean }): string {
-  const value = agorotToShekel(agorot);
+  const shekel = agorotToShekel(agorot);
+  // بترٌ نحو الصفر لا تقريب: التقريب يرفع 1,999.5 إلى 2,000 فيدّعي العرضُ
+  // شيكلًا لم يُقبض، والسالب يُبتر نحو الصفر كذلك فلا يُضخَّم دَين
+  const value = shekel < 0 ? Math.ceil(shekel) : Math.floor(shekel);
   if (opts?.compact && Math.abs(value) >= 1000) {
-    return `₪${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`;
+    const k = (value / 1000).toFixed(value % 1000 === 0 ? 0 : 1);
+    return isolate(`₪${k}k`);
   }
-  const hasFraction = Math.abs(value % 1) > 0.001;
-  return `₪${value.toLocaleString('en-US', {
-    minimumFractionDigits: hasFraction ? 2 : 0,
-    maximumFractionDigits: 2,
-  })}`;
+  const text = value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return isolate(`₪${text}`);
 }
 
-/** Meters with up to 3 decimals, trimmed. */
+/** Meters with up to 3 decimals, trimmed. قرار مالك: «متر» كاملة لا «م». */
 export function meters(value: number, unit = true): string {
   const rounded = Math.round(value * 1000) / 1000;
-  const text = rounded.toLocaleString('en-US', { maximumFractionDigits: 3 });
-  return unit ? `${text} م` : text;
+  const text = isolate(rounded.toLocaleString('en-US', { maximumFractionDigits: 3 }));
+  return unit ? `${text} متر` : text;
 }
 
 export function cm(value: number): string {
-  return `${Math.round(value * 100) / 100} سم`;
+  return `${isolate(String(Math.round(value * 100) / 100))} سم`;
 }
 
 export function percent(value: number): string {
   const rounded = Math.round(value * 100) / 100;
-  return `${rounded}%`;
+  return isolate(`${rounded}%`);
 }
-
-const MONTHS_AR = [
-  'يناير',
-  'فبراير',
-  'مارس',
-  'أبريل',
-  'مايو',
-  'يونيو',
-  'يوليو',
-  'أغسطس',
-  'سبتمبر',
-  'أكتوبر',
-  'نوفمبر',
-  'ديسمبر',
-];
 
 const DAYS_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
+/** صيغة التاريخ المعتمدة (قرار مالك): يوم.شهر.سنة بالأرقام — `4.8.2026`. */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${d.getDate()} ${MONTHS_AR[d.getMonth()]} ${d.getFullYear()}`;
+  if (Number.isNaN(d.getTime())) return '-';
+  return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 }
 
 export function formatDayName(iso: string): string {
@@ -71,7 +87,7 @@ export function formatDayName(iso: string): string {
 }
 
 export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   const d = new Date(iso);
   const h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, '0');
@@ -81,7 +97,7 @@ export function formatTime(iso: string | null | undefined): string {
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return `${formatDate(iso)} • ${formatTime(iso)}`;
 }
 

@@ -2,10 +2,12 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  AlertTriangle,
   ArrowRight,
   Banknote,
   Camera,
   ChevronLeft,
+  ChevronRight,
   FileText,
   Layers,
   Plus,
@@ -14,8 +16,17 @@ import {
   Trash2,
   Wallet,
 } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, {
+  Easing as REasing,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -23,6 +34,7 @@ import {
   Banner,
   Button,
   Card,
+  ConfirmSheet,
   Divider,
   EmptyState,
   Field,
@@ -30,12 +42,16 @@ import {
   ProgressBar,
   Row,
   SectionHeader,
+  SegmentedControl,
   Swatch,
 } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { CheckWizard } from '@/components/CheckWizard';
+import { QuotationDecision } from '@/components/QuotationDecision';
+import { AdvanceButton } from '@/components/AdvanceButton';
+import { TabPanel } from '@/components/TabMotion';
+import { font, gradients, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
-  CURTAIN_MODEL_LABELS,
   PROJECT_STATUS_HINTS,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_ORDER,
@@ -44,13 +60,27 @@ import {
   projectStatusColor,
   statusProgress,
 } from '@/domain/labels';
+import type { AssignmentKind } from '@/domain/assignment';
 import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
-import { currentVersion, projectFabricPlan, projectFinance, useProject } from '@/hooks/selectors';
+import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
+import type { ProjectStatus } from '@/types/domain';
 
 type Tab = 'overview' | 'rooms' | 'quote' | 'production' | 'money' | 'media';
+
+/** أسماء غرف شائعة في البيوت هنا - اقتراح لا حصر. */
+const ROOM_SUGGESTIONS = [
+  'الصالون',
+  'غرفة الأهل',
+  'غرفة الأولاد',
+  'غرفة البنات',
+  'غرفة الضيوف',
+  'المطبخ',
+  'المكتب',
+] as const;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'نظرة عامة' },
@@ -62,12 +92,63 @@ const TABS: { value: Tab; label: string }[] = [
 ];
 
 export default function ProjectStudioScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, justCreated, tab: tabParam } = useLocalSearchParams<{
+    id: string;
+    justCreated?: string;
+    tab?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { db, role } = useStore();
   const project = useProject(id);
-  const [tab, setTab] = useState<Tab>('overview');
+  const goBack = useGoBack('/projects');
+  const [tab, setTab] = useState<Tab>(() =>
+    TABS.some((t) => t.value === tabParam) ? (tabParam as Tab) : 'overview',
+  );
+  const tabsRef = useRef<ScrollView>(null);
+  const tabsPinned = useRef(false);
+  const bodyRef = useRef<ScrollView>(null);
+
+  /**
+   * بعد إنشاء المشروع تنتقل الشاشة إلى الغرف من نفسها.
+   *
+   * المهلة مقصودة لا كسل: الانتقال الفوري يبتلع اللحظة التي يتأكد فيها
+   * المستخدم أن المشروع أُنشئ فعلًا فيبدو كأن شيئًا قفز أمامه، وما يتجاوز
+   * الثانية يقطع تسلسل التفكير (حدّ نيلسن المعروف). 700 مللي ثانية تقع بين
+   * الحدّين: يرى العنوان والزبون، ثم يجد نفسه حيث الخطوة التالية.
+   */
+  useEffect(() => {
+    if (justCreated !== '1') return;
+    const t = setTimeout(() => setTab('rooms'), 700);
+    return () => clearTimeout(t);
+  }, [justCreated]);
+
+  /**
+   * تمرير جسم الصفحة إلى بطاقة بعينها - تستعمله الغرف بعد الإضافة.
+   * الإحداثي وارد من داخل لوح التبويب، وهو يبدأ بعد حشوة الصفحة، فالتمرير
+   * إليه كما هو يترك تلك الحشوة فوق البطاقة هامشًا طبيعيًا.
+   */
+  const focusCard = useCallback((y: number) => {
+    bodyRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+  }, []);
+
+  const resetScroll = useCallback(() => {
+    bodyRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
+  /* مثبّتان بالمرجع لا محسوبان في كل رسم: يدخلان قائمة اعتماديات حركة
+     الانتقال، ولو تغيّرت هويتهما مع كل رسم لأعادت الحركة نفسها من أولها في
+     منتصف طريقها. */
+  const visibleTabs = useMemo(
+    () =>
+      TABS.filter((t) => {
+        if (role === 'tailor') return ['overview', 'rooms', 'production'].includes(t.value);
+        if (role === 'field') return ['overview', 'rooms', 'media'].includes(t.value);
+        return true;
+      }),
+    [role],
+  );
+  const tabOrder = useMemo(() => visibleTabs.map((t) => t.value), [visibleTabs]);
 
   if (!project) {
     return (
@@ -83,11 +164,6 @@ export default function ProjectStudioScreen() {
 
   const customer = db.customers.find((c) => c.id === project.customerId);
   const c = projectStatusColor(project.status);
-  const visibleTabs = TABS.filter((t) => {
-    if (role === 'tailor') return ['overview', 'rooms', 'production'].includes(t.value);
-    if (role === 'field') return ['overview', 'rooms', 'media'].includes(t.value);
-    return true;
-  });
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
@@ -99,7 +175,7 @@ export default function ProjectStudioScreen() {
         style={{ paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}
       >
         <Row justify="space-between">
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable onPress={goBack} hitSlop={8} style={styles.backBtn}>
             <ArrowRight size={20} color={palette.ivory} />
           </Pressable>
           <Pill label={PROJECT_STATUS_LABELS[project.status]} bg="rgba(255,255,255,0.15)" fg={palette.ivory} />
@@ -120,11 +196,12 @@ export default function ProjectStudioScreen() {
             </Row>
           </Pressable>
         </View>
-        <View style={{ marginTop: spacing.lg, gap: 6 }}>
+        <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
           <ProgressBar
             value={statusProgress(project.status)}
             color={palette.sage}
             track="rgba(255,255,255,0.15)"
+            height={12}
           />
           <AppText variant="caption" color={palette.sage}>
             {PROJECT_STATUS_HINTS[project.status]}
@@ -132,41 +209,137 @@ export default function ProjectStudioScreen() {
         </View>
       </LinearGradient>
 
-      <View style={{ backgroundColor: palette.white, borderBottomWidth: 1, borderBottomColor: palette.line }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, flexDirection: 'row-reverse' }}
-        >
-          {visibleTabs.map((t) => (
-            <Pressable key={t.value} onPress={() => setTab(t.value)} style={styles.tabBtn}>
-              <AppText variant="label" color={tab === t.value ? palette.olive : palette.muted}>
-                {t.label}
-              </AppText>
-              <View
-                style={{
-                  height: 3,
-                  borderRadius: 2,
-                  marginTop: 6,
-                  backgroundColor: tab === t.value ? palette.terracotta : 'transparent',
-                }}
-              />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
+      <TabBar tabs={visibleTabs} active={tab} onSelect={setTab} scrollRef={tabsRef} pinned={tabsPinned} />
 
       <ScrollView
+        ref={bodyRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140, gap: spacing.lg }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
         showsVerticalScrollIndicator={false}
       >
-        {tab === 'overview' && <OverviewTab projectId={project.id} statusColor={c.fg} />}
-        {tab === 'rooms' && <RoomsTab projectId={project.id} />}
-        {tab === 'quote' && <QuoteTab projectId={project.id} />}
-        {tab === 'production' && <ProductionTab projectId={project.id} />}
-        {tab === 'money' && <MoneyTab projectId={project.id} />}
-        {tab === 'media' && <MediaTab projectId={project.id} />}
+        <TabPanel tab={tab} order={tabOrder} onSwap={resetScroll}>
+          {(shown) => (
+            <>
+              {shown === 'overview' && <OverviewTab projectId={project.id} statusColor={c.fg} />}
+              {shown === 'rooms' && <RoomsTab projectId={project.id} onFocusCard={focusCard} />}
+              {shown === 'quote' && (
+                <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />
+              )}
+              {shown === 'production' && <ProductionTab projectId={project.id} />}
+              {shown === 'money' && <MoneyTab projectId={project.id} />}
+              {shown === 'media' && <MediaTab projectId={project.id} />}
+            </>
+          )}
+        </TabPanel>
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ───────────────────────── Tabs ───────────────────────── */
+
+type Edge = { x: number; w: number };
+
+/**
+ * الشريط والمؤشّر.
+ *
+ * المؤشّر عنصر واحد يسافر، لا خطٌّ يُطفأ تحت كلمة ويُشعل تحت أخرى - وهذا ما
+ * يربط التبويبين في ذهن المستخدم بدل أن يبدوا شيئين منفصلين.
+ *
+ * وحافّتاه تتحرّكان بسرعتين مختلفتين: الحافّة التي تقود الحركة تصل أولًا
+ * والتي تتبعها تتأخّر، فيتمدّد الخط قليلًا في الطريق ثم يستقرّ. هذه هي حيلة
+ * مؤشّر Material، وهي ما يعطي الحركة إحساس المادة بدل انزلاق الصورة.
+ */
+function TabBar({
+  tabs,
+  active,
+  onSelect,
+  scrollRef,
+  pinned,
+}: {
+  tabs: { value: Tab; label: string }[];
+  active: Tab;
+  onSelect: (t: Tab) => void;
+  scrollRef: React.RefObject<ScrollView | null>;
+  pinned: React.MutableRefObject<boolean>;
+}) {
+  const [edges, setEdges] = useState<Partial<Record<Tab, Edge>>>({});
+  const stripW = useRef(0);
+  const scrolledFor = useRef<Tab | null>(null);
+  const start = useSharedValue(0);
+  const end = useSharedValue(0);
+
+  useEffect(() => {
+    const e = edges[active];
+    if (!e) return;
+    const lead = { duration: 210, easing: REasing.out(REasing.cubic) };
+    const trail = { duration: 300, easing: REasing.out(REasing.cubic) };
+    if (end.value === 0) {
+      // أول قياس: يوضع مكانه بلا سفر من الصفر
+      start.value = e.x;
+      end.value = e.x + e.w;
+    } else if (e.x > start.value) {
+      end.value = withTiming(e.x + e.w, lead);
+      start.value = withTiming(e.x, trail);
+    } else {
+      start.value = withTiming(e.x, lead);
+      end.value = withTiming(e.x + e.w, trail);
+    }
+
+    // إبقاء التبويب الفعّال داخل الرؤية - يلزم خاصةً حين تنتقل الشاشة وحدها
+    if (stripW.current > 0 && scrolledFor.current !== active) {
+      const first = scrolledFor.current === null;
+      scrolledFor.current = active;
+      scrollRef.current?.scrollTo({
+        x: Math.max(0, e.x + e.w / 2 - stripW.current / 2),
+        animated: !first,
+      });
+      pinned.current = true;
+    }
+  }, [active, edges, start, end, scrollRef, pinned]);
+
+  const indicator = useAnimatedStyle(() => ({
+    transform: [{ translateX: start.value }],
+    width: Math.max(0, end.value - start.value),
+  }));
+
+  return (
+    <View style={{ backgroundColor: palette.white, borderBottomWidth: 1, borderBottomColor: palette.line }}>
+      {/* row-reverse: أول تبويب أقصى اليمين كما يُقرأ العربي.
+          الحشوة الجانبية فاصلان لا `paddingHorizontal`: المؤشّر عنصر مطلق
+          يُوضع بـ`left: 0`، ولو كان للحاوية حشوة لاختلف مبدأ إحداثياته عن
+          مبدأ قياسات التبويبات فانزاح الخط بمقدارها. */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onLayout={(e) => {
+          stripW.current = e.nativeEvent.layout.width;
+        }}
+        contentContainerStyle={{ gap: spacing.sm, flexDirection: 'row-reverse' }}
+      >
+        <View style={{ width: spacing.lg }} />
+        {tabs.map((t) => (
+          <Pressable
+            key={t.value}
+            onPress={() => onSelect(t.value)}
+            style={styles.tabBtn}
+            onLayout={(e) => {
+              const { x, width } = e.nativeEvent.layout;
+              setEdges((prev) =>
+                prev[t.value]?.x === x && prev[t.value]?.w === width
+                  ? prev
+                  : { ...prev, [t.value]: { x, w: width } },
+              );
+            }}
+          >
+            <AppText variant="label" color={active === t.value ? palette.olive : palette.muted}>
+              {t.label}
+            </AppText>
+          </Pressable>
+        ))}
+        <View style={{ width: spacing.lg }} />
+        <Animated.View pointerEvents="none" style={[styles.tabIndicator, indicator]} />
       </ScrollView>
     </View>
   );
@@ -178,11 +351,14 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
   const { db, role, setProjectStatus } = useStore();
   const router = useRouter();
   const project = db.projects.find((p) => p.id === projectId)!;
+  const [pending, setPending] = useState<{ to: ProjectStatus; back: boolean } | null>(null);
+  const stageIndex = PROJECT_STATUS_ORDER.indexOf(project.status);
+  const nextStatus = PROJECT_STATUS_ORDER[stageIndex + 1];
+  const prevStatus = PROJECT_STATUS_ORDER[stageIndex - 1];
   const finance = projectFinance(db, projectId);
   const rooms = db.rooms.filter((r) => r.projectId === projectId);
   const windows = db.windows.filter((w) => w.projectId === projectId);
   const showMoney = role === 'admin' || role === 'sales';
-  const fieldWorker = db.profiles.find((p) => p.id === project.fieldWorkerId);
   const tailor = db.profiles.find((p) => p.id === project.tailorId);
 
   return (
@@ -196,34 +372,23 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         </View>
         {showMoney && (
           <View style={[styles.metric, { backgroundColor: palette.terracottaSoft }]}>
-            <AppText variant="numberLarge">{money(finance.dueAgorot, { compact: true })}</AppText>
+            <AppText variant="numberLarge">{money(finance.dueAgorot)}</AppText>
             <AppText variant="caption" color={palette.muted}>
-              متبقٍ من {money(finance.totalAgorot, { compact: true })}
+              متبقٍ من {money(finance.totalAgorot)}
             </AppText>
           </View>
         )}
       </Row>
 
       <Card>
-        <SectionHeader title="دورة حياة المشروع" subtitle="اضغط على المرحلة لنقل المشروع" />
+        <SectionHeader title="تقدّم المشروع" subtitle="المرحلة الحالية وما قبلها وما بعدها" />
         <View style={{ gap: 2 }}>
           {PROJECT_STATUS_ORDER.map((s, i) => {
             const currentIndex = PROJECT_STATUS_ORDER.indexOf(project.status);
             const done = i < currentIndex;
             const active = i === currentIndex;
-            const canMove = role === 'admin' && Math.abs(i - currentIndex) === 1;
             return (
-              <Pressable
-                key={s}
-                disabled={!canMove}
-                onPress={() =>
-                  Alert.alert('تغيير الحالة', `نقل المشروع إلى: ${PROJECT_STATUS_LABELS[s]}؟`, [
-                    { text: 'إلغاء', style: 'cancel' },
-                    { text: 'تأكيد', onPress: () => setProjectStatus(projectId, s) },
-                  ])
-                }
-                style={{ opacity: done || active ? 1 : 0.45 }}
-              >
+              <View key={s} style={{ opacity: done || active ? 1 : 0.45 }}>
                 <Row gap={spacing.md} align="flex-start">
                   <View style={{ alignItems: 'center', width: 20 }}>
                     <View
@@ -245,7 +410,11 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
                     )}
                   </View>
                   <View style={{ flex: 1, paddingBottom: spacing.sm }}>
-                    <AppText variant={active ? 'label' : 'caption'} color={active ? palette.charcoal : palette.muted}>
+                    <AppText
+                      variant={active ? 'label' : 'caption'}
+                      color={active ? palette.charcoal : palette.muted}
+                      style={active ? { fontFamily: font.bold } : undefined}
+                    >
                       {PROJECT_STATUS_LABELS[s]}
                     </AppText>
                     {active && (
@@ -254,22 +423,66 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
                       </AppText>
                     )}
                   </View>
-                  {canMove && <ChevronLeft size={16} color={palette.olive} />}
                 </Row>
-              </Pressable>
+              </View>
             );
           })}
         </View>
+
+        {role === 'admin' && (
+          <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+            {!!nextStatus && (
+              <AdvanceButton
+                label={PROJECT_STATUS_LABELS[nextStatus]}
+                onPress={() => setPending({ to: nextStatus, back: false })}
+              />
+            )}
+            {!!prevStatus && (
+              <Pressable onPress={() => setPending({ to: prevStatus, back: true })} style={styles.backStep}>
+                <AppText variant="caption" color={palette.muted} align="center">
+                  رجوع إلى: {PROJECT_STATUS_LABELS[prevStatus]}
+                </AppText>
+              </Pressable>
+            )}
+          </View>
+        )}
       </Card>
+
+      <ConfirmSheet
+        visible={!!pending}
+        icon={
+          pending?.back ? (
+            <ChevronRight size={24} color={palette.muted} />
+          ) : (
+            <ChevronLeft size={24} color={palette.olive} />
+          )
+        }
+        title={pending?.back ? 'رجوع بالمشروع خطوة' : 'نقل المشروع للمرحلة التالية'}
+        body={
+          pending
+            ? `سيصبح المشروع في مرحلة "${PROJECT_STATUS_LABELS[pending.to]}"، ويظهر بها لكل الفريق.`
+            : undefined
+        }
+        confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل المشروع'}
+        onConfirm={() => {
+          if (pending) setProjectStatus(projectId, pending.to);
+          setPending(null);
+        }}
+        onCancel={() => setPending(null)}
+      />
 
       <Card>
         <AppText variant="heading">الفريق والمواعيد</AppText>
+        {/* ثلاثة أدوار لا اثنان، وكلها قابلة للتبديل: من قاس قد لا يركّب،
+            والمركّب يُقرَّر متأخرًا، والخياط قد يتبدّل بالضغط والانشغال. */}
         <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-          <InfoRow label="العامل الميداني" value={fieldWorker?.fullName ?? 'غير معيّن'} />
-          <InfoRow label="الخياط" value={tailor?.fullName ?? 'غير معيّن'} />
+          <AssignRow projectId={projectId} kind="measurement" label="القياس" />
+          <AssignRow projectId={projectId} kind="tailor" label="الخياطة" />
+          <AssignRow projectId={projectId} kind="installation" label="التركيب" />
+          <Divider />
           <InfoRow label="موعد القياس" value={formatDate(project.measurementDate)} />
           <InfoRow label="موعد التركيب" value={formatDate(project.installationDate)} />
-          <InfoRow label="ملاحظات" value={project.notes || '—'} />
+          <InfoRow label="ملاحظات" value={project.notes || '-'} />
         </View>
       </Card>
 
@@ -289,6 +502,93 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
   );
 }
 
+/**
+ * سطر إسناد: الاسم الحالي، ولمسة تفتح البدائل تحته.
+ * الأدمن وحده يبدّل - والسطر يبقى مقروءًا للبقية بلا إغراء بضغطة لا تعمل.
+ */
+function AssignRow({
+  projectId,
+  kind,
+  label,
+}: {
+  projectId: string;
+  kind: AssignmentKind;
+  label: string;
+}) {
+  const { db, role, assignRole } = useStore();
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const project = db.projects.find((p) => p.id === projectId);
+  const editable = can(role, 'manage_users');
+  const currentId =
+    kind === 'tailor'
+      ? project?.tailorId
+      : kind === 'measurement'
+        ? project?.measurementWorkerId
+        : project?.installerId;
+  const current = db.profiles.find((p) => p.id === currentId);
+  const options = db.profiles.filter(
+    (p) => p.isActive && p.role === (kind === 'tailor' ? 'tailor' : 'field'),
+  );
+
+  return (
+    <View>
+      <Pressable
+        disabled={!editable}
+        onPress={() => setOpen((s) => !s)}
+        style={({ pressed }) => [
+          { borderRadius: radius.sm, minHeight: 40, justifyContent: 'center' },
+          pressed && { backgroundColor: palette.ivoryDeep },
+        ]}
+      >
+        <Row justify="space-between" align="center" gap={spacing.lg}>
+          <AppText variant="caption" color={palette.muted}>
+            {label}
+          </AppText>
+          <Row gap={6}>
+            <AppText variant="label" color={current ? palette.charcoal : palette.warning}>
+              {current?.fullName ?? 'لم يُسنَد بعد'}
+            </AppText>
+            {editable && <ChevronLeft size={14} color={palette.muted} />}
+          </Row>
+        </Row>
+      </Pressable>
+      {open && editable && (
+        <Row gap={spacing.sm} wrap style={{ paddingBottom: spacing.sm }}>
+          {options.map((p) => (
+            <Pressable
+              key={p.id}
+              onPress={() => {
+                const res = assignRole(projectId, p.id, kind);
+                if (!res.ok) setError(res.error);
+                else {
+                  setError(null);
+                  setOpen(false);
+                }
+              }}
+              style={styles.suggestChip}
+            >
+              <AppText variant="caption" color={palette.oliveDark}>
+                {p.fullName}
+              </AppText>
+            </Pressable>
+          ))}
+          {options.length === 0 && (
+            <AppText variant="caption" color={palette.muted}>
+              لا حسابات مفعَّلة لهذا الدور.
+            </AppText>
+          )}
+        </Row>
+      )}
+      {!!error && (
+        <AppText variant="caption" color={palette.danger}>
+          {error}
+        </AppText>
+      )}
+    </View>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <Row justify="space-between" align="flex-start" gap={spacing.lg}>
@@ -304,13 +604,45 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 /* ───────────────────────── Rooms ───────────────────────── */
 
-function RoomsTab({ projectId }: { projectId: string }) {
-  const { db, role, addRoom, deleteRoom } = useStore();
+/**
+ * توهّج الترحيب بالبطاقة الجديدة.
+ *
+ * الغرفة تُضاف من نموذج أعلى الصفحة فتظهر بطاقتها تحت ما هو معروض أحيانًا،
+ * فيتساءل المستخدم هل حُفظت. حلقةٌ تلمع ثم تنطفئ تجيب عن السؤال دون كلمة،
+ * وهي فوق البطاقة لا حولها فلا تزحزح شيئًا من التخطيط.
+ */
+function NewCardGlow({ active }: { active: boolean }) {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    if (!active) return;
+    glow.value = 1;
+    glow.value = withDelay(320, withTiming(0, { duration: 1500, easing: REasing.out(REasing.quad) }));
+  }, [active, glow]);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  if (!active) return null;
+  return (
+    <Animated.View pointerEvents="none" style={[styles.newGlow, style]}>
+      <View style={styles.newGlowWash} />
+    </Animated.View>
+  );
+}
+
+function RoomsTab({
+  projectId,
+  onFocusCard,
+}: {
+  projectId: string;
+  onFocusCard: (y: number) => void;
+}) {
+  const { db, role, addRoom, deleteRoom, createQuotation } = useStore();
   const router = useRouter();
   const [newRoom, setNewRoom] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const rooms = db.rooms.filter((r) => r.projectId === projectId).sort((a, b) => a.sortOrder - b.sortOrder);
   const editable = can(role, 'enter_measurements');
+  const windows = db.windows.filter((w) => w.projectId === projectId);
+  const quotation = db.quotations.find((q) => q.projectId === projectId);
 
   return (
     <>
@@ -318,7 +650,20 @@ function RoomsTab({ projectId }: { projectId: string }) {
         <Card>
           <AppText variant="heading">إضافة غرفة</AppText>
           <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-            <Field label="اسم الغرفة" value={newRoom} onChangeText={setNewRoom} placeholder="صالون الضيوف" />
+            <Field label="اسم الغرفة" value={newRoom} onChangeText={setNewRoom} placeholder="الصالون" />
+            {/* أسماء الغرف تتكرر في كل بيت تقريبًا - لمسة واحدة بدل الكتابة،
+                وما يُضاف منها للمشروع يختفي من الاقتراحات فلا يُكرَّر */}
+            <Row gap={spacing.sm} wrap>
+              {ROOM_SUGGESTIONS.filter(
+                (s) => !db.rooms.some((r) => r.projectId === projectId && r.name === s),
+              ).map((s) => (
+                <Pressable key={s} onPress={() => setNewRoom(s)} style={styles.suggestChip}>
+                  <AppText variant="caption" color={palette.oliveDark}>
+                    {s}
+                  </AppText>
+                </Pressable>
+              ))}
+            </Row>
             <Button
               label="إضافة"
               icon={<Plus size={16} color={palette.ivory} />}
@@ -327,6 +672,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
                 if (!res.ok) return setError(res.error);
                 setNewRoom('');
                 setError(null);
+                setJustAdded(res.data);
               }}
             />
             {!!error && <Banner tone="danger" title={error} />}
@@ -343,15 +689,24 @@ function RoomsTab({ projectId }: { projectId: string }) {
       )}
 
       {rooms.map((room) => {
-        const windows = db.windows.filter((w) => w.roomId === room.id);
-        const totalRunning = windows.reduce((s, w) => s + (w.widthCm / 100) * w.quantity, 0);
+        const roomWindows = db.windows.filter((w) => w.roomId === room.id);
+        const totalRunning = roomWindows.reduce((s, w) => s + (w.widthCm / 100) * w.quantity, 0);
+        const fresh = justAdded === room.id;
         return (
-          <Card key={room.id}>
+          <Card
+            key={room.id}
+            onLayout={
+              fresh
+                ? (e) => onFocusCard(e.nativeEvent.layout.y)
+                : undefined
+            }
+          >
+            <NewCardGlow active={fresh} />
             <Row justify="space-between">
               <View style={{ flex: 1 }}>
                 <AppText variant="heading">{room.name}</AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {windows.length} شباك • {meters(round3(totalRunning))} متر ركض
+                  {roomWindows.length} شباك • {meters(round3(totalRunning), false)} متر طولي
                 </AppText>
               </View>
               {editable && (
@@ -372,7 +727,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
             <Divider />
 
             <View style={{ gap: spacing.sm }}>
-              {windows.map((w) => {
+              {roomWindows.map((w) => {
                 const variant = db.fabricVariants.find((v) => v.id === w.fabricVariantId);
                 return (
                   <Pressable
@@ -385,7 +740,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
                       <View style={{ flex: 1 }}>
                         <AppText variant="label">{w.name}</AppText>
                         <AppText variant="caption" color={palette.muted}>
-                          {cm(w.widthCm)} × {cm(w.heightCm)} • {CURTAIN_MODEL_LABELS[w.model]} •{' '}
+                          {cm(w.widthCm)} × {cm(w.heightCm)} • {TRACK_LABELS[w.track]} •{' '}
                           {w.hasLining ? 'مع بطانة' : 'بدون بطانة'}
                         </AppText>
                       </View>
@@ -394,7 +749,7 @@ function RoomsTab({ projectId }: { projectId: string }) {
                   </Pressable>
                 );
               })}
-              {windows.length === 0 && (
+              {roomWindows.length === 0 && (
                 <AppText variant="caption" color={palette.muted}>
                   لا توجد شبابيك في هذه الغرفة بعد.
                 </AppText>
@@ -417,13 +772,34 @@ function RoomsTab({ projectId }: { projectId: string }) {
           </Card>
         );
       })}
+
+      {/* أول شباك يكفي لتسعير المشروع، فالدعوة تظهر هنا لا في تبويب آخر
+          يتطلب البحث عنه - وهي تفتح العرض نفسه مباشرة لا التبويب. */}
+      {windows.length > 0 && can(role, 'create_quotation') && (
+        <AdvanceButton
+          caption={quotation ? 'العرض جاهز' : 'القياسات كافية'}
+          label={quotation ? 'فتح عرض السعر' : 'إنشاء عرض السعر'}
+          onPress={() => {
+            if (quotation) return router.push(`/quotation/${quotation.id}`);
+            const res = createQuotation(projectId);
+            if (res.ok) router.push(`/quotation/${res.data}`);
+            else Alert.alert('تعذر الإنشاء', res.error);
+          }}
+        />
+      )}
     </>
   );
 }
 
 /* ───────────────────────── Quotation ───────────────────────── */
 
-function QuoteTab({ projectId }: { projectId: string }) {
+function QuoteTab({
+  projectId,
+  onGoToProduction,
+}: {
+  projectId: string;
+  onGoToProduction: () => void;
+}) {
   const { db, role, createQuotation } = useStore();
   const router = useRouter();
   const quotation = db.quotations.find((q) => q.projectId === projectId);
@@ -440,7 +816,7 @@ function QuoteTab({ projectId }: { projectId: string }) {
           body={
             windows.length === 0
               ? 'سجّل القياسات أولًا، ثم أنشئ العرض بضغطة واحدة.'
-              : 'التسعير جاهز — أنشئ العرض من القياسات المسجلة.'
+              : 'التسعير جاهز - أنشئ العرض من القياسات المسجلة.'
           }
           action={
             can(role, 'create_quotation') && windows.length > 0 ? (
@@ -462,6 +838,17 @@ function QuoteTab({ projectId }: { projectId: string }) {
 
   return (
     <>
+      {/* القرار حيث العرض: من هنا كان المستخدم يرى النسخة بلا أزرار فيظنّها
+          عرضًا آخر غير الذي رآه من اللوحة. المكوّن واحد في الموضعين. */}
+      {can(role, 'create_quotation') && version.status === 'sent' && (
+        <QuotationDecision
+          versionId={version.id}
+          projectId={projectId}
+          onApproved={onGoToProduction}
+          onEdit={() => router.push(`/quotation/${quotation.id}`)}
+        />
+      )}
+
       <Card onPress={() => router.push(`/quotation/${quotation.id}`)}>
         <Row justify="space-between">
           <View>
@@ -479,7 +866,7 @@ function QuoteTab({ projectId }: { projectId: string }) {
           </AppText>
           {showCost && (
             <AppText variant="caption" color={palette.olive}>
-              هامش {percent(version.marginPercent)}
+              نسبة الربح {percent(version.marginPercent)}
             </AppText>
           )}
         </Row>
@@ -490,13 +877,13 @@ function QuoteTab({ projectId }: { projectId: string }) {
           <Row justify="space-between" align="flex-start">
             <View style={{ flex: 1 }}>
               <AppText variant="label">
-                {item.roomName} — {item.windowName}
+                {item.roomName} - {item.windowName}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
                 {item.description}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
-                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters)} متر ركض
+                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر طولي
               </AppText>
             </View>
             <View style={{ alignItems: 'flex-start' }}>
@@ -538,55 +925,86 @@ function QuoteTab({ projectId }: { projectId: string }) {
 /* ───────────────────────── Production ───────────────────────── */
 
 function ProductionTab({ projectId }: { projectId: string }) {
-  const { db, role } = useStore();
+  const { db, role, busy, autoReserveForProject } = useStore();
   const router = useRouter();
-  const plan = projectFabricPlan(db, projectId);
+  const gaps = projectFabricGaps(db, projectId);
   const reservations = db.reservations.filter((r) => r.projectId === projectId);
   const assignment = db.tailorAssignments.find((a) => a.projectId === projectId);
   const usages = db.usages.filter((u) => u.projectId === projectId);
 
+  // ناقص = لا يكفي مخزونه فلم يُحجز منه شيء؛ متاح = يمكن حجزه الآن
+  const short = gaps.filter((g) => g.remaining > 0 && g.available < g.remaining);
+  const ready = gaps.filter((g) => g.remaining > 0 && g.available >= g.remaining);
+
   return (
     <>
       <Card>
-        <SectionHeader title="خطة القماش" subtitle="محسوبة من القياسات والمضاعف" />
-        {plan.map((p) => {
-          const reserved = reservations
-            .filter((r) => {
-              const roll = db.fabricRolls.find((x) => x.id === r.rollId);
-              return roll?.variantId === p.variantId && r.status !== 'released';
-            })
-            .reduce((s, r) => s + r.quantityM, 0);
-          const variant = db.fabricVariants.find((v) => v.id === p.variantId);
-          const ok = reserved >= p.meters;
+        <SectionHeader
+          title="خطة القماش"
+          subtitle="تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك"
+        />
+        {gaps.map((g) => {
+          const variant = db.fabricVariants.find((v) => v.id === g.variantId);
+          const done = g.remaining === 0;
+          const blocked = g.remaining > 0 && g.available < g.remaining;
           return (
-            <View key={p.variantId} style={{ gap: 6, marginBottom: spacing.md }}>
+            <View key={g.variantId} style={{ gap: 6, marginBottom: spacing.md }}>
               <Row justify="space-between">
                 <Row gap={spacing.sm}>
                   <Swatch color={variant?.colorHex ?? palette.sand} size={22} />
-                  <AppText variant="label">{p.label}</AppText>
+                  <AppText variant="label">{g.label}</AppText>
                 </Row>
-                <AppText variant="caption" color={ok ? palette.success : palette.terracotta}>
-                  {meters(reserved)} / {meters(p.meters)}
+                <AppText
+                  variant="caption"
+                  color={done ? palette.success : blocked ? palette.danger : palette.terracotta}
+                >
+                  {meters(g.reserved)} / {meters(g.required)}
                 </AppText>
               </Row>
               <ProgressBar
-                value={p.meters > 0 ? reserved / p.meters : 0}
-                color={ok ? palette.success : palette.terracotta}
+                value={g.required > 0 ? g.reserved / g.required : 0}
+                color={done ? palette.success : blocked ? palette.danger : palette.terracotta}
               />
+              {blocked && (
+                <AppText variant="caption" color={palette.danger}>
+                  ينقص {meters(round3(g.remaining - g.available))} - المتاح في المخزون{' '}
+                  {meters(g.available)} فقط
+                </AppText>
+              )}
             </View>
           );
         })}
-        {plan.length === 0 && (
+        {gaps.length === 0 && (
           <AppText variant="caption" color={palette.muted}>
             لا توجد أقمشة محددة على الشبابيك بعد.
           </AppText>
         )}
-        {can(role, 'reserve_fabric') && (
+
+        {short.length > 0 && (
+          <Banner
+            tone="danger"
+            title="المخزون لا يكفي - لم يُحجز شيء من هذه الأقمشة"
+            body="الحجز الجزئي يقضم المتاح دون أن يُطلق الإنتاج، فيُترك الصنف كما هو حتى تزيد الكمية. زد المخزون ثم اضغط «احجز الآن»."
+            icon={<AlertTriangle size={16} color={palette.danger} />}
+          />
+        )}
+
+        {can(role, 'reserve_fabric') && ready.length > 0 && (
           <Button
-            label="حجز قماش من المخزون"
+            label="احجز الآن"
             full
-            variant="secondary"
-            icon={<Layers size={16} color={palette.oliveDark} />}
+            loading={busy === 'reserve'}
+            icon={<Layers size={16} color={palette.ivory} />}
+            style={{ marginTop: spacing.md }}
+            onPress={() => autoReserveForProject(projectId)}
+          />
+        )}
+        {can(role, 'reserve_fabric') && gaps.some((g) => g.remaining > 0) && (
+          <Button
+            label="حجز يدوي من رول معيّن"
+            variant="ghost"
+            small
+            full
             style={{ marginTop: spacing.sm }}
             onPress={() => router.push(`/reserve/${projectId}`)}
           />
@@ -685,7 +1103,18 @@ function MoneyTab({ projectId }: { projectId: string }) {
   const { db, role, recordPayment, reversePayment, busy } = useStore();
   const finance = projectFinance(db, projectId);
   const payments = db.payments.filter((p) => p.projectId === projectId);
+  const hasApprovedQuote = useMemo(
+    () =>
+      db.quotationVersions.some(
+        (v) =>
+          v.status === 'approved' &&
+          db.quotations.some((q) => q.id === v.quotationId && q.projectId === projectId),
+      ),
+    [db.quotationVersions, db.quotations, projectId],
+  );
   const [amount, setAmount] = useState<string>('');
+  const [method, setMethod] = useState<'cash' | 'check'>('cash');
+  const [checksOpen, setChecksOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -697,7 +1126,7 @@ function MoneyTab({ projectId }: { projectId: string }) {
       projectId,
       amountAgorot: value,
       kind: finance.paidAgorot === 0 ? 'deposit' : finance.dueAgorot - value <= 0 ? 'final' : 'milestone',
-      method: 'cash',
+      method,
       reference: '',
       note: '',
     });
@@ -733,30 +1162,66 @@ function MoneyTab({ projectId }: { projectId: string }) {
         </View>
       </Card>
 
-      {can(role, 'record_payment') && (
-        <Card>
-          <AppText variant="heading">تسجيل دفعة</AppText>
-          <View style={{ marginTop: spacing.md, gap: spacing.md }}>
-            <Field
-              label="المبلغ"
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="decimal-pad"
-              suffix="₪"
-              placeholder="0"
-            />
-            <Button
-              label="تسجيل الدفعة"
-              full
-              loading={busy === 'payment'}
-              icon={<Banknote size={18} color={palette.ivory} />}
-              onPress={submit}
-            />
-            {!!error && <Banner tone="danger" title="تعذر تسجيل الدفعة" body={error} />}
-            {!!success && <Banner tone="success" title={success} />}
-          </View>
-        </Card>
-      )}
+      {can(role, 'record_payment') &&
+        (hasApprovedQuote ? (
+          <Card>
+            <AppText variant="heading">تسجيل دفعة</AppText>
+            <View style={{ marginTop: spacing.md, gap: spacing.md }}>
+              {/* M6: طريقة الدفع اختيار صريح - نقدًا أو شيك */}
+              <SegmentedControl
+                value={method}
+                onChange={(m) => setMethod(m)}
+                options={[
+                  { value: 'cash', label: 'نقدًا' },
+                  { value: 'check', label: 'شيك' },
+                ]}
+              />
+              <Field
+                label="المبلغ"
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                suffix="₪"
+                placeholder="0"
+              />
+              <Button
+                label={method === 'check' ? 'تسجيل شيك واحد' : 'تسجيل الدفعة'}
+                full
+                loading={busy === 'payment'}
+                icon={<Banknote size={18} color={palette.ivory} />}
+                onPress={submit}
+              />
+              {method === 'check' && (
+                <Button
+                  label={checksOpen ? 'إخفاء رزمة الشيكات' : 'رزمة شيكات متعددة...'}
+                  variant="secondary"
+                  small
+                  full
+                  onPress={() => setChecksOpen((s) => !s)}
+                />
+              )}
+              {method === 'check' && checksOpen && (
+                <CheckWizard
+                  projectId={projectId}
+                  onDone={() => {
+                    setChecksOpen(false);
+                    setSuccess('سُجّلت رزمة الشيكات بمواعيد صرفها.');
+                  }}
+                />
+              )}
+              {!!error && <Banner tone="danger" title="تعذر تسجيل الدفعة" body={error} />}
+              {!!success && <Banner tone="success" title={success} />}
+            </View>
+          </Card>
+        ) : (
+          /* لا نموذج دفع أصلًا قبل الاعتماد: منع الفعل خيرٌ من رفضه بعد كتابته */
+          <Banner
+            tone="info"
+            title="التحصيل يبدأ بعد اعتماد العرض"
+            body="لا يمكن تسجيل دفعة قبل موافقة الزبون على عرض السعر، إذ لا يوجد مبلغ متفق عليه تُحسب عليه الدفعة والمتبقي."
+            icon={<Wallet size={16} color={palette.info} />}
+          />
+        ))}
 
       <Card>
         <SectionHeader title="سجل الدفعات" />
@@ -768,9 +1233,22 @@ function MoneyTab({ projectId }: { projectId: string }) {
         {payments.map((p) => (
           <Row key={p.id} justify="space-between" style={{ paddingVertical: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <AppText variant="label">{money(p.amountAgorot)}</AppText>
+              <Row gap={spacing.sm}>
+                <AppText variant="label">{money(p.amountAgorot)}</AppText>
+                {p.method === 'check' && (
+                  <Pill
+                    label={p.reference || 'شيك'}
+                    bg={palette.infoSoft}
+                    fg={palette.info}
+                    small
+                  />
+                )}
+              </Row>
               <AppText variant="caption" color={palette.muted}>
-                {formatDate(p.createdAt)} • {p.note || 'بدون ملاحظة'}
+                {p.method === 'check' && p.dueAt
+                  ? `يُصرف ${formatDate(p.dueAt)} • `
+                  : `${formatDate(p.createdAt)} • `}
+                {p.note || 'بدون ملاحظة'}
               </AppText>
             </View>
             {p.kind !== 'reversal' && role === 'admin' && (
@@ -843,6 +1321,15 @@ function MediaTab({ projectId }: { projectId: string }) {
 }
 
 const styles = StyleSheet.create({
+  /** حلقة ترحيب فوق البطاقة الجديدة - لا تزحزح التخطيط لأنها طبقة مطلقة. */
+  newGlow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.xl,
+    borderWidth: 2,
+    borderColor: palette.olive,
+    overflow: 'hidden',
+  },
+  newGlowWash: { flex: 1, backgroundColor: palette.olive, opacity: 0.07 },
   backBtn: {
     width: 44,
     height: 44,
@@ -851,8 +1338,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tabBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.sm, minHeight: 48 },
+  tabBtn: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    minHeight: 52,
+    justifyContent: 'center',
+  },
+  /** خطٌّ واحد يسافر بين التبويبات - موضعه وعرضه محرّكان لا حالتان. */
+  tabIndicator: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: palette.terracotta,
+  },
   metric: { flex: 1, borderRadius: radius.lg, padding: spacing.lg },
+  advanceBtn: {
+    minHeight: 68,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+  },
+  advanceArrows: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+  },
+  backStep: { paddingVertical: spacing.sm },
+  suggestChip: {
+    paddingHorizontal: spacing.md,
+    height: 36,
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.sand,
+  },
   windowRow: {
     borderRadius: radius.md,
     padding: spacing.sm,

@@ -4,8 +4,10 @@ import * as Sharing from 'expo-sharing';
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen } from '@/components/ui';
+import { AppText, Banner, Button, Card, Divider, EmptyState, He, Row, ScrollScreen } from '@/components/ui';
+import { HEEBO_HEBREW_B64 } from '@/constants/hebrewFont';
 import { palette, radius, spacing } from '@/constants/theme';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -23,6 +25,8 @@ function buildHtml(params: {
   customerCity: string;
   projectTitle: string;
   vatPercent: number;
+  /** מע"מ تظهر في المستند فقط حين اختارها المستخدم في شاشة العرض. */
+  showVat: boolean;
 }): string {
   const {
     version,
@@ -35,18 +39,20 @@ function buildHtml(params: {
     customerCity,
     projectTitle,
     vatPercent,
+    showVat,
   } = params;
+  const totalMeters = Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000;
   const rows = version.items
     .map(
       (i, idx) => `
       <tr>
         <td>${idx + 1}</td>
-        <td>${i.roomName} — ${i.windowName}</td>
+        <td>${i.roomName} - ${i.windowName}</td>
         <td>${i.description}</td>
         <td>${i.widthCm} × ${i.heightCm} سم</td>
         <td>${i.runningMeters} م</td>
-        <td>₪${(i.unitPriceAgorot / 100).toLocaleString('en-US')}</td>
-        <td class="strong">₪${(i.lineTotalAgorot / 100).toLocaleString('en-US')}</td>
+        <td>${money(i.unitPriceAgorot)}</td>
+        <td class="strong">${money(i.lineTotalAgorot)}</td>
       </tr>`,
     )
     .join('');
@@ -56,32 +62,39 @@ function buildHtml(params: {
 <head>
 <meta charset="utf-8" />
 <style>
+  /* خيبو للعبرية وحدها (מע"מ): نطاق اليونيكود يحصره فيها، والباقي لخط النظام */
+  @font-face {
+    font-family: 'Heebo';
+    font-weight: 400 700;
+    unicode-range: U+0590-05FF, U+0022;
+    src: url(data:font/ttf;base64,${HEEBO_HEBREW_B64}) format('truetype');
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
-    direction: rtl; text-align: right; color: #282B29; margin: 0; padding: 32px;
-    background: #F8F5EF;
+    font-family: 'Heebo', -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
+    direction: rtl; text-align: right; color: #1B1F32; margin: 0; padding: 32px;
+    background: #F6F6FB;
   }
   .head { display: flex; justify-content: space-between; align-items: flex-start;
-    border-bottom: 3px solid #42584A; padding-bottom: 18px; margin-bottom: 22px; }
-  .brand { font-size: 26px; font-weight: 700; color: #42584A; }
-  .muted { color: #7C8479; font-size: 12px; line-height: 1.7; }
-  .badge { background: #EDE4D7; color: #42584A; padding: 6px 14px; border-radius: 999px;
+    border-bottom: 3px solid #4F46E5; padding-bottom: 18px; margin-bottom: 22px; }
+  .brand { font-size: 26px; font-weight: 700; color: #4F46E5; }
+  .muted { color: #787E9B; font-size: 12px; line-height: 1.7; }
+  .badge { background: #EEEFFE; color: #4F46E5; padding: 6px 14px; border-radius: 999px;
     font-size: 12px; display: inline-block; }
   .grid { display: flex; gap: 16px; margin-bottom: 22px; }
-  .box { flex: 1; background: #fff; border: 1px solid #E4DCCE; border-radius: 14px; padding: 14px; }
-  .box h3 { margin: 0 0 8px; font-size: 13px; color: #7C8479; font-weight: 600; }
+  .box { flex: 1; background: #fff; border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
+  .box h3 { margin: 0 0 8px; font-size: 13px; color: #787E9B; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; background: #fff;
-    border: 1px solid #E4DCCE; border-radius: 14px; overflow: hidden; }
-  th { background: #42584A; color: #F8F5EF; font-size: 12px; padding: 10px 8px; text-align: right; }
-  td { padding: 10px 8px; font-size: 12px; border-bottom: 1px solid #F1EBE1; }
+    border: 1px solid #EAEAF5; border-radius: 14px; overflow: hidden; }
+  th { background: #4F46E5; color: #F6F6FB; font-size: 12px; padding: 10px 8px; text-align: right; }
+  td { padding: 10px 8px; font-size: 12px; border-bottom: 1px solid #EFEFF8; }
   .strong { font-weight: 700; }
   .totals { margin-top: 20px; margin-right: auto; width: 300px; background: #fff;
-    border: 1px solid #E4DCCE; border-radius: 14px; padding: 14px; }
+    border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
   .totals div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
-  .grand { border-top: 2px solid #42584A; margin-top: 8px; padding-top: 10px !important;
-    font-size: 17px; font-weight: 700; color: #42584A; }
-  .foot { margin-top: 26px; font-size: 11px; color: #7C8479; border-top: 1px solid #E4DCCE; padding-top: 12px; }
+  .grand { border-top: 2px solid #4F46E5; margin-top: 8px; padding-top: 10px !important;
+    font-size: 17px; font-weight: 700; color: #4F46E5; }
+  .foot { margin-top: 26px; font-size: 11px; color: #787E9B; border-top: 1px solid #EAEAF5; padding-top: 12px; }
 </style>
 </head>
 <body>
@@ -113,34 +126,46 @@ function buildHtml(params: {
     <thead>
       <tr>
         <th>#</th><th>الغرفة والشباك</th><th>الوصف</th><th>القياس</th>
-        <th>متر ركض</th><th>سعر المتر</th><th>الإجمالي</th>
+        <th>متر طولي</th><th>سعر المتر</th><th>الإجمالي</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
 
   <div class="totals">
-    <div><span>المجموع</span><span>₪${(version.subtotalAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div><span>الخصم (${version.discountPercent}%)</span><span>- ₪${(version.discountAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div><span>ض.ق.م ${vatPercent}%</span><span>₪${(version.vatAgorot / 100).toLocaleString('en-US')}</span></div>
-    <div class="grand"><span>الإجمالي</span><span>₪${(version.totalAgorot / 100).toLocaleString('en-US')}</span></div>
+    <div><span>مجموع الأمتار الطولية</span><span>${totalMeters} م</span></div>
+    <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
+    <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
+    ${
+      showVat
+        ? `${version.discountAgorot > 0 ? `<div><span>المجموع بعد الخصم</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>` : ''}
+    <div><span>מע"מ ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
+    <div class="grand"><span>الإجمالي כולל מע"מ</span><span>${money(version.totalAgorot)}</span></div>`
+        : `<div class="grand"><span>الإجمالي</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>`
+    }
   </div>
 
   <div class="foot">
     ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
-    الأسعار شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
-    <br/>${orgName} — شكرًا لثقتكم.
+    الأسعار ${showVat ? 'לא כולל מע"מ و' : ''}شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
+    <br/>${orgName} - شكرًا لثقتكم.
   </div>
 </body>
 </html>`;
 }
 
 export default function QuotationPdfScreen() {
-  const { versionId } = useLocalSearchParams<{ versionId: string }>();
+  const { versionId, vat } = useLocalSearchParams<{ versionId: string; vat?: string }>();
+  /** מע"מ لا تُذكر في المستند إلا حين اختار المستخدم כולל מע"מ في العرض. */
+  const showVat = vat === 'incl';
   const { db } = useStore();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'pdf' | 'share' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // ارتفاع الشريط يُقاس ولا يُخمَّن: كان المحتوى يُحجب خلفه بمقدار يختلف من
+  // جهاز لآخر ومن لغة زر لأخرى
+  const [barHeight, setBarHeight] = useState(0);
 
   const version = db.quotationVersions.find((v) => v.id === versionId) ?? null;
   const quotation = db.quotations.find((q) => q.id === version?.quotationId) ?? null;
@@ -160,8 +185,9 @@ export default function QuotationPdfScreen() {
       customerCity: customer?.city ?? '',
       projectTitle: project?.title ?? '',
       vatPercent: db.settings.vatPercent,
+      showVat,
     });
-  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent]);
+  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent, showVat]);
 
   if (!version || !quotation) {
     return (
@@ -186,7 +212,7 @@ export default function QuotationPdfScreen() {
       if (canShare) {
         await Sharing.shareAsync(uri, {
           mimeType: 'application/pdf',
-          dialogTitle: `${quotation.number} — ${customer?.fullName ?? ''}`,
+          dialogTitle: `${quotation.number} - ${customer?.fullName ?? ''}`,
           UTI: 'com.adobe.pdf',
         });
         setInfo('تم إنشاء ملف PDF ومشاركته.');
@@ -206,7 +232,7 @@ export default function QuotationPdfScreen() {
     const intl = digits.startsWith('0') ? `972${digits.slice(1)}` : digits;
     const text = encodeURIComponent(
       `مرحبًا ${customer?.fullName ?? ''}، هذا عرض السعر ${quotation.number} من ${db.organization.name}.\n` +
-        `الإجمالي: ₪${(version.totalAgorot / 100).toLocaleString('en-US')}\n` +
+        `الإجمالي: ${money(version.totalAgorot)}\n` +
         `صالح حتى ${formatDate(version.validUntil)}.`,
     );
     Linking.openURL(`https://wa.me/${intl}?text=${text}`).catch(() =>
@@ -217,7 +243,11 @@ export default function QuotationPdfScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.lg, paddingBottom: 160 }}
+        contentContainerStyle={{
+          padding: spacing.lg,
+          gap: spacing.lg,
+          paddingBottom: barHeight + spacing.lg,
+        }}
         showsVerticalScrollIndicator={false}
       >
         <Card style={{ backgroundColor: palette.white }}>
@@ -266,7 +296,10 @@ export default function QuotationPdfScreen() {
               </AppText>
               <AppText variant="label">{project?.title}</AppText>
               <AppText variant="caption" color={palette.muted}>
-                {version.items.length} بند
+                {version.items.length} بند •{' '}
+                {meters(
+                  Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000,
+                )}
               </AppText>
             </View>
           </Row>
@@ -277,7 +310,7 @@ export default function QuotationPdfScreen() {
             <Row key={i.id} justify="space-between" align="flex-start" style={{ paddingVertical: 6 }}>
               <View style={{ flex: 1 }}>
                 <AppText variant="label">
-                  {idx + 1}. {i.roomName} — {i.windowName}
+                  {idx + 1}. {i.roomName} - {i.windowName}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {i.description} • {cm(i.widthCm)} × {cm(i.heightCm)} • {meters(i.runningMeters)}
@@ -303,17 +336,39 @@ export default function QuotationPdfScreen() {
               - {money(version.discountAgorot)}
             </AppText>
           </Row>
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.muted}>
-              ض.ق.م {db.settings.vatPercent}%
-            </AppText>
-            <AppText variant="label">{money(version.vatAgorot)}</AppText>
-          </Row>
+          {showVat && (
+            <>
+              {version.discountAgorot > 0 && (
+                <Row justify="space-between">
+                  <AppText variant="caption" color={palette.muted}>
+                    المجموع بعد الخصم
+                  </AppText>
+                  <AppText variant="label">
+                    {money(version.totalAgorot - version.vatAgorot)}
+                  </AppText>
+                </Row>
+              )}
+              <Row justify="space-between">
+                <AppText variant="caption" color={palette.muted}>
+                  <He>{'מע"מ'}</He> {db.settings.vatPercent}%
+                </AppText>
+                <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
+              </Row>
+            </>
+          )}
           <Divider />
           <Row justify="space-between">
-            <AppText variant="heading">الإجمالي</AppText>
+            <AppText variant="heading">
+              {showVat ? (
+                <>
+                  الإجمالي <He>{'כולל מע"מ'}</He>
+                </>
+              ) : (
+                'الإجمالي'
+              )}
+            </AppText>
             <AppText variant="numberLarge" color={palette.olive}>
-              {money(version.totalAgorot)}
+              {money(showVat ? version.totalAgorot : version.totalAgorot - version.vatAgorot)}
             </AppText>
           </Row>
         </Card>
@@ -322,11 +377,16 @@ export default function QuotationPdfScreen() {
         {!!info && <Banner tone="success" title={info} />}
 
         <AppText variant="caption" color={palette.muted} align="center">
-          يُنشأ ملف PDF عربي حقيقي من نفس بيانات النسخة المحفوظة — لا يمكن تعديل نسخة مرسلة.
+          يُنشأ ملف PDF عربي حقيقي من نفس بيانات النسخة المحفوظة - لا يمكن تعديل نسخة مرسلة.
         </AppText>
       </ScrollView>
 
-      <View style={styles.sticky}>
+      {/* الحشوة السفلية كانت رقمًا ثابتًا (28) يُخمّن شريط الإيماءات، فيقع
+          الزران تحته على الأجهزة الحديثة. المقاس الحقيقي يأتي من النظام. */}
+      <View
+        style={[styles.sticky, { paddingBottom: insets.bottom + spacing.lg }]}
+        onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+      >
         <Row gap={spacing.sm}>
           <Button
             label="تصدير PDF ومشاركة"
@@ -359,7 +419,6 @@ const styles = {
     left: 0,
     right: 0,
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
     backgroundColor: palette.white,
     borderTopWidth: 1,
     borderTopColor: palette.line,

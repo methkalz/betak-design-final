@@ -5,7 +5,6 @@
 import { palette } from '@/constants/theme';
 import type {
   AttachmentKind,
-  CurtainModel,
   NotificationKind,
   PaymentKind,
   PaymentMethod,
@@ -96,19 +95,9 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   high: 'عاجلة',
 };
 
-export const CURTAIN_MODEL_LABELS: Record<CurtainModel, string> = {
-  wave: 'ويف (Wave)',
-  pinch_pleat: 'كبسة يدوية',
-  eyelet: 'حلقات (Eyelet)',
-  roman: 'رومان بليد',
-  sheer_panel: 'شيفون سادة',
-};
-
 export const TRACK_LABELS: Record<TrackType, string> = {
-  ceiling_rail: 'مسار سقف',
-  wall_rod: 'قضيب حائط',
+  standard: 'مسار عادي',
   motorized: 'مسار كهربائي',
-  double_rail: 'مسار مزدوج',
 };
 
 export const TAILOR_STAGE_ORDER: TailorStage[] = [

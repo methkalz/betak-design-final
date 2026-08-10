@@ -11,6 +11,7 @@ import {
   Settings,
   ShieldCheck,
   Tags,
+  Users,
   Wallet,
 } from 'lucide-react-native';
 import React from 'react';
@@ -21,7 +22,7 @@ import { AppText, Card, Pill, Row, SectionHeader } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { ROLE_LABELS, can } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
-import { initials } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
 import { useStore } from '@/providers/store';
 
 interface LinkItem {
@@ -88,6 +89,13 @@ export default function MoreScreen() {
       show: true,
     },
     {
+      label: 'الطاقم',
+      hint: 'الحسابات، الأداء، ما بين يد كل واحد',
+      icon: <Users size={20} color={palette.olive} />,
+      href: '/team',
+      show: can(role, 'manage_users'),
+    },
+    {
       label: 'سجل التدقيق',
       hint: 'من فعل ماذا ومتى',
       icon: <ScrollText size={20} color={palette.olive} />,
@@ -96,7 +104,7 @@ export default function MoreScreen() {
     },
     {
       label: 'الإعدادات والصلاحيات',
-      hint: 'المؤسسة، الأدوار، العرض التجريبي',
+      hint: 'المعرض، الأدوار، العرض التجريبي',
       icon: <Settings size={20} color={palette.olive} />,
       href: '/settings',
       show: true,
@@ -116,20 +124,11 @@ export default function MoreScreen() {
     >
       <Card>
         <Row gap={spacing.md}>
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: palette.olive,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <AppText variant="heading" color={palette.ivory}>
-              {initials(currentUser?.fullName ?? '')}
-            </AppText>
-          </View>
+          <Avatar
+            id={currentUser?.id ?? 'anon'}
+            name={currentUser?.fullName ?? ''}
+            size={56}
+          />
           <View style={{ flex: 1 }}>
             <AppText variant="heading">{currentUser?.fullName}</AppText>
             <AppText variant="caption" color={palette.muted}>

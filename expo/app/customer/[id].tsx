@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, MapPin, MessageCircle, Phone, Plus, StickyNote } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform, View } from 'react-native';
 
 import { ProjectRow } from '@/components/cards';
+import { Spotlight, type SpotlightTarget } from '@/components/Spotlight';
 import {
   AppText,
   Button,
@@ -17,14 +18,36 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { can } from '@/domain/permissions';
 import { projectFinance, useCustomer } from '@/hooks/selectors';
-import { formatDate, initials, money } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
+import { formatDate, money, phone } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
 export default function CustomerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, justCreated } = useLocalSearchParams<{ id: string; justCreated?: string }>();
   const { db, role, archiveCustomer } = useStore();
   const router = useRouter();
+  const goBack = useGoBack('/customers');
   const customer = useCustomer(id);
+
+  // ضوء كاشف بعد إضافة زبون: يدلّ على الخطوة التالية الطبيعية
+  const newProjectRef = useRef<View>(null);
+  const [spot, setSpot] = useState<SpotlightTarget | null>(null);
+  const [showSpot, setShowSpot] = useState(false);
+
+  useEffect(() => {
+    if (justCreated !== '1') return;
+    // مهلة قصيرة حتى يستقر التخطيط قبل القياس
+    const t = setTimeout(() => {
+      newProjectRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0) {
+          setSpot({ x, y, width, height });
+          setShowSpot(true);
+        }
+      });
+    }, 480);
+    return () => clearTimeout(t);
+  }, [justCreated]);
 
   if (!customer) {
     return (
@@ -65,11 +88,7 @@ export default function CustomerScreen() {
     <ScrollScreen>
       <Card>
         <Row gap={spacing.md}>
-          <View style={styles.avatar}>
-            <AppText variant="title" color={palette.oliveDark}>
-              {initials(customer.fullName)}
-            </AppText>
-          </View>
+          <Avatar id={customer.id} name={customer.fullName} size={60} />
           <View style={{ flex: 1 }}>
             <AppText variant="title">{customer.fullName}</AppText>
             <AppText variant="caption" color={palette.muted}>
@@ -94,13 +113,13 @@ export default function CustomerScreen() {
       {showMoney && (
         <Row gap={spacing.md}>
           <View style={[styles.tile, { backgroundColor: palette.sageSoft }]}>
-            <AppText variant="number">{money(total, { compact: true })}</AppText>
+            <AppText variant="number">{money(total)}</AppText>
             <AppText variant="caption" color={palette.muted}>
               إجمالي التعامل
             </AppText>
           </View>
           <View style={[styles.tile, { backgroundColor: palette.terracottaSoft }]}>
-            <AppText variant="number">{money(due, { compact: true })}</AppText>
+            <AppText variant="number">{money(due)}</AppText>
             <AppText variant="caption" color={palette.muted}>
               متبقٍ للتحصيل
             </AppText>
@@ -111,9 +130,9 @@ export default function CustomerScreen() {
       <Card>
         <AppText variant="heading">تفاصيل التواصل</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-          <DetailRow label="الهاتف" value={customer.phone} />
+          <DetailRow label="الهاتف" value={phone(customer.phone)} />
           <DetailRow label="العنوان" value={`${customer.address}، ${customer.city}`} />
-          <DetailRow label="ملاحظات" value={customer.notes || '—'} />
+          <DetailRow label="ملاحظات" value={customer.notes || '-'} />
         </View>
         {customer.preferences.length > 0 && (
           <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
@@ -130,13 +149,17 @@ export default function CustomerScreen() {
           subtitle={`${projects.length} مشروع`}
           action={
             can(role, 'manage_customers') ? (
-              <Button
-                label="مشروع جديد"
-                small
-                variant="secondary"
-                icon={<Plus size={15} color={palette.oliveDark} />}
-                onPress={() => router.push({ pathname: '/project/new', params: { customerId: customer.id } })}
-              />
+              <View ref={newProjectRef} collapsable={false}>
+                <Button
+                  label="مشروع جديد"
+                  small
+                  variant="secondary"
+                  icon={<Plus size={15} color={palette.oliveDark} />}
+                  onPress={() =>
+                    router.push({ pathname: '/project/new', params: { customerId: customer.id } })
+                  }
+                />
+              </View>
             ) : undefined
           }
         />
@@ -161,20 +184,28 @@ export default function CustomerScreen() {
           full
           icon={<Archive size={16} color={palette.olive} />}
           onPress={() =>
-            Alert.alert('أرشفة الزبون', 'لا يتم الحذف الفعلي — يمكن استرجاعه لاحقًا.', [
+            Alert.alert('أرشفة الزبون', 'لا يتم الحذف الفعلي - يمكن استرجاعه لاحقًا.', [
               { text: 'إلغاء', style: 'cancel' },
               {
                 text: 'أرشفة',
                 style: 'destructive',
                 onPress: () => {
                   archiveCustomer(customer.id);
-                  router.back();
+                  goBack();
                 },
               },
             ])
           }
         />
       )}
+
+      <Spotlight
+        visible={showSpot}
+        target={spot}
+        title="والآن: مشروع جديد"
+        body="من هنا تبدأ أول مشروع لهذا الزبون"
+        onDismiss={() => setShowSpot(false)}
+      />
     </ScrollScreen>
   );
 }
@@ -193,14 +224,6 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = {
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: palette.sageSoft,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-  },
   tile: {
     flex: 1,
     borderRadius: radius.lg,

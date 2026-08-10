@@ -9,7 +9,7 @@ import { AppText, Row } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { ROLE_LABELS } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
-import { initials } from '@/lib/format';
+import { Avatar } from '@/components/Avatar';
 import { useStore } from '@/providers/store';
 
 function greeting(): string {
@@ -34,11 +34,12 @@ export function AppHeader({ subtitle }: { subtitle?: string }) {
     >
       <Row justify="space-between">
         <Row gap={spacing.md}>
-          <View style={styles.avatar}>
-            <AppText variant="label" color={palette.ivory}>
-              {initials(currentUser?.fullName ?? '')}
-            </AppText>
-          </View>
+          <Avatar
+            id={currentUser?.id ?? 'anon'}
+            name={currentUser?.fullName ?? ''}
+            size={44}
+            onDark
+          />
           <View>
             <AppText variant="caption" color={palette.sage}>
               {greeting()} • {ROLE_LABELS[currentUser?.role ?? 'field']}
@@ -83,14 +84,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   iconBtn: {
     width: 44,

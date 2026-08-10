@@ -4,6 +4,8 @@ import { FlatList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { VisitCard } from '@/components/cards';
+import { PendingInstallations } from '@/components/PendingInstallations';
+import { TabPanel } from '@/components/TabMotion';
 import { AppText, Card, EmptyState, Row, SegmentedControl } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import { VISIT_TYPE_LABELS } from '@/domain/labels';
@@ -11,6 +13,8 @@ import { formatDate, formatTime, isSameDay } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 type Tab = 'today' | 'upcoming' | 'done';
+
+const TAB_ORDER: Tab[] = ['today', 'upcoming', 'done'];
 
 export default function VisitsScreen() {
   const { db, currentUser } = useStore();
@@ -49,11 +53,17 @@ export default function VisitsScreen() {
         />
       </View>
 
+      {/* نفس حركة الانتقال المعتمدة في شاشة المشروع - التبويب لا يقطع */}
+      <TabPanel tab={tab} order={TAB_ORDER} style={{ flex: 1 }} gap={0}>
+        {() => (
       <FlatList
         data={data}
         keyExtractor={(v) => v.id}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
         showsVerticalScrollIndicator={false}
+        /* التركيبات المنتظرة فوق القائمة لا في تبويب منفصل: هي أول ما يجب أن
+           يفعله العامل حين ينتهي الخياط، ودفنها خلف تبويب يعني ألّا يفعله. */
+        ListHeaderComponent={tab === 'done' ? null : <PendingInstallations />}
         renderItem={({ item }) =>
           tab === 'done' ? (
             <Card>
@@ -83,10 +93,12 @@ export default function VisitsScreen() {
           <EmptyState
             icon={<CalendarCheck size={28} color={palette.olive} />}
             title="لا توجد زيارات"
-            body={tab === 'today' ? 'لا توجد زيارات مجدولة اليوم.' : 'لا شيء هنا حاليًا.'}
+            body={tab === 'today' ? 'لا توجد زيارات مجدولة اليوم.' : 'لا زيارات قادمة مجدولة بعد.'}
           />
         }
       />
+        )}
+      </TabPanel>
     </View>
   );
 }

@@ -31,6 +31,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { ATTACHMENT_KIND_LABELS, VISIT_STATUS_LABELS, VISIT_TYPE_LABELS } from '@/domain/labels';
 import { cm, formatDateTime } from '@/lib/format';
+import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 import type { InstallationChecklist } from '@/types/domain';
 
@@ -44,6 +45,7 @@ const CHECKLIST_LABELS: Record<keyof InstallationChecklist, string> = {
 export default function VisitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const goBack = useGoBack('/visits');
   const { db, isOnline, startVisit, completeVisit, updateVisit, addAttachment } = useStore();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string>('');
@@ -100,7 +102,7 @@ export default function VisitScreen() {
     const res = completeVisit(visit.id);
     if (!res.ok) return setError(res.error);
     Alert.alert('تم إكمال الزيارة', 'تم حفظ كل البيانات على الجهاز وستتم مزامنتها تلقائيًا.', [
-      { text: 'تمام', onPress: () => router.back() },
+      { text: 'تمام', onPress: () => goBack() },
     ]);
   };
 
@@ -212,7 +214,7 @@ export default function VisitScreen() {
                     style={{ paddingVertical: 6 }}
                   >
                     <AppText variant="caption" color={palette.muted}>
-                      {w.name} — {cm(w.widthCm)} × {cm(w.heightCm)}
+                      {w.name} - {cm(w.widthCm)} × {cm(w.heightCm)}
                     </AppText>
                   </Pressable>
                 ))}

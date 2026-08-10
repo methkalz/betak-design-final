@@ -1,13 +1,13 @@
 """اختبار دوال دورة حياة العروض الأربع (ترحيل 150001) — عقود §10 المصادَقة.
 
-يغطي: أرقام دليل الفريق حرفيًا (rm=2 ← 58000/31800، هامش 35.30 على الصافي
-بلا ضريبة)، دلالة المؤشر من اعتراض التصديق 1 (الإنشاء لا يحرك المؤشر
+يغطي: أرقام دليل الفريق حرفيًا (rm=2 ← 58000/31800، ونسبة الربح 45.17 -
+מע"מ تُضاف على المجموع منذ 9.8.2026)، دلالة المؤشر من اعتراض التصديق 1 (الإنشاء لا يحرك المؤشر
 وعرضٌ مرسل قائم؛ الإرسال يستبدل ويحدّث ذريًا)، بوابتي الخصم والهامش على
 السياق المجمّد، بصمة المحتوى fp1، الترقيم بلا سباق (تزامن حقيقي)،
 الانقضاء، الصلاحيات، وidempotency v3.
 
 ملاحظة تثبيت: min_margin في الإعدادات هنا 10 (لا 35) كي تختبر بوابةُ
-الخصم نفسها لا بوابةُ الهامش — قيم المثال الحرفية (35.30) تُفحص كقيم
+الخصم نفسها لا بوابةُ نسبة الربح — قيم المثال الحرفية (45.17) تُفحص كقيم
 محسوبة، وبوابة الهامش تُفحص بخصم 60%.
 """
 import sys, os, re, json
@@ -161,13 +161,17 @@ def send(user, ver, key):
 # ── أرقام الدليل الحرفية ─────────────────────────────────────────────────────
 out = create(SALES, 'PA', K['a1'])
 v1 = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
+# מע"מ تُضاف على المجموع لا تُستخرَج منه (قرار المالك 9.8.2026):
+# 58000 + floor(58000×18%)=10400 ← المطلوب 68400، ونسبة الربح على الإيراد
+# الكامل: (58000−31800)/58000 = 45.17
 ok = (v1 is not None
       and '"quotation_number": "Q-2026-0001"' in out
       and '"subtotal_agorot": 58000' in out
-      and '"vat_agorot": 8847' in out
-      and '"total_agorot": 58000' in out
-      and '"margin_percent": 35.30' in out)
-check('01 إنشاء v1: أرقام الدليل حرفيًا (58000 / ضريبة مستخرجة 8847 / هامش 35.30)', ok, out)
+      and '"vat_agorot": 10400' in out
+      and '"total_agorot": 68400' in out
+      and '"margin_percent": 45.17' in out)
+check('01 إنشاء v1: أرقام الدليل بقاعدة الشيكل الصحيح (58000 / מע"מ 10400 تُضاف / المطلوب 68400 / نسبة الربح 45.17)',
+      ok, out)
 
 probe = sql(f"""select running_meters || '|' || fabric_meters || '|' || lining_meters
  || '|' || unit_price_agorot || '|' || line_total_agorot || '|' || internal_cost_agorot
@@ -356,8 +360,8 @@ probe = sql(f"""select (private.version_content_fingerprint('{v3}')
         = private.version_content_fingerprint('{v3}'))::text
  || '|' || length(private.version_content_fingerprint('{v3}'))
  || '|' || left(private.quotation_content_canonical('{v3}'), 24);""", quiet=False)
-check('32 بصمة حتمية 64-hex وبادئة fp1|ILS|1|inclusive',
-      'true|64|fp1|ILS|1|inclusive' in probe, probe)
+check('32 بصمة حتمية 64-hex وبادئة fp1|ILS|2|exclusive (نسخة الحساب 2، מע"מ تُضاف)',
+      'true|64|fp1|ILS|2|exclusive' in probe, probe)
 
 # ── اللقطة الذرية: المحرك يقرأ من السياق لا من الجداول الحية ─────────────────
 # سياق مُفتعل بسعر 99999 بينما القاعدة الحية 29000 — إن خرج 199998 فالمحرك
@@ -372,8 +376,9 @@ from private.price_project_windows('{ORG}'::uuid, '{pid('PA')}'::uuid,
       'band','standard','category','crepe_with_lining',
       'customer_price_per_meter_agorot', 99999,
       'tailor_cost_per_meter_agorot', 0))));""", quiet=False)
+# 99999 × 2 م = 199998 أغورة، وبقاعدة الشيكل الصحيح تُسقَط الكسور ← 199900
 check('33 المحرك يسعّر من اللقطة المفتعلة (99999) لا من القاعدة الحية (29000)',
-      '199998|' in probe, probe)
+      '199900|' in probe, probe)
 
 probe = sql(f"""select (i.unit_price_agorot = (r->>'customer_price_per_meter_agorot')::bigint)::text
 from core.quotation_items i

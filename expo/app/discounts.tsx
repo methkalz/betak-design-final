@@ -115,12 +115,12 @@ export default function DiscountsScreen() {
                     بعد الخصم المطلوب
                   </AppText>
                   <AppText variant="label" color={palette.terracotta}>
-                    {money(after.totalAgorot)}
+                    {money(after.revenueExVatAgorot)}
                   </AppText>
                 </Row>
                 <Row justify="space-between">
                   <AppText variant="caption" color={palette.muted}>
-                    هامش الربح بعد الخصم
+                    نسبة الربح بعد الخصم
                   </AppText>
                   <AppText
                     variant="label"
