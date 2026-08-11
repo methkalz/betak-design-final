@@ -119,3 +119,34 @@ export function dyeLotWarning(lots: string[]): string | null {
 }
 
 export const LOW_STOCK_THRESHOLD_M = 20;
+
+/**
+ * استهلاك آخر N يومًا من حركات المخزون (قرار المالك 11.8.2026: بلاطة
+ * «المستهلك» تعني الشهر الأخير لا العمر كله - رقم العمر يكبر إلى الأبد
+ * فلا يُدار به شيء، ورقم الشهر يقول كم يخرج من المخزن فعلًا).
+ */
+export function consumedInLastDays(movements: StockMovement[], days: number): number {
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  let sum = 0;
+  for (const m of movements) {
+    if (
+      (m.type === 'consumption' || m.type === 'overconsumption') &&
+      new Date(m.createdAt).getTime() >= since
+    ) {
+      sum += m.quantityM;
+    }
+  }
+  return round3(sum);
+}
+
+/**
+ * لون المتاح بثلاث درجات لا اثنتين: أحمر دون الحد، كهرمانيٌّ يقترب منه
+ * (دون ضعفه)، أخضر فوق ذلك. الدرجة الوسطى هي التي تسبق المشكلة -
+ * الأحمر وحده يصرخ بعد فوات وقت الطلب من المورّد.
+ */
+export type AvailabilityTone = 'danger' | 'warning' | 'success';
+export function availabilityTone(availableM: number): AvailabilityTone {
+  if (availableM < LOW_STOCK_THRESHOLD_M) return 'danger';
+  if (availableM < LOW_STOCK_THRESHOLD_M * 2) return 'warning';
+  return 'success';
+}

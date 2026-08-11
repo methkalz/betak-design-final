@@ -23,7 +23,7 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { availabilityTone } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
 import { useVariantStockViews } from '@/hooks/selectors';
 import { formatDate, meters, money } from '@/lib/format';
@@ -50,8 +50,14 @@ export default function VariantStockScreen() {
     );
   }
 
-  const low = view.availableM < LOW_STOCK_THRESHOLD_M;
-  const tone = low ? palette.danger : palette.success;
+  const level = availabilityTone(view.availableM);
+  const low = level === 'danger';
+  const tone =
+    level === 'danger'
+      ? palette.danger
+      : level === 'warning'
+        ? palette.warning
+        : palette.success;
   const lifetime = view.availableM + view.reservedM + view.consumedM;
   const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
 

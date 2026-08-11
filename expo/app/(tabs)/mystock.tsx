@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { availabilityTone } from '@/domain/inventory';
 import { round3 } from '@/domain/pricing';
 import { useRollViews } from '@/hooks/selectors';
 import { formatDate, meters } from '@/lib/format';
@@ -119,8 +119,13 @@ export default function MyStockScreen() {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const low = item.availableM < LOW_STOCK_THRESHOLD_M;
-          const tone = low ? palette.danger : palette.success;
+          const level = availabilityTone(item.availableM);
+          const tone =
+            level === 'danger'
+              ? palette.danger
+              : level === 'warning'
+                ? palette.warning
+                : palette.success;
           const lifetime = item.availableM + item.reservedM + item.consumedM;
           const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
           return (
@@ -129,7 +134,7 @@ export default function MyStockScreen() {
                 <Row gap={spacing.md} style={{ flex: 1 }}>
                   <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                   <View style={{ flex: 1 }}>
-                    <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+                    <AppText variant="heading" numberOfLines={1} style={{ fontSize: 18 }}>
                       {item.product?.name}
                     </AppText>
                     <AppText variant="caption" color={palette.muted} numberOfLines={1}>
@@ -139,7 +144,11 @@ export default function MyStockScreen() {
                 </Row>
                 <View style={{ alignItems: 'flex-start' }}>
                   <Row gap={4} align="baseline">
-                    <AppText variant="numberLarge" color={tone}>
+                    <AppText
+                      variant="numberLarge"
+                      color={tone}
+                      style={{ fontSize: 33, lineHeight: 44 }}
+                    >
                       {meters(item.availableM, false)}
                     </AppText>
                     <AppText variant="caption" color={palette.muted}>
@@ -147,9 +156,16 @@ export default function MyStockScreen() {
                     </AppText>
                   </Row>
                   <Row gap={5}>
-                    {low && <AlertTriangle size={12} color={palette.danger} />}
-                    <AppText variant="caption" color={low ? palette.danger : palette.muted}>
-                      متاح
+                    {level === 'danger' && <AlertTriangle size={12} color={palette.danger} />}
+                    <AppText
+                      variant="caption"
+                      color={level === 'success' ? palette.muted : tone}
+                    >
+                      {level === 'danger'
+                        ? 'منخفض'
+                        : level === 'warning'
+                          ? 'يقترب من الحد'
+                          : 'متاح'}
                     </AppText>
                   </Row>
                 </View>

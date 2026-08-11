@@ -16,7 +16,7 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { availabilityTone, consumedInLastDays } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
 import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
 import { meters, money } from '@/lib/format';
@@ -44,13 +44,14 @@ export default function InventoryScreen() {
   const totals = useMemo(() => {
     const available = rolls.reduce((s, r) => s + r.balance.availableM, 0);
     const reserved = rolls.reduce((s, r) => s + r.balance.reservedM, 0);
-    const consumed = rolls.reduce((s, r) => s + r.balance.consumedM, 0);
+    // استهلاك الشهر الأخير لا العمر كله: رقم العمر يكبر إلى الأبد
+    const consumed = consumedInLastDays(db.stockMovements, 30);
     const value = rolls.reduce(
       (s, r) => s + r.balance.onHandM * (r.variant?.costPerMeterAgorot ?? 0),
       0,
     );
     return { available, reserved, consumed, value };
-  }, [rolls]);
+  }, [rolls, db.stockMovements]);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
@@ -78,7 +79,7 @@ export default function InventoryScreen() {
             tint={['rgba(245,158,11,0.09)', 'rgba(255,255,255,0)']}
           />
           <TotalTile
-            label="مستهلك"
+            label="استهلاك الشهر"
             value={totals.consumed}
             tone={palette.muted}
             tint={['rgba(120,126,155,0.08)', 'rgba(255,255,255,0)']}
@@ -121,8 +122,13 @@ export default function InventoryScreen() {
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const low = item.availableM < LOW_STOCK_THRESHOLD_M;
-            const availTone = low ? palette.danger : palette.success;
+            const tone = availabilityTone(item.availableM);
+            const availTone =
+              tone === 'danger'
+                ? palette.danger
+                : tone === 'warning'
+                  ? palette.warning
+                  : palette.success;
             const lifetime = item.availableM + item.reservedM + item.consumedM;
             const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
@@ -136,10 +142,15 @@ export default function InventoryScreen() {
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                     <View style={{ flex: 1 }}>
-                      <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
+                      <AppText variant="heading" numberOfLines={1} style={{ fontSize: 18 }}>
                         {item.product?.name}
                       </AppText>
-                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                      <AppText
+                        variant="caption"
+                        color={palette.muted}
+                        numberOfLines={1}
+                        style={{ fontSize: 14.5 }}
+                      >
                         {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
                       </AppText>
                     </View>
@@ -147,7 +158,11 @@ export default function InventoryScreen() {
 
                   <View style={{ alignItems: 'flex-start' }}>
                     <Row gap={4} align="baseline">
-                      <AppText variant="numberLarge" color={availTone}>
+                      <AppText
+                        variant="numberLarge"
+                        color={availTone}
+                        style={{ fontSize: 33, lineHeight: 44 }}
+                      >
                         {meters(item.availableM, false)}
                       </AppText>
                       <AppText variant="caption" color={palette.muted}>
@@ -155,9 +170,16 @@ export default function InventoryScreen() {
                       </AppText>
                     </Row>
                     <Row gap={5}>
-                      {low && <AlertTriangle size={12} color={palette.danger} />}
-                      <AppText variant="caption" color={low ? palette.danger : palette.muted}>
-                        {low ? 'متاح - منخفض' : 'متاح'}
+                      {tone === 'danger' && <AlertTriangle size={12} color={palette.danger} />}
+                      <AppText
+                        variant="caption"
+                        color={tone === 'success' ? palette.muted : availTone}
+                      >
+                        {tone === 'danger'
+                          ? 'منخفض - اطلب'
+                          : tone === 'warning'
+                            ? 'يقترب من الحد'
+                            : 'متاح'}
                       </AppText>
                     </Row>
                   </View>
@@ -289,15 +311,15 @@ function TotalTile({
       />
       <Row gap={5}>
         <View style={[styles.dot, { backgroundColor: tone }]} />
-        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12 }}>
+        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12.5 }}>
           {label}
         </AppText>
       </Row>
       <Row gap={3} align="baseline">
-        <AppText variant="number" numberOfLines={1}>
+        <AppText variant="number" numberOfLines={1} style={{ fontSize: 23, lineHeight: 32 }}>
           {meters(value, false)}
         </AppText>
-        <AppText variant="caption" color={palette.muted} style={{ fontSize: 11 }}>
+        <AppText variant="caption" color={palette.muted} style={{ fontSize: 11.5 }}>
           متر
         </AppText>
       </Row>
