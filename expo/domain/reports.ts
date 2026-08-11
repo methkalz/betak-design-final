@@ -182,3 +182,119 @@ export function debtsSplit(db: Database): { settled: DebtRow[]; outstanding: Deb
     outstanding: rows.filter((r) => r.dueAgorot > 0).sort((a, b) => b.dueAgorot - a.dueAgorot),
   };
 }
+
+/* ═══════════════ تقرير الاستهلاك (قرار المالك 11.8.2026) ═══════════════ */
+
+export type MonthConsumption = {
+  /** YYYY-MM للترتيب. */
+  key: string;
+  /** للعرض: 8.2026 */
+  label: string;
+  plannedM: number;
+  actualM: number;
+  /** ما زاد عن المخطط - موجب فقط. */
+  overM: number;
+};
+
+/**
+ * المخطط مقابل المستهلك شهرًا بشهر، من سجلات الإنهاء نفسها.
+ *
+ * كل سجل استهلاك يحمل مخططه وفعليّه معًا (`plannedM`/`actualM`)، فالمقارنة
+ * تُقرأ من المصدر لا تُركَّب من جدولين قد يختلف عدُّهما. الأشهر الفارغة
+ * تظهر بصفرها - غيابها يجعل الرسم يقفز فوق شهرٍ لم يُعمل فيه.
+ */
+export function monthlyConsumption(db: Database, months = 6): MonthConsumption[] {
+  const out: MonthConsumption[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    out.push({ key, label: `${d.getMonth() + 1}.${d.getFullYear()}`, plannedM: 0, actualM: 0, overM: 0 });
+  }
+  const byKey = new Map(out.map((m) => [m.key, m]));
+  for (const u of db.usages) {
+    const d = new Date(u.createdAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const m = byKey.get(key);
+    if (!m) continue;
+    m.plannedM = round3(m.plannedM + u.plannedM);
+    m.actualM = round3(m.actualM + u.actualM);
+    if (u.actualM > u.plannedM) m.overM = round3(m.overM + (u.actualM - u.plannedM));
+  }
+  return out;
+}
+
+export type OverrunRow = {
+  usageId: UUID;
+  projectId: UUID;
+  projectTitle: string;
+  windowName: string;
+  byName: string;
+  overM: number;
+  overPct: number;
+  notes: string;
+  createdAt: string;
+};
+
+/**
+ * الزيادات الواضحة: كل إنهاءٍ استهلك فوق مخططه، الأكبر أولًا.
+ *
+ * قائمة استثناءاتٍ لا سجلٌّ كامل - توصية لوحات الفروقات: الشاذّ يتصدّر
+ * والمطابق للخطة لا يُسرد أصلًا، فالعين تفحص ما يحتاج فحصًا فقط.
+ */
+export function consumptionOverruns(db: Database, sinceDays = 180): OverrunRow[] {
+  const since = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+  const rows: OverrunRow[] = [];
+  for (const u of db.usages) {
+    if (new Date(u.createdAt).getTime() < since) continue;
+    const over = round3(u.actualM - u.plannedM);
+    if (over <= 0) continue;
+    const win = db.windows.find((w) => w.id === u.windowId);
+    const project = db.projects.find((p) => p.id === u.projectId);
+    rows.push({
+      usageId: u.id,
+      projectId: u.projectId,
+      projectTitle: project?.title ?? '',
+      windowName: win?.name ?? 'شباك',
+      byName: db.profiles.find((p) => p.id === u.createdBy)?.fullName ?? '',
+      overM: over,
+      overPct: u.plannedM > 0 ? Math.round((over / u.plannedM) * 1000) / 10 : 100,
+      notes: u.notes,
+      createdAt: u.createdAt,
+    });
+  }
+  return rows.sort((a, b) => b.overM - a.overM);
+}
+
+export type VariantMonthConsumption = {
+  variantId: UUID;
+  name: string;
+  colorHex: string;
+  meters: number;
+};
+
+/** استهلاك الشهر الجاري موزَّعًا على الأصناف - عبر رول كل سجل. */
+export function monthConsumptionByVariant(db: Database): VariantMonthConsumption[] {
+  const now = new Date();
+  const map = new Map<UUID, VariantMonthConsumption>();
+  for (const u of db.usages) {
+    const d = new Date(u.createdAt);
+    if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) continue;
+    const roll = db.fabricRolls.find((r) => r.id === u.rollId);
+    if (!roll) continue;
+    const v = db.fabricVariants.find((x) => x.id === roll.variantId);
+    const p = db.fabricProducts.find((x) => x.id === v?.productId);
+    let g = map.get(roll.variantId);
+    if (!g) {
+      g = {
+        variantId: roll.variantId,
+        name: `${p?.name ?? ''} ${v?.colorName ?? ''}`.trim(),
+        colorHex: v?.colorHex ?? '#DDD',
+        meters: 0,
+      };
+      map.set(roll.variantId, g);
+    }
+    g.meters = round3(g.meters + u.actualM);
+  }
+  return Array.from(map.values()).sort((a, b) => b.meters - a.meters);
+}

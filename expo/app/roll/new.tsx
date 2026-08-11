@@ -158,7 +158,7 @@ export default function NewRollScreen() {
               يراها قراءةً بإحصاءاتها، ولا يراها خياط غيره */}
           <SectionHeader
             title="مكان البضاعة"
-            subtitle="في مخزن المعرض، أو أمانة عند خياط"
+            subtitle="في مخزن المعرض، أو عند خياط"
           />
           <Row gap={spacing.sm} wrap>
             <Pressable

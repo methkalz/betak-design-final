@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { AlertTriangle, Layers, Package, PackagePlus, Plus } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -78,11 +78,14 @@ export default function InventoryScreen() {
             tone={palette.warning}
             tint={['rgba(245,158,11,0.09)', 'rgba(255,255,255,0)']}
           />
+          {/* البلاطة نفسها بوابة تقريرها: من يسأل «كم استهلكنا؟» يسأل
+              «وأين ولماذا؟» بعدها مباشرة */}
           <TotalTile
             label="استهلاك الشهر"
             value={totals.consumed}
             tone={palette.muted}
             tint={['rgba(120,126,155,0.08)', 'rgba(255,255,255,0)']}
+            onPress={() => router.push('/consumption')}
           />
         </Row>
         <SegmentedControl
@@ -209,7 +212,7 @@ export default function InventoryScreen() {
                     <Row gap={5}>
                       <View style={[styles.dot, { backgroundColor: palette.terracotta }]} />
                       <AppText variant="caption" color={palette.terracotta}>
-                        أمانة عند خياط {meters(item.consignedM)}
+                        عند الخياطين {meters(item.consignedM)}
                       </AppText>
                     </Row>
                   )}
@@ -295,14 +298,20 @@ function TotalTile({
   value,
   tone,
   tint,
+  onPress,
 }: {
   label: string;
   value: number;
   tone: string;
   tint: [string, string];
+  onPress?: () => void;
 }) {
   return (
-    <View style={[styles.totalTile, { borderColor: palette.line }]}>
+    <Pressable
+      disabled={!onPress}
+      onPress={onPress}
+      style={[styles.totalTile, { borderColor: palette.line }]}
+    >
       <LinearGradient
         colors={tint}
         start={{ x: 0.2, y: 0 }}
@@ -311,7 +320,8 @@ function TotalTile({
       />
       <Row gap={5}>
         <View style={[styles.dot, { backgroundColor: tone }]} />
-        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12.5 }}>
+        {/* بلا سقف أسطر: التسمية تلتفّ سطرين ولا تُقصّ أبدًا */}
+        <AppText variant="caption" color={palette.muted} style={{ fontSize: 12.5 }}>
           {label}
         </AppText>
       </Row>
@@ -323,7 +333,7 @@ function TotalTile({
           متر
         </AppText>
       </Row>
-    </View>
+    </Pressable>
   );
 }
 

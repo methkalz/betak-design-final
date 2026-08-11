@@ -102,7 +102,7 @@ export default function VariantStockScreen() {
           </AppText>
           {view.consignedM > 0 && (
             <AppText variant="caption" color={palette.terracotta}>
-              منها {meters(view.consignedM)} أمانة
+              منها {meters(view.consignedM)} عند الخياطين
             </AppText>
           )}
         </Row>
