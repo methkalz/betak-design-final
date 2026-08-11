@@ -21,6 +21,13 @@ import { useRollViews } from '@/hooks/selectors';
 import { formatDate, meters } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
+/** عدّ الاستلامات بعربيةٍ سليمة: واحد، اثنان (مثنّى)، ثم جمع. */
+function receiptsLabel(n: number): string {
+  if (n === 1) return 'استلام واحد';
+  if (n === 2) return 'استلامان';
+  return `${n} استلامات`;
+}
+
 export default function MyStockScreen() {
   const { currentUser } = useStore();
   const insets = useSafeAreaInsets();
@@ -123,12 +130,10 @@ export default function MyStockScreen() {
                   <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                   <View style={{ flex: 1 }}>
                     <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
-                      {item.product?.name} {item.variant?.colorName}
+                      {item.product?.name}
                     </AppText>
                     <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                      {item.receipts.length === 1
-                        ? 'استلام واحد'
-                        : `${item.receipts.length} استلامات`}
+                      {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
                     </AppText>
                   </View>
                 </Row>

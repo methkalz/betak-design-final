@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, Layers, Package, PackagePlus, Plus, Scissors } from 'lucide-react-native';
+import { AlertTriangle, Layers, Package, PackagePlus, Plus } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,13 @@ import { can } from '@/domain/permissions';
 import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
 import { meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
+
+/** عدّ الاستلامات بعربيةٍ سليمة: واحد، اثنان (مثنّى)، ثم جمع. */
+function receiptsLabel(n: number): string {
+  if (n === 1) return 'استلام واحد';
+  if (n === 2) return 'استلامان';
+  return `${n} استلامات`;
+}
 
 type Tab = 'stock' | 'library';
 
@@ -59,13 +66,13 @@ export default function InventoryScreen() {
         {/* الأرقام الثلاثة التي تُدار بها الورشة - لكلٍّ لون حالته */}
         <Row gap={spacing.md}>
           <TotalTile
-            label="متاح للحجز"
+            label="متاح"
             value={totals.available}
             tone={palette.success}
             tint={['rgba(16,185,129,0.09)', 'rgba(255,255,255,0)']}
           />
           <TotalTile
-            label="محجوز لمشاريع"
+            label="محجوز"
             value={totals.reserved}
             tone={palette.warning}
             tint={['rgba(245,158,11,0.09)', 'rgba(255,255,255,0)']}
@@ -130,12 +137,10 @@ export default function InventoryScreen() {
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
                     <View style={{ flex: 1 }}>
                       <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
-                        {item.product?.name} {item.variant?.colorName}
+                        {item.product?.name}
                       </AppText>
                       <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                        {item.receipts.length === 1
-                          ? 'استلام واحد'
-                          : `${item.receipts.length} استلامات`}
+                        {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
                       </AppText>
                     </View>
                   </Row>
@@ -165,25 +170,26 @@ export default function InventoryScreen() {
                   <View style={{ width: `${seg(item.consumedM)}%`, backgroundColor: palette.sandDeep }} />
                 </View>
 
-                <Row justify="space-between" gap={spacing.sm} style={{ marginTop: spacing.sm }}>
-                  <Row gap={spacing.md}>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.warning }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        محجوز {meters(item.reservedM)}
-                      </AppText>
-                    </Row>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        مستهلك {meters(item.consumedM)}
-                      </AppText>
-                    </Row>
+                <Row gap={spacing.md} wrap style={{ marginTop: spacing.sm }}>
+                  <Row gap={5}>
+                    <View style={[styles.dot, { backgroundColor: palette.warning }]} />
+                    <AppText variant="caption" color={palette.muted}>
+                      محجوز {meters(item.reservedM)}
+                    </AppText>
+                  </Row>
+                  <Row gap={5}>
+                    <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
+                    <AppText variant="caption" color={palette.muted}>
+                      مستهلك {meters(item.consumedM)}
+                    </AppText>
                   </Row>
                   {item.consignedM > 0 && (
-                    <AppText variant="caption" color={palette.terracotta} numberOfLines={1}>
-                      منها {meters(item.consignedM)} أمانة
-                    </AppText>
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.terracotta }]} />
+                      <AppText variant="caption" color={palette.terracotta}>
+                        أمانة عند خياط {meters(item.consignedM)}
+                      </AppText>
+                    </Row>
                   )}
                 </Row>
               </Card>
@@ -211,7 +217,9 @@ export default function InventoryScreen() {
                   <View style={{ flex: 1 }}>
                     <AppText variant="heading">{item.name}</AppText>
                     <AppText variant="caption" color={palette.muted}>
-                      {item.supplier} • عرض {item.widthCm} سم • {item.composition}
+                      {[item.supplier, `عرض ${item.widthCm} سم`, item.composition]
+                        .filter(Boolean)
+                        .join(' • ')}
                     </AppText>
                   </View>
                   <Layers size={20} color={palette.olive} />
@@ -235,7 +243,7 @@ export default function InventoryScreen() {
                     bg={palette.ivoryDeep}
                     fg={palette.muted}
                     small
-                    icon={<Scissors size={12} color={palette.muted} />}
+                    icon={<Layers size={12} color={palette.muted} />}
                   />
                   {showCost && (
                     <Pill
