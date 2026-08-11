@@ -1883,7 +1883,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           variantId: input.variantId,
           code,
           dyeLot,
-          location: (input.location ?? '').trim() || '-',
+          location: (input.location ?? '').trim(),
           initialMeters: round3(input.meters),
           isMiniRoll: false,
           assignedTailorId: input.assignedTailorId ?? null,

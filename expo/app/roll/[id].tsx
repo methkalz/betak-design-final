@@ -92,7 +92,8 @@ export default function RollScreen() {
               {roll.isMiniRoll && <Pill label="Mini Roll" bg={palette.sand} fg={palette.muted} small />}
             </Row>
             <AppText variant="caption" color={palette.muted}>
-              {product?.name} {variant?.colorName} • موقع {roll.location}
+              {product?.name} {variant?.colorName} • موقع{' '}
+              {roll.location && roll.location !== '-' ? roll.location : 'مخزن المعرض'}
             </AppText>
             <AppText variant="caption" color={palette.muted}>
               Dye lot {roll.dyeLot} • عرض {product?.widthCm} سم

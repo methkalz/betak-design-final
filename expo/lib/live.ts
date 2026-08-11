@@ -239,7 +239,9 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     isMiniRoll: Boolean(r.is_mini_roll),
     // عمود الإسناد للخياط يصل الخادم مع شريحة الكتابة
     assignedTailorId: r.assigned_tailor_id ? s(r.assigned_tailor_id) : null,
-    createdAt: s(r.created_at),
+    // طابع الخادم يأتي بصيغة +00:00 وطابع التطبيق بصيغة Z؛ يوحَّدان حتى
+    // يصحّ ترتيب الاستلامات بالمقارنة النصية في شاشات المخزون
+    createdAt: new Date(s(r.created_at)).toISOString(),
   }));
 
   const movementsMapped: StockMovement[] = movements.map((m) => ({

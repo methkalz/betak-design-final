@@ -18,18 +18,19 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
-import { useRollViews } from '@/hooks/selectors';
+import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
 import { meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-type Tab = 'rolls' | 'library';
+type Tab = 'stock' | 'library';
 
 export default function InventoryScreen() {
   const { db, role } = useStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>('rolls');
+  const [tab, setTab] = useState<Tab>('stock');
   const rolls = useRollViews();
+  const stock = useVariantStockViews();
   const showCost = role === 'admin';
   const canManage = can(role, 'manage_fabrics');
 
@@ -80,7 +81,7 @@ export default function InventoryScreen() {
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'rolls', label: 'الرولات' },
+            { value: 'stock', label: 'المخزون' },
             { value: 'library', label: 'مكتبة الأقمشة' },
           ]}
         />
@@ -88,64 +89,61 @@ export default function InventoryScreen() {
             وهو في المكتبة - لا زرّ واحد يسأل «أيّهما تقصد؟» */}
         {canManage && (
           <Button
-            label={tab === 'rolls' ? 'استلام بضاعة' : 'قماش جديد'}
+            label={tab === 'stock' ? 'استلام بضاعة' : 'قماش جديد'}
             variant="secondary"
             full
             small
             icon={
-              tab === 'rolls' ? (
+              tab === 'stock' ? (
                 <PackagePlus size={15} color={palette.oliveDark} />
               ) : (
                 <Plus size={15} color={palette.oliveDark} />
               )
             }
-            onPress={() => router.push(tab === 'rolls' ? '/roll/new' : '/fabric/new')}
+            onPress={() => router.push(tab === 'stock' ? '/roll/new' : '/fabric/new')}
           />
         )}
       </View>
 
-      {tab === 'rolls' ? (
+      {tab === 'stock' ? (
+        /* المخزون بالأمتار لكل صنف (قرار المالك): بطاقة لكل لونٍ برقمه
+           البطل، والاستلامات تفصيلٌ خلف ضغطة - لا رولات في الواجهة. */
         <FlatList
-          data={rolls}
-          keyExtractor={(r) => r.roll.id}
+          data={stock}
+          keyExtractor={(g) => g.variantId}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const low = item.balance.availableM < LOW_STOCK_THRESHOLD_M;
+            const low = item.availableM < LOW_STOCK_THRESHOLD_M;
             const availTone = low ? palette.danger : palette.success;
-            // عمر الرول كاملًا: ما بقي (متاح + محجوز) وما خرج (مستهلك)
-            const lifetime =
-              item.balance.availableM + item.balance.reservedM + item.balance.consumedM;
+            const lifetime = item.availableM + item.reservedM + item.consumedM;
             const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
-              <Card onPress={() => router.push(`/roll/${item.roll.id}`)} style={{ padding: spacing.xl }}>
-                {/* نقطة تركيز واحدة: المتاح بأكبر خط وفي عمود ثابت على يسار
-                    كل بطاقة، فتنزل العين عمودًا واحدًا عند التصفح بدل أن
-                    تتنقل بين ثلاثة أرقام متساوية الوزن في كل بطاقة. */}
+              <Card
+                onPress={() =>
+                  router.push({ pathname: '/stock/[variantId]', params: { variantId: item.variantId } })
+                }
+                style={{ padding: spacing.xl }}
+              >
                 <Row justify="space-between" align="center" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
-                    {/* اسم القماش هو ما يبحث عنه الخيّاط، والكود معرّف
-                        يُقرأ بعده - فالاسم فوق وبالخط العريض */}
                     <View style={{ flex: 1 }}>
                       <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
                         {item.product?.name} {item.variant?.colorName}
                       </AppText>
-                      <Row gap={spacing.sm}>
-                        <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                          {item.roll.code}
-                        </AppText>
-                        {item.roll.isMiniRoll && (
-                          <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
-                        )}
-                      </Row>
+                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                        {item.receipts.length === 1
+                          ? 'استلام واحد'
+                          : `${item.receipts.length} استلامات`}
+                      </AppText>
                     </View>
                   </Row>
 
                   <View style={{ alignItems: 'flex-start' }}>
                     <Row gap={4} align="baseline">
                       <AppText variant="numberLarge" color={availTone}>
-                        {meters(item.balance.availableM, false)}
+                        {meters(item.availableM, false)}
                       </AppText>
                       <AppText variant="caption" color={palette.muted}>
                         متر
@@ -160,39 +158,33 @@ export default function InventoryScreen() {
                   </View>
                 </Row>
 
-                {/* شريط عمر الرول: متاح ← محجوز ← مستهلك */}
+                {/* شريط عمر الصنف كله: متاح ← محجوز ← مستهلك */}
                 <View style={styles.bar}>
-                  <View style={{ width: `${seg(item.balance.availableM)}%`, backgroundColor: availTone }} />
-                  <View style={{ width: `${seg(item.balance.reservedM)}%`, backgroundColor: palette.warning }} />
-                  <View style={{ width: `${seg(item.balance.consumedM)}%`, backgroundColor: palette.sandDeep }} />
+                  <View style={{ width: `${seg(item.availableM)}%`, backgroundColor: availTone }} />
+                  <View style={{ width: `${seg(item.reservedM)}%`, backgroundColor: palette.warning }} />
+                  <View style={{ width: `${seg(item.consumedM)}%`, backgroundColor: palette.sandDeep }} />
                 </View>
 
-                {/* سطر إسناد واحد هادئ: حاضرٌ للسياق، غير منافسٍ للرقم البطل */}
                 <Row justify="space-between" gap={spacing.sm} style={{ marginTop: spacing.sm }}>
                   <Row gap={spacing.md}>
                     <Row gap={5}>
                       <View style={[styles.dot, { backgroundColor: palette.warning }]} />
                       <AppText variant="caption" color={palette.muted}>
-                        محجوز {meters(item.balance.reservedM)}
+                        محجوز {meters(item.reservedM)}
                       </AppText>
                     </Row>
                     <Row gap={5}>
                       <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
                       <AppText variant="caption" color={palette.muted}>
-                        مستهلك {meters(item.balance.consumedM)}
+                        مستهلك {meters(item.consumedM)}
                       </AppText>
                     </Row>
                   </Row>
-                  {/* العهدة قبل الرف: أين البضاعة فعليًا أهم من موضعها على رفّ المعرض */}
-                  <AppText
-                    variant="caption"
-                    color={item.roll.assignedTailorId ? palette.terracotta : palette.muted}
-                    numberOfLines={1}
-                  >
-                    {item.roll.assignedTailorId
-                      ? `عند ${db.profiles.find((p) => p.id === item.roll.assignedTailorId)?.fullName ?? 'خياط'}`
-                      : `رف ${item.roll.location}`}
-                  </AppText>
+                  {item.consignedM > 0 && (
+                    <AppText variant="caption" color={palette.terracotta} numberOfLines={1}>
+                      منها {meters(item.consignedM)} أمانة
+                    </AppText>
+                  )}
                 </Row>
               </Card>
             );
@@ -200,8 +192,8 @@ export default function InventoryScreen() {
           ListEmptyComponent={
             <EmptyState
               icon={<Package size={28} color={palette.olive} />}
-              title="لا توجد رولات"
-              body="أضف رولات لبدء إدارة المخزون."
+              title="لا بضاعة بعد"
+              body="سجّل أول استلام بضاعة لبدء إدارة المخزون."
             />
           }
         />
@@ -233,8 +225,13 @@ export default function InventoryScreen() {
                   ))}
                 </Row>
                 <Row gap={spacing.sm} style={{ marginTop: spacing.md }}>
+                  {/* بالأمتار لا بالرولات (قرار المالك): كم عندك من هذا القماش */}
                   <Pill
-                    label={`${db.fabricRolls.filter((r) => variants.some((v) => v.id === r.variantId)).length} رول`}
+                    label={`متاح ${meters(
+                      rolls
+                        .filter((r) => variants.some((v) => v.id === r.roll.variantId))
+                        .reduce((sum, r) => sum + r.balance.availableM, 0),
+                    )}`}
                     bg={palette.ivoryDeep}
                     fg={palette.muted}
                     small

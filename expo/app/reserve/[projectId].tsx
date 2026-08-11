@@ -20,7 +20,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { dyeLotWarning } from '@/domain/inventory';
 import { projectFabricPlan, useRollViews } from '@/hooks/selectors';
-import { meters } from '@/lib/format';
+import { formatDate, meters } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
 
@@ -51,10 +51,10 @@ export default function ReserveScreen() {
   const submit = async () => {
     setError(null);
     setInfo(null);
-    if (!selectedRoll) return setError('اختر الرول أولًا.');
+    if (!selectedRoll) return setError('اختر الاستلام أولًا.');
     const res = await reserveFabric(projectId, selectedRoll, qty);
     if (!res.ok) return setError(res.error);
-    setInfo(`تم حجز ${meters(qty)} من ${roll?.roll.code} بنجاح.`);
+    setInfo(`تم حجز ${meters(qty)} من ${roll?.product?.name ?? ''} ${roll?.variant?.colorName ?? ''} بنجاح.`);
     setQuantity('');
   };
 
@@ -111,7 +111,7 @@ export default function ReserveScreen() {
       )}
 
       <Card>
-        <SectionHeader title="اختر الرول" subtitle="المتاح = الرصيد الفعلي − المحجوز" />
+        <SectionHeader title="اختر الاستلام" subtitle="المتاح = الرصيد الفعلي − المحجوز" />
         <View style={{ gap: spacing.sm }}>
           {rolls.map((r) => {
             const active = selectedRoll === r.roll.id;
@@ -142,10 +142,13 @@ export default function ReserveScreen() {
                     <Swatch color={r.variant?.colorHex ?? palette.sand} size={34} />
                     <View style={{ flex: 1 }}>
                       <AppText variant="label">
-                        {r.roll.code} • {r.product?.name} {r.variant?.colorName}
+                        {r.product?.name} {r.variant?.colorName}
                       </AppText>
                       <AppText variant="caption" color={palette.muted}>
-                        موقع {r.roll.location} • Dye lot {r.roll.dyeLot}
+                        استلام {formatDate(r.roll.createdAt)}
+                        {r.roll.location && r.roll.location !== '-'
+                          ? ` • رف ${r.roll.location}`
+                          : ''}
                       </AppText>
                     </View>
                   </Row>

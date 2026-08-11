@@ -62,7 +62,9 @@ export default function NewRollScreen() {
       assignedTailorId: tailorId,
     });
     if (!res.ok) return setError(res.error);
-    router.replace({ pathname: '/roll/[id]', params: { id: res.data } });
+    // الهبوط على رصيد الصنف لا على الرول: يرى الأدمن الإجمالي وقد كبر
+    // باستلامه، والاستلام نفسه أول سطرٍ في السجل تحته
+    router.replace({ pathname: '/stock/[variantId]', params: { variantId } });
   };
 
   if (db.fabricVariants.length === 0) {

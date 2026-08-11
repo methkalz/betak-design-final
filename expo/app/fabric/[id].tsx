@@ -19,7 +19,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { can } from '@/domain/permissions';
 import { useRollViews } from '@/hooks/selectors';
-import { meters, money } from '@/lib/format';
+import { formatDate, meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function FabricScreen() {
@@ -134,12 +134,14 @@ export default function FabricScreen() {
             <View style={{ marginTop: spacing.md, gap: 6 }}>
               <ProgressBar value={onHand > 0 ? available / onHand : 0} color={palette.olive} />
               <AppText variant="caption" color={palette.muted}>
-                متاح {meters(available)} من {meters(onHand)} في {variantRolls.length} رول
+                متاح {meters(available)} من {meters(onHand)}
               </AppText>
             </View>
 
             <Divider />
-            <SectionHeader title="الرولات" />
+            {/* استلاماتٌ لا رولات (قرار المالك): تاريخٌ وأمتار، والكود
+                والدفعة خلف الضغطة في تفاصيل الاستلام لمن يحتاجهما */}
+            <SectionHeader title="الاستلامات" />
             {variantRolls.map((r) => (
               <Pressable
                 key={r.roll.id}
@@ -148,9 +150,12 @@ export default function FabricScreen() {
               >
                 <Row justify="space-between" style={{ paddingVertical: spacing.sm }}>
                   <View style={{ flex: 1 }}>
-                    <AppText variant="label">{r.roll.code}</AppText>
+                    <AppText variant="label">{formatDate(r.roll.createdAt)}</AppText>
                     <AppText variant="caption" color={palette.muted}>
-                      موقع {r.roll.location} • Dye lot {r.roll.dyeLot}
+                      استُلم {meters(r.roll.initialMeters)}
+                      {r.roll.location && r.roll.location !== '-'
+                        ? ` • رف ${r.roll.location}`
+                        : ''}
                     </AppText>
                   </View>
                   <Pill
@@ -166,7 +171,7 @@ export default function FabricScreen() {
               <Row gap={spacing.sm}>
                 <Package size={16} color={palette.muted} />
                 <AppText variant="caption" color={palette.muted}>
-                  لا توجد رولات لهذا اللون.
+                  لا استلامات لهذا اللون بعد.
                 </AppText>
               </Row>
             )}

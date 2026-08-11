@@ -1,22 +1,24 @@
 /**
  * بضاعتي - مخزون الخياط (M17/M25).
  *
- * كل ما أُسند إليه من بضاعة، بكل تفاصيله وأرصدته - قراءةً فقط: الحركة تبقى
- * حكرًا على مسارات الحجز والاستهلاك المضبوطة، فالخياط يرى ولا يعدّل.
+ * كل ما أُسند إليه من بضاعة، قراءةً فقط: الحركة تبقى حكرًا على مسارات
+ * الحجز والاستهلاك المضبوطة، فالخياط يرى ولا يعدّل.
  *
- * البطاقة على نسق بطاقات المخزون عند الأدمن: رقم بطل واحد (المتاح)، شريط
- * عمر الرول، وسطر إسناد هادئ - لغة واحدة للمخزون في كل التطبيق.
+ * والعرض بالأمتار لكل صنفٍ لا بالرولات (قرار المالك 8.8.2026): بطاقة لكل
+ * لونٍ برقمه البطل، واستلاماته تحته مباشرةً - قائمته قصيرة فلا شاشة خلف
+ * ضغطة، بل التفصيل حاضرٌ في البطاقة نفسها.
  */
 import { AlertTriangle, PackageOpen } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Card, EmptyState, Pill, Row, Swatch } from '@/components/ui';
+import { AppText, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { round3 } from '@/domain/pricing';
 import { useRollViews } from '@/hooks/selectors';
-import { meters } from '@/lib/format';
+import { formatDate, meters } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function MyStockScreen() {
@@ -28,6 +30,43 @@ export default function MyStockScreen() {
     () => rolls.filter((r) => r.roll.assignedTailorId === currentUser?.id),
     [rolls, currentUser?.id],
   );
+
+  // التجميع محليًا لا من useVariantStockViews: هناك يُجمع مخزون المعرض كله،
+  // وهنا حصّة هذا الخياط وحدها من كل صنف
+  const groups = useMemo(() => {
+    const map = new Map<string, {
+      variantId: string;
+      variant: (typeof mine)[number]['variant'];
+      product: (typeof mine)[number]['product'];
+      availableM: number;
+      reservedM: number;
+      consumedM: number;
+      receipts: typeof mine;
+    }>();
+    for (const r of mine) {
+      let g = map.get(r.roll.variantId);
+      if (!g) {
+        g = {
+          variantId: r.roll.variantId,
+          variant: r.variant,
+          product: r.product,
+          availableM: 0,
+          reservedM: 0,
+          consumedM: 0,
+          receipts: [],
+        };
+        map.set(r.roll.variantId, g);
+      }
+      g.availableM = round3(g.availableM + r.balance.availableM);
+      g.reservedM = round3(g.reservedM + r.balance.reservedM);
+      g.consumedM = round3(g.consumedM + r.balance.consumedM);
+      g.receipts.push(r);
+    }
+    for (const g of map.values()) {
+      g.receipts.sort((a, b) => b.roll.createdAt.localeCompare(a.roll.createdAt));
+    }
+    return Array.from(map.values()).sort((a, b) => b.availableM - a.availableM);
+  }, [mine]);
 
   const totals = useMemo(
     () => ({
@@ -68,15 +107,14 @@ export default function MyStockScreen() {
       </View>
 
       <FlatList
-        data={mine}
-        keyExtractor={(r) => r.roll.id}
+        data={groups}
+        keyExtractor={(g) => g.variantId}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const low = item.balance.availableM < LOW_STOCK_THRESHOLD_M;
+          const low = item.availableM < LOW_STOCK_THRESHOLD_M;
           const tone = low ? palette.danger : palette.success;
-          const lifetime =
-            item.balance.availableM + item.balance.reservedM + item.balance.consumedM;
+          const lifetime = item.availableM + item.reservedM + item.consumedM;
           const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
           return (
             <Card style={{ padding: spacing.xl }}>
@@ -87,20 +125,17 @@ export default function MyStockScreen() {
                     <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
                       {item.product?.name} {item.variant?.colorName}
                     </AppText>
-                    <Row gap={spacing.sm}>
-                      <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                        {item.roll.code} • دفعة {item.roll.dyeLot}
-                      </AppText>
-                      {item.roll.isMiniRoll && (
-                        <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
-                      )}
-                    </Row>
+                    <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                      {item.receipts.length === 1
+                        ? 'استلام واحد'
+                        : `${item.receipts.length} استلامات`}
+                    </AppText>
                   </View>
                 </Row>
                 <View style={{ alignItems: 'flex-start' }}>
                   <Row gap={4} align="baseline">
                     <AppText variant="numberLarge" color={tone}>
-                      {meters(item.balance.availableM, false)}
+                      {meters(item.availableM, false)}
                     </AppText>
                     <AppText variant="caption" color={palette.muted}>
                       متر
@@ -116,23 +151,41 @@ export default function MyStockScreen() {
               </Row>
 
               <View style={styles.bar}>
-                <View style={{ width: `${seg(item.balance.availableM)}%`, backgroundColor: tone }} />
+                <View style={{ width: `${seg(item.availableM)}%`, backgroundColor: tone }} />
                 <View
-                  style={{ width: `${seg(item.balance.reservedM)}%`, backgroundColor: palette.warning }}
+                  style={{ width: `${seg(item.reservedM)}%`, backgroundColor: palette.warning }}
                 />
                 <View
-                  style={{ width: `${seg(item.balance.consumedM)}%`, backgroundColor: palette.sandDeep }}
+                  style={{ width: `${seg(item.consumedM)}%`, backgroundColor: palette.sandDeep }}
                 />
               </View>
+              <AppText
+                variant="caption"
+                color={palette.muted}
+                style={{ marginTop: spacing.sm }}
+              >
+                محجوز {meters(item.reservedM)} • مستهلك {meters(item.consumedM)}
+              </AppText>
 
-              <Row justify="space-between" gap={spacing.sm} style={{ marginTop: spacing.sm }}>
-                <AppText variant="caption" color={palette.muted}>
-                  محجوز {meters(item.balance.reservedM)} • مستهلك {meters(item.balance.consumedM)}
-                </AppText>
-                <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                  استُلم {meters(item.roll.initialMeters)}
-                </AppText>
-              </Row>
+              {/* الاستلامات في البطاقة نفسها: تاريخٌ وأمتارٌ وما بقي */}
+              <Divider />
+              <View style={{ gap: spacing.sm }}>
+                {item.receipts.map((r) => (
+                  <Row key={r.roll.id} justify="space-between" gap={spacing.sm}>
+                    <Row gap={spacing.sm} style={{ flex: 1 }}>
+                      <AppText variant="caption" color={palette.charcoal}>
+                        {formatDate(r.roll.createdAt)}
+                      </AppText>
+                      {r.roll.isMiniRoll && (
+                        <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
+                      )}
+                    </Row>
+                    <AppText variant="caption" color={palette.muted}>
+                      استُلم {meters(r.roll.initialMeters)} • بقي {meters(r.balance.availableM)}
+                    </AppText>
+                  </Row>
+                ))}
+              </View>
             </Card>
           );
         }}
