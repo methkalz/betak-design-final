@@ -81,7 +81,7 @@ export default function InventoryScreen() {
           {/* البلاطة نفسها بوابة تقريرها: من يسأل «كم استهلكنا؟» يسأل
               «وأين ولماذا؟» بعدها مباشرة */}
           <TotalTile
-            label="استهلاك الشهر"
+            label="استهلاك"
             value={totals.consumed}
             tone={palette.muted}
             tint={['rgba(120,126,155,0.08)', 'rgba(255,255,255,0)']}
