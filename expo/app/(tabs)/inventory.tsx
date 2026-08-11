@@ -162,9 +162,11 @@ export default function InventoryScreen() {
                     </View>
                   </Row>
 
-                  {/* عمودٌ موزون: الرقم فوق ووحدته وحالته تحته في منتصفه -
-                      الكلمة بجانب الرقم كانت تكسر ميزانه */}
-                  <View style={{ alignItems: 'center' }}>
+                  {/* الرقم ووحدته يرسوان على حافة البطاقة لا على مركز
+                      عمودهما: المركز يجعل كل رقمٍ يتزحزح بعرض تسميته،
+                      والعين تمسح الأرقام عمودًا واحدًا عبر البطاقات -
+                      فتحتاج خطَّ رسوٍّ واحدًا */}
+                  <View style={{ alignItems: 'flex-start' }}>
                     <AppText
                       variant="numberLarge"
                       color={availTone}

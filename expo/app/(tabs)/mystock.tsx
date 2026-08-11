@@ -142,8 +142,9 @@ export default function MyStockScreen() {
                     </AppText>
                   </View>
                 </Row>
-                {/* عمودٌ موزون كنظيره عند الأدمن: الرقم فوق ووحدته تحته */}
-                <View style={{ alignItems: 'center' }}>
+                {/* كنظيره عند الأدمن: الرقم ووحدته على حافة البطاقة -
+                    خطُّ رسوٍّ واحد عبر كل البطاقات */}
+                <View style={{ alignItems: 'flex-start' }}>
                   <AppText
                     variant="numberLarge"
                     color={tone}
