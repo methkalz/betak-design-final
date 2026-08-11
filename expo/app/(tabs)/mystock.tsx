@@ -137,7 +137,7 @@ export default function MyStockScreen() {
                     <AppText variant="heading" numberOfLines={1} style={{ fontSize: 18 }}>
                       {item.product?.name}
                     </AppText>
-                    <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                    <AppText variant="caption" color={palette.muted}>
                       {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
                     </AppText>
                   </View>

@@ -108,7 +108,14 @@ export function useVariantStockViews(
     for (const g of map.values()) {
       g.receipts.sort((a, b) => b.roll.createdAt.localeCompare(a.roll.createdAt));
     }
-    return Array.from(map.values()).sort((a, b) => b.availableM - a.availableM);
+    // القماش أولًا ثم البطانة زمرةً واحدة (قرار المالك): هما صنفان لكن
+    // البطانة تُقرأ معًا، والفاصل بين الزمرتين ترسمه الشاشة
+    return Array.from(map.values()).sort((a, b) => {
+      const aLining = a.product?.kind === 'lining' ? 1 : 0;
+      const bLining = b.product?.kind === 'lining' ? 1 : 0;
+      if (aLining !== bLining) return aLining - bLining;
+      return b.availableM - a.availableM;
+    });
   }, [rolls, filter]);
 }
 

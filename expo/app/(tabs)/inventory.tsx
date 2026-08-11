@@ -124,7 +124,13 @@ export default function InventoryScreen() {
           keyExtractor={(g) => g.variantId}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
+            // أول بطانةٍ في القائمة يسبقها فاصلٌ رفيع: البطانة صنفٌ يُشترى
+            // ويُدار، لكنها تُقرأ زمرةً تحت القماش لا مبعثرةً بينه
+            const firstLining =
+              item.product?.kind === 'lining' &&
+              index > 0 &&
+              stock[index - 1]?.product?.kind !== 'lining';
             const tone = availabilityTone(item.availableM);
             const availTone =
               tone === 'danger'
@@ -135,12 +141,14 @@ export default function InventoryScreen() {
             const lifetime = item.availableM + item.reservedM + item.consumedM;
             const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
-              <Card
-                onPress={() =>
-                  router.push({ pathname: '/stock/[variantId]', params: { variantId: item.variantId } })
-                }
-                style={{ padding: spacing.xl }}
-              >
+              <View>
+                {firstLining && <View style={styles.groupRule} />}
+                <Card
+                  onPress={() =>
+                    router.push({ pathname: '/stock/[variantId]', params: { variantId: item.variantId } })
+                  }
+                  style={{ padding: spacing.xl }}
+                >
                 <Row justify="space-between" align="center" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
@@ -148,12 +156,7 @@ export default function InventoryScreen() {
                       <AppText variant="heading" numberOfLines={1} style={{ fontSize: 18 }}>
                         {item.product?.name}
                       </AppText>
-                      <AppText
-                        variant="caption"
-                        color={palette.muted}
-                        numberOfLines={1}
-                        style={{ fontSize: 14.5 }}
-                      >
+                      <AppText variant="caption" color={palette.muted} style={{ fontSize: 14.5 }}>
                         {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
                       </AppText>
                     </View>
@@ -217,7 +220,8 @@ export default function InventoryScreen() {
                     </Row>
                   )}
                 </Row>
-              </Card>
+                </Card>
+              </View>
             );
           }}
           ListEmptyComponent={
@@ -348,6 +352,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  /* فاصل الزمرتين: شعرةٌ واحدة بهوامش سخية - حدٌّ يُحسّ ولا يصرخ */
+  groupRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.sandDeep,
+    marginVertical: spacing.sm,
+    marginHorizontal: spacing.xl,
+  },
   bar: {
     flexDirection: 'row-reverse',
     height: 6,
