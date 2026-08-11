@@ -162,30 +162,27 @@ export default function InventoryScreen() {
                     </View>
                   </Row>
 
-                  <View style={{ alignItems: 'flex-start' }}>
-                    <Row gap={4} align="baseline">
-                      <AppText
-                        variant="numberLarge"
-                        color={availTone}
-                        style={{ fontSize: 33, lineHeight: 44 }}
-                      >
-                        {meters(item.availableM, false)}
-                      </AppText>
-                      <AppText variant="caption" color={palette.muted}>
-                        متر
-                      </AppText>
-                    </Row>
-                    <Row gap={5}>
+                  {/* عمودٌ موزون: الرقم فوق ووحدته وحالته تحته في منتصفه -
+                      الكلمة بجانب الرقم كانت تكسر ميزانه */}
+                  <View style={{ alignItems: 'center' }}>
+                    <AppText
+                      variant="numberLarge"
+                      color={availTone}
+                      style={{ fontSize: 33, lineHeight: 40 }}
+                    >
+                      {meters(item.availableM, false)}
+                    </AppText>
+                    <Row gap={4}>
                       {tone === 'danger' && <AlertTriangle size={12} color={palette.danger} />}
                       <AppText
                         variant="caption"
                         color={tone === 'success' ? palette.muted : availTone}
                       >
                         {tone === 'danger'
-                          ? 'منخفض - اطلب'
+                          ? 'متر - اطلب'
                           : tone === 'warning'
-                            ? 'يقترب من الحد'
-                            : 'متاح'}
+                            ? 'متر - يقترب من الحد'
+                            : 'متر متاح'}
                       </AppText>
                     </Row>
                   </View>
