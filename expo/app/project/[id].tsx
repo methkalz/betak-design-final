@@ -669,9 +669,10 @@ function RoomsTab({
             </Row>
             <Button
               label="إضافة"
+              loading={storeBusy === 'add-room'}
               icon={<Plus size={16} color={palette.ivory} />}
-              onPress={() => {
-                const res = addRoom(projectId, newRoom, '');
+              onPress={async () => {
+                const res = await addRoom(projectId, newRoom, '');
                 if (!res.ok) return setError(res.error);
                 setNewRoom('');
                 setError(null);
@@ -717,7 +718,14 @@ function RoomsTab({
                   onPress={() =>
                     Alert.alert('حذف الغرفة', 'سيتم حذف كل شبابيك هذه الغرفة.', [
                       { text: 'إلغاء', style: 'cancel' },
-                      { text: 'حذف', style: 'destructive', onPress: () => deleteRoom(room.id) },
+                      {
+                        text: 'حذف',
+                        style: 'destructive',
+                        onPress: async () => {
+                          const res = await deleteRoom(room.id);
+                          if (!res.ok) Alert.alert('تعذر الحذف', res.error);
+                        },
+                      },
                     ])
                   }
                   hitSlop={12}

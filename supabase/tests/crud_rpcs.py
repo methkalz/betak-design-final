@@ -22,6 +22,8 @@ F1    = 'cccc7777-0000-4000-8000-0000000000a3'
 F2    = 'cccc7777-0000-4000-8000-0000000000a4'  # ميداني ثانٍ نشط
 F3    = 'cccc7777-0000-4000-8000-0000000000a5'  # ميداني معطَّل
 T1    = 'cccc7777-0000-4000-8000-0000000000a6'
+PROD  = 'cccc7777-0000-4000-8000-0000000000e1'
+VAR   = 'cccc7777-0000-4000-8000-0000000000e2'
 
 
 def key(n): return f'cccc7777-0000-4000-8000-00000000ee{n:02d}'
@@ -61,6 +63,10 @@ delete from core.client_operations   where organization_id = '{ORG}';
 delete from core.audit_logs          where organization_id = '{ORG}';
 delete from core.notifications       where organization_id = '{ORG}';
 delete from core.field_visits        where organization_id = '{ORG}';
+delete from core.windows             where organization_id = '{ORG}';
+delete from core.rooms               where organization_id = '{ORG}';
+delete from core.fabric_variants     where organization_id = '{ORG}';
+delete from core.fabric_products     where organization_id = '{ORG}';
 delete from core.document_sequences  where organization_id = '{ORG}';
 delete from core.projects            where organization_id = '{ORG}';
 delete from core.customers           where organization_id = '{ORG}';
@@ -89,6 +95,10 @@ insert into core.organization_members (organization_id,user_id,role,is_active) v
  ('{ORG}','{ADMIN}','admin',true), ('{ORG}','{SALES}','sales',true),
  ('{ORG}','{F1}','field',true), ('{ORG}','{F2}','field',true),
  ('{ORG}','{F3}','field',false), ('{ORG}','{T1}','tailor',true);
+insert into core.fabric_products (id,organization_id,name,kind,width_cm)
+values ('{PROD}','{ORG}','قماش القمع','other',280);
+insert into core.fabric_variants (id,organization_id,product_id,color_name,sku,cost_per_meter_agorot)
+values ('{VAR}','{ORG}','{PROD}','رملي','CR-F',2000);
 """)
 if 'ERROR' in out:
     print(out); sys.exit(1)
@@ -149,6 +159,7 @@ check('08 المرآة القديمة تُروى بالقائس، والزيار
 
 out = as_user(SALES, f"""select api.create_project(
   '{CUST}'::uuid, 'مشروع ثانٍ', '{T1}'::uuid, '{F1}'::uuid, '{key(8)}'::uuid)::text;""")
+PRJ2 = grab(r'"project_id"\s*:\s*"([0-9a-f-]+)"', out)
 check('09 التسلسل لا يعيد العد: BD-1002 وبلا موعدٍ لا زيارة',
       '"code": "BD-1002"' in out and '"status": "new_request"' in out
       and '"visit_id": null' in out, out)
@@ -215,6 +226,56 @@ out = as_user(SALES, f"""select api.archive_customer(
   '{CUST}'::uuid, '{key(18)}'::uuid)::text;""")
 probe = sql(f"""select (archived_at is not null)::text from core.customers where id = '{CUST}';""", quiet=False)
 check('19 الأرشفة تختم ولا تحذف', 'ERROR' not in out and 'true' in probe, out + probe)
+
+# ── الغرف والشبابيك ──────────────────────────────────────────────────────────
+# PRJ2 التُقط لحظة إنشائه في الفحص 09 - ما زال new_request، وعليه
+# يُثبت انتقال «تم القياس»
+out = as_user(F1, f"""select api.add_room('{PRJ2}'::uuid, 'صالون', '{key(20)}'::uuid, 'أرضي')::text;""")
+ROOM = grab(r'"room_id"\s*:\s*"([0-9a-f-]+)"', out)
+check('20 الميداني يضيف غرفة بترتيب 1',
+      ROOM is not None and '"sort_order": 1' in out, out)
+
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 280, '{VAR}'::uuid, '{key(21)}'::uuid,
+  p_track => 'standard')::text;""")
+WIN = grab(r'"window_id"\s*:\s*"([0-9a-f-]+)"', out)
+probe = sql(f"""select status_code from core.projects where id = '{PRJ2}';""", quiet=False)
+check('21 أول قياس يُنشئ الشباك ويحرّك المشروع «تم القياس»',
+      WIN is not None and '"created": true' in out and 'measured' in probe, out + probe)
+
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 280, null, '{key(22)}'::uuid)::text;""")
+ok1 = 'اختر القماش' in out
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 501, '{VAR}'::uuid, '{key(23)}'::uuid)::text;""")
+check('22 بلا قماش أو فوق 500 سم → BD400',
+      ok1 and ('500' in out and 'تسعيرة خاصة' in out), out)
+
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 350, 280, '{VAR}'::uuid, '{key(24)}'::uuid,
+  '{WIN}'::uuid, 'شباك الصالون الكبير')::text;""")
+probe = sql(f"""select name || '|' || width_cm from core.windows where id = '{WIN}';""", quiet=False)
+check('23 التعديل بنفس الدالة: الاسم والعرض يتغيران',
+      'ERROR' not in out and 'شباك الصالون الكبير|350' in probe, out + probe)
+
+out = as_user(T1, f"""select api.add_room('{PRJ2}'::uuid, 'غرفة الخياط', '{key(25)}'::uuid)::text;""")
+check('24 الخياط لا يسجّل قياسات → BD403', 'BD403' in out or 'دورك' in out, out)
+
+out = as_user(F1, f"""select api.delete_window('{WIN}'::uuid, '{key(26)}'::uuid)::text;""")
+probe = sql(f"""select count(*) from core.windows where id = '{WIN}';""", quiet=False)
+check('25 حذف الشباك قبل الإنتاج يمرّ', 'ERROR' not in out and re.search(r'\b0\b', probe), out + probe)
+
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 200, 250, '{VAR}'::uuid, '{key(27)}'::uuid)::text;""")
+out = as_user(F1, f"""select api.delete_room('{ROOM}'::uuid, '{key(28)}'::uuid)::text;""")
+probe = sql(f"""select (select count(*) from core.rooms where id = '{ROOM}')
+ || '|' || (select count(*) from core.windows where room_id = '{ROOM}');""", quiet=False)
+check('26 حذف الغرفة يحذف شبابيكها معها',
+      '"deleted_windows": 1' in out and '0|0' in probe, out + probe)
+
+out = as_user(F2, f"""select api.add_room('{PRJ2}'::uuid, 'غرفة دخيلة', '{key(29)}'::uuid)::text;""")
+check('27 ميداني غير مسنَد للمشروع -> BD403 خارج النطاق',
+      'BD403' in out or 'خارج نطاق' in out, out)
 
 print('\n=== cleanup ===')
 sql(PURGE)
