@@ -3185,24 +3185,46 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   // ── Notifications / settings ──────────────────────────────────────────────
+  /**
+   * علامة القراءة تكتب مباشرة عبر العرض لا عبر RPC - عمدًا: فلاغ ذاتي حميد
+   * idempotent بطبيعته، وRLS يقصر التحديث على صفوف صاحبه، والسطح مُنح لهذا
+   * الغرض وحده منذ الأساس. شرط read_at is null يحفظ لحظة القراءة الأولى.
+   */
   const markNotificationRead = useCallback(
-    (id: UUID) => {
+    async (id: UUID) => {
+      if (source === 'live') {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('notification_id', id)
+          .is('read_at', null);
+        if (!error) await refreshLive();
+        return;
+      }
       mutate((draft) => {
         draft.notifications = draft.notifications.map((n) =>
           n.id === id ? { ...n, readAt: new Date().toISOString() } : n,
         );
       });
     },
-    [mutate],
+    [source, refreshLive, mutate],
   );
 
-  const markAllRead = useCallback(() => {
+  const markAllRead = useCallback(async () => {
+    if (source === 'live') {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .is('read_at', null);
+      if (!error) await refreshLive();
+      return;
+    }
     mutate((draft) => {
       draft.notifications = draft.notifications.map((n) =>
         n.userId === userId && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n,
       );
     });
-  }, [mutate, userId]);
+  }, [source, refreshLive, mutate, userId]);
 
   /**
    * تعديل أرقام التسعيرة الثابتة (شرط المالك: كل الأسعار من لوحته).
