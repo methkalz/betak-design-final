@@ -62,6 +62,7 @@ set session_replication_role = replica;
 delete from core.client_operations   where organization_id = '{ORG}';
 delete from core.audit_logs          where organization_id = '{ORG}';
 delete from core.notifications       where organization_id = '{ORG}';
+delete from core.tailor_assignments  where organization_id = '{ORG}';
 delete from core.field_visits        where organization_id = '{ORG}';
 delete from core.windows             where organization_id = '{ORG}';
 delete from core.rooms               where organization_id = '{ORG}';
@@ -317,6 +318,54 @@ out2 = as_user(F2, f"""select api.complete_visit('{FV2}'::uuid, '{key(37)}'::uui
 probe = sql(f"""select status_code from core.projects where id = '{PRJ}';""", quiet=False)
 check('32 قائمة كاملة وتوقيع → التركيب يُقفل والمشروع installed',
       'ERROR' not in out and 'ERROR' not in out2 and 'installed' in probe, out + out2 + probe)
+
+# ── أوامر الإنتاج ────────────────────────────────────────────────────────────
+out = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ2}'::uuid, '{T1}'::uuid, '{key(40)}'::uuid, 'تفصيل حسب المقاسات', now() + interval '5 days')::text;""")
+TA = grab(r'"assignment_id"\s*:\s*"([0-9a-f-]+)"', out)
+probe = sql(f"""select p.status_code || '|' || p.tailor_id
+ || '#' || (select count(*) from core.notifications
+            where organization_id = '{ORG}' and user_id = '{T1}'
+              and kind = 'tailor_assignment' and deep_link = '/tailor/' || '{TA}')
+from core.projects p where p.id = '{PRJ2}';""", quiet=False)
+check('33 إسناد الخياط: الأمر يُنشأ والمشروع «مع الخياط» والإشعار يصل',
+      TA is not None and f'with_tailor|{T1}#1' in probe, out + probe)
+
+out = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ2}'::uuid, '{T1}'::uuid, '{key(41)}'::uuid)::text;""")
+check('34 أمر ثانٍ ومشروعه مفتوح → BD409', 'BD409' in out or 'مفتوح' in out, out)
+
+out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'cutting', '{key(42)}'::uuid)::text;""")
+probe = sql(f"""select stage || '#' || jsonb_array_length(stage_history)
+ || '#' || (started_at is not null)::text
+from core.tailor_assignments where id = '{TA}';""", quiet=False)
+check('35 الخياط يقدّم مرحلته: cutting وسجلها والبدء مختوم',
+      'ERROR' not in out and 'cutting#1#true' in probe, out + probe)
+
+out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'qc', '{key(43)}'::uuid)::text;""")
+check('36 القفز فوق المراحل → BD409', 'BD409' in out or 'خطوة واحدة' in out, out)
+
+out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'received', '{key(44)}'::uuid)::text;""")
+check('37 الرجوع خطوة مسموح (الضغطة الخاطئة تقع)', 'ERROR' not in out, out)
+
+out = as_user(SALES, f"""select api.advance_stage('{TA}'::uuid, 'cutting', '{key(45)}'::uuid)::text;""")
+check('38 البائع لا يقدّم مراحل → BD403', 'BD403' in out or 'خياط الأمر' in out, out)
+
+# «جاهز» ممنوع وفي المشروع شباك بلا تأكيد إنهاء (شباك key 39 بلا استهلاك)
+walk_ok = True
+for st, kn in [('cutting', 46), ('sewing', 47), ('ironing', 48), ('qc', 49)]:
+    out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, '{st}', '{key(kn)}'::uuid)::text;""")
+    walk_ok = walk_ok and 'ERROR' not in out
+out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'ready', '{key(50)}'::uuid)::text;""")
+check('39 المسير سليم و«جاهز» بلا إنهاء الشبابيك → BD409 بعدّها',
+      walk_ok and ('BD409' in out or 'بلا تأكيد إنهاء' in out), out)
+
+out = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ}'::uuid, '{T1}'::uuid, '{key(51)}'::uuid)::text;""")
+out2 = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ}'::uuid, '{T1}'::uuid, '{key(52)}'::uuid)::text;""")
+check('40 المشروع الواحد أمرٌ واحد: الثاني يُرفض برسالة مصممة لا 23505',
+      'ERROR' not in out and ('BD409' in out2 or 'أمر إنتاج مفتوح' in out2), out + out2)
 
 print('\n=== cleanup ===')
 sql(PURGE)
