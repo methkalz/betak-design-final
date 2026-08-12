@@ -1,16 +1,44 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
+import { fetchLiveDatabase } from '@/lib/live';
+import { useAuth } from '@/providers/auth';
 import { useStore } from '@/providers/store';
 
 export default function Index() {
-  const { hydrated, currentUser } = useStore();
+  const { hydrated, currentUser, enterLive } = useStore();
+  const { session, ready, liveConfigured } = useAuth();
+  // فشل الاسترجاع لا يُسقط الجلسة: قد يكون انقطاع شبكة عابرًا، فيُترك
+  // الدخول اليدوي لهذه المرة وتُحاوَل الجلسة نفسها عند الفتح القادم
+  const [restoreFailed, setRestoreFailed] = useState<boolean>(false);
 
-  if (!hydrated) {
+  // جلسة حية محفوظة بلا مستخدم محلي = دخول تلقائي: تُجلب اللقطة وتُفتح
+  // الرئيسية مباشرة، فلا يُطلب من أحدٍ كتابة كلمة سرّه عند كل تشغيل
+  const restoring =
+    hydrated && ready && !currentUser && liveConfigured && !!session && !restoreFailed;
+
+  useEffect(() => {
+    if (!restoring) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { db: liveDb, me } = await fetchLiveDatabase();
+        if (!cancelled) enterLive(liveDb, me.userId);
+      } catch (e) {
+        console.log('[index] live session restore failed', e);
+        if (!cancelled) setRestoreFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [restoring, enterLive]);
+
+  if (!hydrated || !ready || restoring) {
     return (
       <LinearGradient
         colors={[palette.oliveDeepest, palette.olive]}
@@ -30,7 +58,7 @@ export default function Index() {
           بيتك ديزاين
         </AppText>
         <AppText variant="body" color={palette.sage} align="center">
-          نظام تشغيل محلات الستائر والأقمشة
+          {restoring ? 'جارِ الاتصال بالمعرض...' : 'نظام تشغيل محلات الستائر والأقمشة'}
         </AppText>
         <ActivityIndicator color={palette.sage} style={{ marginTop: spacing.xl }} />
       </LinearGradient>
