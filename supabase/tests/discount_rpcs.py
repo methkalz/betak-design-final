@@ -62,6 +62,7 @@ set session_replication_role = replica;
 delete from core.client_operations   where organization_id = '{ORG}';
 delete from core.audit_logs          where organization_id = '{ORG}';
 delete from core.discount_requests   where organization_id = '{ORG}';
+delete from core.notifications       where organization_id = '{ORG}';
 delete from core.quotation_items     where organization_id = '{ORG}';
 delete from core.quotation_versions  where organization_id = '{ORG}';
 delete from core.quotations          where organization_id = '{ORG}';
@@ -226,6 +227,19 @@ out = as_user(SALES, f"""select api.request_discount(
   '{v4}'::uuid, 'محاولة ثانية بمبررات أقوى', '{key(21)}'::uuid)::text;""")
 check('17 بعد الرفض يجوز طلب جديد (المعلّق الواحد يخص pending فقط)',
       ok_rej and grab(r'"request_id"\s*:\s*"([0-9a-f-]+)"', out) is not None, out)
+
+# ── إشعارات العائلة (ترحيل 20260812190001): الطلب يصل الأدمن والقرار صاحبه ──
+probe = sql(f"""select
+  (select count(*) from core.notifications
+   where organization_id='{ORG}' and kind='discount_request'
+     and title like 'طلب خصم%')
+ || '|' ||
+  (select count(*) from core.notifications
+   where organization_id='{ORG}' and kind='discount_request'
+     and (title = 'تمت الموافقة على الخصم' or title = 'تم رفض الخصم'));""", quiet=False)
+m = re.search(r'(\d+)\|(\d+)', probe)
+check('الإشعارات: طلبات وصلت الأدمن وقرارات وصلت أصحابها',
+      bool(m) and int(m.group(1)) > 0 and int(m.group(2)) > 0, probe)
 
 print('\n=== cleanup ===')
 sql(PURGE)

@@ -110,6 +110,13 @@ begin
     (v_org, v_ver.quotation_id, p_version_id, v_pct, v_reason, v_uid, v_fp)
   returning id into v_request_id;
 
+  -- الأدمن يقرر - فليصل الطلب إليه لحظته لا حين يفتح الشاشة صدفةً
+  insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
+  select v_org, om.user_id, 'discount_request',
+         format('طلب خصم %s%%', v_pct), v_reason, '/discounts'
+  from core.organization_members om
+  where om.organization_id = v_org and om.role = 'admin' and om.is_active;
+
   -- ★ المشروع آخر الأقفال دائمًا
   select p.lock_version into v_lock_ver
   from core.projects p where p.id = v_project for update;
