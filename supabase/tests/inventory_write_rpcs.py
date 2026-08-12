@@ -120,7 +120,7 @@ insert into core.windows (id,organization_id,project_id,room_id,name,width_cm,he
                           has_lining,fullness,quantity,fabric_variant_id) values
  ('{W1}','{ORG}','{PRJ}','{ROOM}','شباك الإتمام',200,250,false,3,1,'{VARW}'),
  ('{W2}','{ORG}','{PRJ}','{ROOM}','شباك الزيادة',200,250,false,3,1,'{VARW}'),
- ('{W3}','{ORG}','{PRJ}','{ROOM}','شباك بلا حجز',200,250,false,3,1,'{VARW}');
+ ('{W3}','{ORG}','{PRJ}','{ROOM}','شباك بلا حجز',200,250,false,3,1,'{VAR}');
 insert into core.fabric_rolls (id,organization_id,variant_id,code,initial_meters) values
  ('{RL1}','{ORG}','{VARW}','WW-1',20), ('{RL2}','{ORG}','{VARW}','WW-2',20),
  ('{RL3}','{ORG}','{VARW}','WW-3',15);
