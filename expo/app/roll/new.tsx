@@ -39,6 +39,8 @@ export default function NewRollScreen() {
   const [search, setSearch] = useState('');
   const [tailorId, setTailorId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // في الوضع الحي الحفظ رحلة خادمية: الحارس يمنع ضغطتين = رولين
+  const [saving, setSaving] = useState<boolean>(false);
 
   const tailors = db.profiles.filter((p) => p.role === 'tailor' && p.isActive);
 
@@ -54,15 +56,18 @@ export default function NewRollScreen() {
     });
   }, [db.fabricVariants, db.fabricProducts, search]);
 
-  const submit = () => {
+  const submit = async () => {
+    if (saving) return;
     setError(null);
     if (!variantId) return setError('اختر لون القماش أولًا.');
-    const res = addFabricRoll({
+    setSaving(true);
+    const res = await addFabricRoll({
       variantId,
       meters: parseFloat(metersIn || '0'),
       location: selfMode ? '' : location,
       assignedTailorId: selfMode ? (currentUser?.id ?? null) : tailorId,
     });
+    setSaving(false);
     if (!res.ok) return setError(res.error);
     if (selfMode) {
       // الخياط يعود إلى بضاعته فيرى رصيده وقد كبر بما أضاف
@@ -202,8 +207,9 @@ export default function NewRollScreen() {
       {!!error && <Banner tone="danger" title="تعذر التسجيل" body={error} />}
 
       <Button
-        label="تسجيل الاستلام"
+        label={saving ? 'جارِ التسجيل...' : 'تسجيل الاستلام'}
         full
+        disabled={saving}
         icon={<PackagePlus size={18} color={palette.ivory} />}
         onPress={submit}
       />

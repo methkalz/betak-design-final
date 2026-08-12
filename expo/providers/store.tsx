@@ -20,7 +20,7 @@ import {
 import type { AssignmentKind } from '@/domain/assignment';
 import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
-import { uid } from '@/lib/id';
+import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
 import { supabase } from '@/lib/supabase';
 import type {
@@ -84,6 +84,18 @@ function failWith(error: string, code: 'offline' | 'permission' | 'validation' |
 }
 
 const okVoid: Result<void> = { ok: true, data: undefined };
+
+/**
+ * خطأ RPC خادمي → نتيجة مقروءة: الرسائل تصل عربيةً من القاعدة نفسها،
+ * ورمز BD يحدد جنس الفشل فيعامله كل مستهلك معاملته المعهودة.
+ */
+function liveFail(e: { message?: string; code?: string } | null): Result<never> {
+  const code = e?.code ?? '';
+  return failWith(
+    e?.message || 'تعذر تنفيذ العملية على الخادم - حاول مجددًا.',
+    code === 'BD403' ? 'permission' : code === 'BD409' ? 'conflict' : 'validation',
+  );
+}
 
 /** Simulates the round-trip to a Supabase RPC. Server-authoritative operations
  *  are rejected while offline — they are never optimistically applied. */
@@ -286,8 +298,25 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   // ── الوضع الحي (شريحة الربط الأولى — قراءة) ──────────────────────────────
-  const liveRefreshingRef = useRef<boolean>(false);
+  const liveRefreshPromiseRef = useRef<Promise<Result<void>> | null>(null);
   const liveRefreshedAtRef = useRef<number>(0);
+  /**
+   * مفاتيح idempotency تعيش عبر المحاولات: تُولَّد مرةً لكل عمليةٍ بعينها
+   * وتُعاد نفسها عند إعادة المحاولة، فالكتابة التي نجحت وضاع جوابها في
+   * الشبكة تُستَرجَع نتيجتُها بدل أن تتكرر. تُمحى حين يصل أي جواب خادمي.
+   */
+  const idemKeysRef = useRef<Record<string, string>>({});
+  const takeIdemKey = useCallback((slot: string): string => {
+    idemKeysRef.current[slot] = idemKeysRef.current[slot] ?? uuidv4();
+    return idemKeysRef.current[slot];
+  }, []);
+  const settleIdemKey = useCallback(
+    (slot: string, error: { code?: string } | null | undefined) => {
+      // بقاء المفتاح لإعادة المحاولة فقط حين لا جواب من الخادم أصلًا
+      if (!error || error.code) delete idemKeysRef.current[slot];
+    },
+    [],
+  );
   // مرآة متزامنة للمصدر: حالة React تصل متأخرة دورة، وقرار «هل ما زلنا
   // في الوضع الحي؟» بعد await يجب أن يُقرأ لحظة الوصول لا لحظة الإقلاع -
   // وإلا هبطت لقطة خادمية متأخرة فوق جلسة تجريبية وانحفظت في التخزين المحلي
@@ -306,27 +335,38 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * أو السحب للتحديث كافيةً لرؤية ما سجّله الزملاء، لا إعادة تسجيل دخول.
    * الفشل يُبقي آخر لقطة صالحة: الشبكة تتقلب في الميدان ولا يصح أن يفقد
    * المستخدم ما أمامه لأن طلب تحديثٍ خلفي تعثّر.
+   *
+   * جلبٌ جارٍ لا يُتجاهَل بل يُنضَمّ إليه ثم يُجلب من جديد: لقطته التُقطت
+   * قبل لحظتنا هذه، ومن ينادي التحديث بعد كتابةٍ يريد أن يرى كتابته.
    */
   const refreshLive = useCallback(async (): Promise<Result<void>> => {
-    if (source !== 'live') return okVoid;
-    if (liveRefreshingRef.current) return okVoid;
-    liveRefreshingRef.current = true;
-    try {
-      const { db: liveDb, me } = await fetchLiveDatabase();
-      // خرج المستخدم أثناء الجلب؟ تُهمل اللقطة المتأخرة كلها - لا يصح أن
-      // تبعث جلسةً حيةً بعد إغلاقها أو تُكتب فوق الوضع التجريبي
+    if (sourceRef.current !== 'live') return okVoid;
+    while (liveRefreshPromiseRef.current) {
+      await liveRefreshPromiseRef.current.catch(() => {});
       if (sourceRef.current !== 'live') return okVoid;
-      setDb(liveDb);
-      setUserId(me.userId);
-      liveRefreshedAtRef.current = Date.now();
-      return okVoid;
-    } catch (e) {
-      console.log('[store] live refresh failed', e);
-      return failWith('تعذر تحديث البيانات من الخادم - تُعرض آخر نسخة.', 'offline');
-    } finally {
-      liveRefreshingRef.current = false;
     }
-  }, [source]);
+    let self: Promise<Result<void>> | null = null;
+    const p = (async (): Promise<Result<void>> => {
+      try {
+        const { db: liveDb, me } = await fetchLiveDatabase();
+        // خرج المستخدم أثناء الجلب؟ تُهمل اللقطة المتأخرة كلها - لا يصح أن
+        // تبعث جلسةً حيةً بعد إغلاقها أو تُكتب فوق الوضع التجريبي
+        if (sourceRef.current !== 'live') return okVoid;
+        setDb(liveDb);
+        setUserId(me.userId);
+        liveRefreshedAtRef.current = Date.now();
+        return okVoid;
+      } catch (e) {
+        console.log('[store] live refresh failed', e);
+        return failWith('تعذر تحديث البيانات من الخادم - تُعرض آخر نسخة.', 'offline');
+      } finally {
+        if (liveRefreshPromiseRef.current === self) liveRefreshPromiseRef.current = null;
+      }
+    })();
+    self = p;
+    liveRefreshPromiseRef.current = p;
+    return p;
+  }, []);
 
   // العودة إلى المقدمة في الوضع الحي = تحديث تلقائي، مع مهلة قصيرة تمنع
   // التذبذب السريع بين التطبيقات من قصف الخادم
@@ -1625,6 +1665,31 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (mine.length === 0)
         return failWith('لا يوجد قماش محجوز لهذا الشباك - راجع تبويب القماش.', 'validation');
 
+      if (source === 'live') {
+        // الإغلاق الذرّي عند الخادم: التوزيع على الحجوزات والفحوص كلها
+        // تحت قفله. السبب الحر يذهب ملاحظاتٍ، ورمزه المعتمد 'other' -
+        // فجدول الأسباب مصدر الرموز القانوني والتفصيل في النص.
+        // الانشغال يُمسَك حتى نهاية جلب اللقطة: زرٌّ يستيقظ قبلها يُضغط
+        // ثانيةً فيُقابَل بـ«منجز بالفعل» على عمليةٍ نجحت
+        const slot = `complete:${windowId}`;
+        setBusy('consume');
+        try {
+          const { error } = await supabase.rpc('complete_window', {
+            p_window_id: windowId,
+            p_actual_m: actualM,
+            p_idempotency_key: takeIdemKey(slot),
+            p_reason_code: reason.trim() ? 'other' : null,
+            p_notes: reason.trim() || null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       // توزيع الكمية على الحجوزات، والبقية على الأخير
       const slices: { reservationId: UUID; meters: number }[] = [];
       let left = round3(actualM);
@@ -1715,6 +1780,10 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     [
       guard,
       requireOnline,
+      source,
+      refreshLive,
+      takeIdemKey,
+      settleIdemKey,
       db,
       mutate,
       addMovement,
@@ -1882,7 +1951,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * المستخدم حرفًا. ومن عنده رقم المورّد الفعلي يمرّره فيُحترم.
    */
   const addFabricRoll = useCallback(
-    (input: {
+    async (input: {
       variantId: UUID;
       meters: number;
       location?: string;
@@ -1890,7 +1959,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       dyeLot?: string;
       /** بضاعة أمانة (M24): تُسنَد لخياط لحظة الاستلام فتظهر في معمله. */
       assignedTailorId?: UUID | null;
-    }): Result<string> => {
+    }): Promise<Result<string>> => {
       /**
        * مساران للاستلام: إدارة الأقمشة تستلم لأي وجهة، والخياط يستلم
        * لمخزونه هو حصرًا - هو مسؤول القماش يطلبه ويزيده بنفسه، والأدمن
@@ -1911,6 +1980,25 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         const t = db.profiles.find((p) => p.id === input.assignedTailorId);
         if (!t || t.role !== 'tailor' || !t.isActive)
           return failWith('اختر خياطًا مفعَّلًا.', 'validation');
+      }
+
+      if (source === 'live') {
+        // الخادم صاحب الدفتر: يولّد الرمز والدفعة تحت قفله، ويتحقق من
+        // الأدوار ثانيةً، ويُنشئ إشعار «إضافة بضاعة» - وهنا تمريرٌ ثم جلبُ
+        // اللقطة الجديدة فيظهر الرصيد وقد كبر
+        const slot = `receive:${input.variantId}:${input.meters}`;
+        const { data, error } = await supabase.rpc('receive_fabric_roll', {
+          p_variant_id: input.variantId,
+          p_meters: input.meters,
+          p_idempotency_key: takeIdemKey(slot),
+          p_location: input.location ?? null,
+          p_assigned_tailor_id: input.assignedTailorId ?? null,
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        const rollId = (data as { roll_id?: string } | null)?.roll_id ?? '';
+        return { ok: true, data: rollId };
       }
 
       let code = (input.code ?? '').trim().toUpperCase();
@@ -1974,7 +2062,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, db.fabricRolls, db.fabricVariants, mutate, addMovement, audit, currentUser, notify],
+    [guard, source, refreshLive, takeIdemKey, settleIdemKey, db.profiles, db.fabricRolls, db.fabricVariants, mutate, addMovement, audit, currentUser, notify],
   );
 
   const createMiniRoll = useCallback(
