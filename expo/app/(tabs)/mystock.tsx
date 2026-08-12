@@ -8,12 +8,13 @@
  * لونٍ برقمه البطل، واستلاماته تحته مباشرةً - قائمته قصيرة فلا شاشة خلف
  * ضغطة، بل التفصيل حاضرٌ في البطاقة نفسها.
  */
-import { AlertTriangle, PackageOpen } from 'lucide-react-native';
+import { AlertTriangle, PackageOpen, PackagePlus } from 'lucide-react-native';
 import React, { useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
+import { AppText, Button, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { availabilityTone } from '@/domain/inventory';
 import { round3 } from '@/domain/pricing';
@@ -30,6 +31,7 @@ function receiptsLabel(n: number): string {
 
 export default function MyStockScreen() {
   const { currentUser } = useStore();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const rolls = useRollViews();
 
@@ -108,8 +110,17 @@ export default function MyStockScreen() {
             </AppText>
           </View>
         </Row>
+        {/* الخياط مسؤول القماش: يطلب بضاعته ويضيفها بنفسه، والأدمن يتابع */}
+        <Button
+          label="إضافة بضاعة استلمتها"
+          variant="secondary"
+          full
+          small
+          icon={<PackagePlus size={15} color={palette.oliveDark} />}
+          onPress={() => router.push('/roll/new')}
+        />
         <AppText variant="caption" color={palette.muted}>
-          للعرض فقط - الحجز والاستهلاك يجريان من أوامر الإنتاج، والتعديل بيد الإدارة.
+          الإضافة بيدك، والحجز والاستهلاك يجريان من أوامر الإنتاج.
         </AppText>
       </View>
 
@@ -210,8 +221,8 @@ export default function MyStockScreen() {
         ListEmptyComponent={
           <EmptyState
             icon={<PackageOpen size={28} color={palette.olive} />}
-            title="لا بضاعة مسنَدة إليك بعد"
-            body="حين تستلم الإدارة بضاعة وتسندها إليك ستظهر هنا بكل تفاصيلها."
+            title="لا بضاعة عندك بعد"
+            body="حين تستلم بضاعةً أضفها من الزر أعلاه - وتظهر هنا بكل تفاصيلها."
           />
         }
       />

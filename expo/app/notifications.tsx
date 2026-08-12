@@ -36,6 +36,8 @@ function iconFor(kind: NotificationKind) {
       return <CloudOff size={size} color={palette.danger} />;
     case 'low_stock':
       return <Package size={size} color={palette.danger} />;
+    case 'stock_received':
+      return <Package size={size} color={palette.olive} />;
     case 'payment':
     default:
       return <Wallet size={size} color={palette.success} />;

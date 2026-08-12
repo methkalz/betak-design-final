@@ -11,7 +11,7 @@
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Banknote, CalendarClock, ChevronLeft, Phone, ShieldCheck, UserX } from 'lucide-react-native';
+import { Banknote, CalendarClock, ChevronLeft, Package, PackagePlus, Phone, Scissors, ShieldCheck, UserX } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -31,10 +31,11 @@ import {
   SectionHeader,
 } from '@/components/ui';
 import { gradients, palette, radius, spacing } from '@/constants/theme';
+import { availabilityTone } from '@/domain/inventory';
 import { can, ROLE_LABELS } from '@/domain/permissions';
-import { staffDossier, type StaffMetric } from '@/domain/staff';
+import { staffDossier, tailorFabricOverview, type StaffMetric } from '@/domain/staff';
 import { fieldAccruals, staffBalance, tailorAccruals } from '@/domain/staffLedger';
-import { formatDate, formatDateTime, money, phone as fmtPhone } from '@/lib/format';
+import { formatDate, formatDateTime, meters, money, phone as fmtPhone } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
 export default function StaffDossierScreen() {
@@ -177,6 +178,8 @@ export default function StaffDossierScreen() {
         </Row>
       </Card>
 
+      {profile.role === 'tailor' && <TailorFabricCard profileId={profile.id} />}
+
       {(profile.role === 'tailor' || profile.role === 'field') && (
         <StaffFinanceCard profileId={profile.id} role={profile.role} isAdmin={isAdmin} />
       )}
@@ -243,6 +246,87 @@ export default function StaffDossierScreen() {
         onCancel={() => setConfirm(false)}
       />
     </ScrollScreen>
+  );
+}
+
+/**
+ * قماش الخياط - متابعة الأدمن (قرار المالك 11.8.2026).
+ *
+ * الخياط يضيف بضاعته بنفسه والأدمن يتابع لا يوافق، فالمطلوب صورةٌ تُقرأ
+ * في ثوانٍ على هرم الصحافة المقلوب: أربعة أرقام بهيكلٍ واحد (تسمية ثم
+ * قيمة ثم سياقها الزمني)، ثم شريط تحركاتٍ لآخر ثمانية أحداث لمن أراد
+ * التفصيل - لا جداول ولا أعمدة.
+ */
+function TailorFabricCard({ profileId }: { profileId: string }) {
+  const { db } = useStore();
+  const fabric = useMemo(() => tailorFabricOverview(db, profileId), [db, profileId]);
+  const holdingLevel = availabilityTone(fabric.holdingM);
+
+  return (
+    <Card>
+      <SectionHeader title="القماش" subtitle="عنده الآن، وتحركاته - يضيف بنفسه وأنت تتابع" />
+      <Row gap={spacing.sm} wrap>
+        <MetricTile
+          metric={{
+            label: 'متر عنده الآن',
+            value: meters(fabric.holdingM, false),
+            alarming: holdingLevel === 'danger',
+          }}
+        />
+        <MetricTile
+          metric={{ label: 'أضاف آخر 30 يومًا', value: meters(fabric.received30M, false) }}
+        />
+        <MetricTile
+          metric={{ label: 'استهلك آخر 30 يومًا', value: meters(fabric.consumed30M, false) }}
+        />
+        <MetricTile
+          metric={{
+            label: 'زيادات عن المخطط - 90 يومًا',
+            value: `${fabric.overruns90}`,
+            alarming: fabric.overruns90 > 0,
+          }}
+        />
+      </Row>
+
+      {fabric.events.length > 0 && (
+        <View style={{ marginTop: spacing.md }}>
+          <AppText variant="label" color={palette.muted}>
+            آخر التحركات
+          </AppText>
+          {fabric.events.map((e) => (
+            <Row key={e.id} justify="space-between" align="flex-start" gap={spacing.md} style={{ paddingVertical: spacing.sm }}>
+              <Row gap={spacing.sm} style={{ flex: 1 }} align="flex-start">
+                {e.kind === 'receipt' ? (
+                  <PackagePlus size={15} color={palette.olive} style={{ marginTop: 4 }} />
+                ) : (
+                  <Scissors size={15} color={e.overM > 0 ? palette.danger : palette.muted} style={{ marginTop: 4 }} />
+                )}
+                <View style={{ flex: 1 }}>
+                  <AppText variant="caption">
+                    {e.title} • {meters(e.meters)}
+                    {e.overM > 0 ? ` (+${meters(e.overM)} عن المخطط)` : ''}
+                  </AppText>
+                  <AppText variant="caption" color={palette.muted} numberOfLines={1}>
+                    {e.detail}
+                  </AppText>
+                </View>
+              </Row>
+              <AppText variant="caption" color={palette.muted}>
+                {formatDate(e.at)}
+              </AppText>
+            </Row>
+          ))}
+        </View>
+      )}
+      {fabric.events.length === 0 && (
+        <Row gap={spacing.sm} style={{ marginTop: spacing.sm }}>
+          <Package size={15} color={palette.muted} />
+          <AppText variant="caption" color={palette.muted}>
+            لا تحركات قماشٍ مسجَّلة له بعد.
+          </AppText>
+        </Row>
+      )}
+    </Card>
   );
 }
 

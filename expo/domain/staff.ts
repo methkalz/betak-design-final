@@ -10,6 +10,7 @@
  */
 import type { Database } from '@/data/seed';
 import { projectsAssignedTo } from '@/domain/assignment';
+import { rollBalance } from '@/domain/inventory';
 import { round3 } from '@/domain/pricing';
 import type { Role, UUID } from '@/types/domain';
 
@@ -179,5 +180,101 @@ export function staffDossier(db: Database, profileId: UUID, now: number): StaffD
         value: String(db.projects.filter((p) => p.status !== 'completed').length),
       },
     ],
+  };
+}
+
+/* ═══════ متابعة قماش الخياط (قرار المالك 11.8.2026) ═══════ */
+
+export type FabricEvent = {
+  id: UUID;
+  kind: 'receipt' | 'usage';
+  title: string;
+  detail: string;
+  meters: number;
+  /** زيادةٌ عن المخطط في سجل استهلاك - تُلوَّن في العرض. */
+  overM: number;
+  at: string;
+};
+
+export type TailorFabricOverview = {
+  holdingM: number;
+  consumed30M: number;
+  received30M: number;
+  overruns90: number;
+  events: FabricEvent[];
+};
+
+/**
+ * تركيز قماش الخياط للأدمن: أربعة أرقام ثم شريط تحركات - لا جداول.
+ *
+ * الأدمن يتابع ولا يوافق (الخياط يضيف بضاعته بنفسه)، فالمطلوب صورةٌ
+ * تُقرأ في ثوانٍ: كم عنده، وكم استهلك وأضاف هذا الشهر، وهل زاد عن
+ * المخطط - ثم آخر التحركات لمن أراد التفصيل. هرم الصحافة المقلوب:
+ * الخلاصة فوق والتفصيل تحت لمن يريده.
+ */
+export function tailorFabricOverview(db: Database, tailorId: UUID): TailorFabricOverview {
+  const now = Date.now();
+  const d30 = now - 30 * 24 * 60 * 60 * 1000;
+  const d90 = now - 90 * 24 * 60 * 60 * 1000;
+
+  const rolls = db.fabricRolls.filter((r) => r.assignedTailorId === tailorId);
+  let holdingM = 0;
+  for (const r of rolls) holdingM += rollBalance(r.id, db.stockMovements).availableM;
+
+  const received30M = rolls
+    .filter((r) => new Date(r.createdAt).getTime() >= d30)
+    .reduce((s, r) => s + r.initialMeters, 0);
+
+  // النسبة لصاحب الرول لا لمن ضغط الزر: لو أنهى الأدمن شباكًا من قماش
+  // الخياط بقي الاستهلاك محسوبًا على مخزون الخياط - فتتصالح الأرقام
+  // الأربعة على مفتاحٍ واحد (إسناد الرول) ولا يبقى استهلاكٌ بلا أثر
+  const tailorRollIds = new Set(rolls.map((r) => r.id));
+  const usages = db.usages.filter((u) => tailorRollIds.has(u.rollId));
+  const consumed30M = usages
+    .filter((u) => new Date(u.createdAt).getTime() >= d30)
+    .reduce((s, u) => s + u.actualM, 0);
+  const overruns90 = usages.filter(
+    (u) => new Date(u.createdAt).getTime() >= d90 && u.actualM > u.plannedM,
+  ).length;
+
+  const variantName = (variantId: UUID) => {
+    const v = db.fabricVariants.find((x) => x.id === variantId);
+    const p = db.fabricProducts.find((x) => x.id === v?.productId);
+    return `${p?.name ?? ''} ${v?.colorName ?? ''}`.trim();
+  };
+
+  const events: FabricEvent[] = [
+    ...rolls.map((r) => ({
+      id: r.id,
+      kind: 'receipt' as const,
+      title: 'أضاف بضاعة',
+      detail: variantName(r.variantId),
+      meters: r.initialMeters,
+      overM: 0,
+      at: r.createdAt,
+    })),
+    ...usages.map((u) => {
+      const win = db.windows.find((w) => w.id === u.windowId);
+      const roll = db.fabricRolls.find((r) => r.id === u.rollId);
+      return {
+        id: u.id,
+        kind: 'usage' as const,
+        title: win ? `أنهى ${win.name}` : 'استهلاك',
+        detail: roll ? variantName(roll.variantId) : '',
+        meters: u.actualM,
+        overM: round3(Math.max(0, u.actualM - u.plannedM)),
+        at: u.createdAt,
+      };
+    }),
+  ]
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 8);
+
+  return {
+    holdingM: round3(holdingM),
+    consumed30M: round3(consumed30M),
+    received30M: round3(received30M),
+    overruns90,
+    events,
   };
 }
