@@ -48,7 +48,8 @@ export default function VisitScreen() {
   const goBack = useGoBack('/visits');
   const { db, isOnline, startVisit, completeVisit, updateVisit, addAttachment } = useStore();
   const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState<string>('');
+  // null = لم يلمس الحقل؛ '' = مسحٌ مقصود يُحفَظ - فلا يبعث النص القديم
+  const [note, setNote] = useState<string | null>(null);
 
   const visit = db.fieldVisits.find((v) => v.id === id);
   if (!visit) {
@@ -93,13 +94,22 @@ export default function VisitScreen() {
     }
   };
 
-  const toggleCheck = (key: keyof InstallationChecklist) => {
-    updateVisit(visit.id, { checklist: { ...visit.checklist, [key]: !visit.checklist[key] } });
+  const toggleCheck = async (key: keyof InstallationChecklist) => {
+    const res = await updateVisit(visit.id, {
+      checklist: { ...visit.checklist, [key]: !visit.checklist[key] },
+    });
+    if (!res.ok) setError(res.error);
   };
 
-  const finish = () => {
+  const finish = async () => {
     setError(null);
-    const res = completeVisit(visit.id);
+    // الملاحظة المعلقة تُدفَق قبل الإقفال: بعده يرفضها الخادم عن حق،
+    // واللمسة الأصلية (اكتب ثم أنهِ) يجب ألا تُضيع نصًا
+    if (note !== null && note !== visit.notes) {
+      const saved = await updateVisit(visit.id, { notes: note });
+      if (!saved.ok) return setError(saved.error);
+    }
+    const res = await completeVisit(visit.id);
     if (!res.ok) return setError(res.error);
     Alert.alert('تم إكمال الزيارة', 'تم حفظ كل البيانات على الجهاز وستتم مزامنتها تلقائيًا.', [
       { text: 'تمام', onPress: () => goBack() },
@@ -170,7 +180,10 @@ export default function VisitScreen() {
           label="بدء الزيارة"
           full
           icon={<Play size={18} color={palette.ivory} />}
-          onPress={() => startVisit(visit.id)}
+          onPress={async () => {
+            const res = await startVisit(visit.id);
+            if (!res.ok) setError(res.error);
+          }}
         />
       )}
 
@@ -252,7 +265,12 @@ export default function VisitScreen() {
           ))}
           <Divider />
           <Pressable
-            onPress={() => updateVisit(visit.id, { customerSignedOff: !visit.customerSignedOff })}
+            onPress={async () => {
+              const res = await updateVisit(visit.id, {
+                customerSignedOff: !visit.customerSignedOff,
+              });
+              if (!res.ok) setError(res.error);
+            }}
             style={{ minHeight: 48, justifyContent: 'center' }}
           >
             <Row gap={spacing.md}>
@@ -327,10 +345,14 @@ export default function VisitScreen() {
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
           <Field
             label="ملاحظة"
-            value={note || visit.notes}
-            onChangeText={(v) => {
-              setNote(v);
-              updateVisit(visit.id, { notes: v });
+            value={note ?? visit.notes}
+            onChangeText={setNote}
+            onBlur={async () => {
+              // الحفظ عند مغادرة الحقل لا مع كل حرف: في الوضع الحي كل
+              // حفظٍ رحلة خادمية كاملة - والفشل يُعرَض لا يُبتلَع
+              if (note === null || note === visit.notes) return;
+              const res = await updateVisit(visit.id, { notes: note });
+              if (!res.ok) setError(res.error);
             }}
             multiline
             placeholder="حالة الجبس، ملاحظات الزبون، صعوبات التركيب..."
