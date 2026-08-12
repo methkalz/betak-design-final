@@ -50,6 +50,30 @@ export function WindowCompletion({ projectId }: { projectId: string }) {
   const qty = parseFloat(quantity || '0');
   const over = qty > planned + 0.0001;
 
+  // المتبقي المحجوز لصنف هذا الشباك في المشروع كله: شباكٌ سابق أخذ فوق
+  // حصته يترك التاليَ أمام محجوزٍ أقل من مخططه - فيلزم السبب ولو لم
+  // يتجاوز المخطط، والخادم يرفض بدونه
+  const reservedLeft = useMemo(() => {
+    if (!openWindow) return 0;
+    return round3(
+      db.reservations
+        .filter((r) => {
+          if (r.projectId !== projectId) return false;
+          if (r.status === 'released' || r.status === 'closed') return false;
+          const roll = db.fabricRolls.find((x) => x.id === r.rollId);
+          return roll?.variantId === openWindow.fabricVariantId;
+        })
+        .reduce(
+          (s, r) =>
+            s +
+            Math.max(0, r.quantityM - r.consumedM - (r.releasedM ?? 0) - (r.damagedReservedM ?? 0)),
+          0,
+        ),
+    );
+  }, [db.reservations, db.fabricRolls, openWindow, projectId]);
+  const overReserved = !!openWindow && qty > reservedLeft + 0.0001;
+  const needsReason = over || overReserved;
+
   const start = (windowId: string) => {
     setError(null);
     setInfo(null);
@@ -181,12 +205,20 @@ export function WindowCompletion({ projectId }: { projectId: string }) {
               keyboardType="decimal-pad"
               suffix="متر"
             />
-            {over && (
+            {needsReason && (
               <>
                 <Banner
                   tone="warning"
-                  title={`زيادة ${meters(round3(qty - planned))} عن المخطط`}
-                  body="مقبولة، لكنها تُسجَّل بسببها ويصل إشعار لإدارة بيتك ديزاين."
+                  title={
+                    over
+                      ? `زيادة ${meters(round3(qty - planned))} عن المخطط`
+                      : `زيادة ${meters(round3(qty - reservedLeft))} عن المحجوز المتبقي`
+                  }
+                  body={
+                    over
+                      ? 'مقبولة، لكنها تُسجَّل بسببها ويصل إشعار لإدارة بيتك ديزاين.'
+                      : `المحجوز المتبقي للصنف ${meters(reservedLeft)} - الزيادة تُسجَّل بسببها.`
+                  }
                   icon={<TriangleAlert size={16} color={palette.warning} />}
                 />
                 <Field

@@ -96,6 +96,9 @@ jobs:
       - name: golden pricing vectors (SQL side)
         run: python3 supabase/tests/golden_pricing_vectors.py 2>&1 | tee logs/golden_vectors.log
 
+      - name: inventory write RPCs suite (receive + complete window)
+        run: python3 supabase/tests/inventory_write_rpcs.py 2>&1 | tee logs/inventory_write.log
+
       - name: discount RPCs suite
         run: python3 supabase/tests/discount_rpcs.py 2>&1 | tee logs/discount.log
 
