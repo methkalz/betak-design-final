@@ -159,6 +159,7 @@ check('08 المرآة القديمة تُروى بالقائس، والزيار
 
 out = as_user(SALES, f"""select api.create_project(
   '{CUST}'::uuid, 'مشروع ثانٍ', '{T1}'::uuid, '{F1}'::uuid, '{key(8)}'::uuid)::text;""")
+PRJ2 = grab(r'"project_id"\s*:\s*"([0-9a-f-]+)"', out)
 check('09 التسلسل لا يعيد العد: BD-1002 وبلا موعدٍ لا زيارة',
       '"code": "BD-1002"' in out and '"status": "new_request"' in out
       and '"visit_id": null' in out, out)
@@ -227,12 +228,8 @@ probe = sql(f"""select (archived_at is not null)::text from core.customers where
 check('19 الأرشفة تختم ولا تحذف', 'ERROR' not in out and 'true' in probe, out + probe)
 
 # ── الغرف والشبابيك ──────────────────────────────────────────────────────────
-# PRJ2 (test 09) ما زال new_request - عليه يُثبت انتقال «تم القياس»
-PRJ2 = None
-out = as_user(SALES, f"""select p.id from core.projects p
- where p.organization_id = '{ORG}' and p.code = 'BD-1002';""")
-PRJ2 = grab(r'([0-9a-f]{8}-[0-9a-f-]{27})', out)
-
+# PRJ2 التُقط لحظة إنشائه في الفحص 09 - ما زال new_request، وعليه
+# يُثبت انتقال «تم القياس»
 out = as_user(F1, f"""select api.add_room('{PRJ2}'::uuid, 'صالون', '{key(20)}'::uuid, 'أرضي')::text;""")
 ROOM = grab(r'"room_id"\s*:\s*"([0-9a-f-]+)"', out)
 check('20 الميداني يضيف غرفة بترتيب 1',
