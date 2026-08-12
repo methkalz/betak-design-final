@@ -1079,6 +1079,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     (projectId: UUID): Result<string> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       const items = buildItems(projectId);
       if (items.length === 0)
         return failWith('لا توجد شبابيك مقاسة - لا يمكن إنشاء عرض سعر.', 'validation');
@@ -1129,7 +1130,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: qid };
     },
-    [guard, buildItems, db.quotations, mutate, audit, userId],
+    [source, guard, buildItems, db.quotations, mutate, audit, userId],
   );
 
   /** Sent versions are immutable — any change forks a brand new version. */
@@ -1137,6 +1138,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     (quotationId: UUID, discountPercent: number, note: string): Result<string> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       const quotation = db.quotations.find((q) => q.id === quotationId);
       if (!quotation) return failWith('العرض غير موجود.', 'validation');
       if (discountPercent < 0 || discountPercent > 100)
@@ -1186,7 +1188,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: vid };
     },
-    [guard, db.quotations, buildItems, mutate, audit, userId],
+    [source, guard, db.quotations, buildItems, mutate, audit, userId],
   );
 
   const sendVersion = useCallback(
@@ -1195,6 +1197,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       setBusy('send-quote');
       await serverLatency();
       setBusy(null);
@@ -1210,7 +1213,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, audit],
+    [source, guard, requireOnline, mutate, audit],
   );
 
   const decideVersion = useCallback(
@@ -1219,6 +1222,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
+      // اعتمادٌ محلي في الوضع الحي كذبةٌ تتبخر مع أول تحديث - يُقال
+      // ذلك صراحةً حتى تُوصَل RPCs العروض (وهي جاهزة على الخادم)
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       setBusy('decide-quote');
       await serverLatency();
       setBusy(null);
@@ -1258,12 +1264,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, audit],
+    [source, guard, requireOnline, mutate, audit],
   );
 
   const requestDiscount = useCallback(
     (quotationId: UUID, versionId: UUID, percent: number, reason: string): Result<void> => {
       if (!reason.trim()) return failWith('سبب الخصم مطلوب.', 'validation');
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       mutate((draft) => {
         const id = uid('dr');
         draft.discountRequests.unshift({
@@ -1295,7 +1302,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [mutate, notify, audit, userId],
+    [source, mutate, notify, audit, userId],
   );
 
   const decideDiscount = useCallback(
@@ -1304,6 +1311,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
+      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       setBusy('decide-discount');
       await serverLatency();
       setBusy(null);
@@ -1358,7 +1366,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, notify, audit, userId],
+    [source, guard, requireOnline, mutate, notify, audit, userId],
   );
 
   // ── Inventory (server-authoritative) ──────────────────────────────────────
@@ -1398,6 +1406,27 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const balance = rollBalance(rollId, db.stockMovements);
       const check = canReserve(round3(quantityM), balance);
       if (!check.ok) return failWith(check.error ?? 'تعذر الحجز.', 'validation');
+
+      if (source === 'live') {
+        // الحجز الحقيقي عند الخادم: فحص الرصيد النهائي تحت قفله هو
+        const slot = `reserve:${projectId}:${rollId}:${quantityM}`;
+        setBusy('reserve');
+        try {
+          const { error } = await supabase.rpc('reserve_fabric', {
+            p_project_id: projectId,
+            p_roll_id: rollId,
+            p_quantity_m: quantityM,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('reserve');
       await serverLatency();
       setBusy(null);
@@ -1431,7 +1460,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, db.stockMovements, mutate, addMovement, audit, userId],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, db.stockMovements, mutate, addMovement, audit, userId],
   );
 
   /**
@@ -1451,6 +1480,16 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied as Result<{ reserved: number; short: FabricGap[] }>;
       const offline = requireOnline();
       if (offline) return offline as Result<{ reserved: number; short: FabricGap[] }>;
+
+      // «الصنف كله أو لا شيء» عبر رولات عدة يحتاج معاملة خادمية واحدة -
+      // تنسيقها من العميل يعيد إنتاج الحجز الجزئي الذي تمنعه القاعدة.
+      // RPC الحجز التلقائي يصل في دفعة قادمة؛ حتى حينها الحجز اليدوي
+      // (رولًا رولًا) يعمل على الخادم من شاشة حجز القماش.
+      if (source === 'live')
+        return failWith(
+          'الحجز التلقائي يصل الخادم في دفعة قادمة - احجز يدويًا من شاشة حجز القماش.',
+          'validation',
+        );
 
       setBusy('reserve');
       await serverLatency();
@@ -1511,7 +1550,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: { reserved, short } };
     },
-    [guard, requireOnline, mutate, addMovement, audit, userId],
+    [guard, requireOnline, source, mutate, addMovement, audit, userId],
   );
 
   const releaseReservation = useCallback(
@@ -1520,6 +1559,35 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
+
+      if (source === 'live') {
+        const res = db.reservations.find((r) => r.id === reservationId);
+        if (!res) return failWith('الحجز غير موجود.', 'validation');
+        // الخادم يفكّ بكميةٍ مسماة: يُرسَل المتبقي كله بحسابه القانوني
+        const remaining = round3(
+          res.quantityM - res.consumedM - (res.releasedM ?? 0) - (res.damagedReservedM ?? 0),
+        );
+        if (remaining <= 0)
+          return failWith('لا متبقي في هذا الحجز ليُفَكّ.', 'validation');
+        const slot = `release:${reservationId}`;
+        setBusy('release');
+        try {
+          const { error } = await supabase.rpc('release_reservation', {
+            p_reservation_id: reservationId,
+            p_quantity_m: remaining,
+            p_reason_code: 'other',
+            p_idempotency_key: takeIdemKey(slot),
+            p_notes: reason.trim() || null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('release');
       await serverLatency();
       setBusy(null);
@@ -1543,7 +1611,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, addMovement, audit],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, db.reservations, mutate, addMovement, audit],
   );
 
   const consumeFabric = useCallback(
@@ -1554,7 +1622,11 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (offline) return offline;
       const res = db.reservations.find((r) => r.id === reservationId);
       if (!res) return failWith('الحجز غير موجود.', 'validation');
-      const planned = round3(res.quantityM - res.consumedM);
+      // المتبقي بحسابه القانوني (يخصم المحرَّر والتالف) - صيغة canConsume
+      // والخادم نفسها، وإلا انسدّ باب زيادةٍ يقبلها الخادم بسببها
+      const planned = round3(
+        res.quantityM - res.consumedM - (res.releasedM ?? 0) - (res.damagedReservedM ?? 0),
+      );
       const over = quantityM > planned + 0.0001;
       if (over && !reason.trim())
         return failWith('الاستهلاك أعلى من المخطط - السبب إلزامي.', 'validation');
@@ -1565,6 +1637,28 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const balance = rollBalance(res.rollId, db.stockMovements);
       if (quantityM > balance.onHandM)
         return failWith('الكمية أكبر من الرصيد الفعلي للرول.', 'validation');
+
+      if (source === 'live') {
+        // السبب الحر ملاحظاتٌ ورمزه المعتمد 'other' - كنظيره في إتمام الشباك
+        const slot = `consume:${reservationId}`;
+        setBusy('consume');
+        try {
+          const { error } = await supabase.rpc('consume_fabric', {
+            p_reservation_id: reservationId,
+            p_quantity_m: quantityM,
+            p_idempotency_key: takeIdemKey(slot),
+            p_reason_code: reason.trim() ? 'other' : null,
+            p_notes: reason.trim() || null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('consume');
       await serverLatency();
       setBusy(null);
@@ -1621,7 +1715,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, db.reservations, db.stockMovements, mutate, addMovement, notify, audit, userId],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, db.reservations, db.stockMovements, mutate, addMovement, notify, audit, userId],
   );
 
   /**
@@ -1815,6 +1909,43 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const balance = rollBalance(rollId, db.stockMovements);
       if ((type === 'damage' || type === 'adjustment_out') && quantityM > balance.onHandM)
         return failWith('لا يمكن أن يصبح الرصيد سالبًا.', 'validation');
+
+      if (source === 'live') {
+        // التلف وحده له RPC اليوم؛ سائر التسويات تصل في دفعة قادمة -
+        // ويُقال ذلك صراحةً بدل نجاحٍ محلي يتبخر عند أول تحديث
+        if (type !== 'damage')
+          return failWith(
+            'هذه الحركة تصل الخادم في دفعة قادمة - لم يُسجَّل شيء.',
+            'validation',
+          );
+        // حاجزا الخادم نفساهما هنا كي لا يملأ المستخدم نموذجًا يُرفض آخره:
+        // التلف العام للأدمن وحده، وسقفه المتاح غير المحجوز
+        if (currentUser?.role !== 'admin')
+          return failWith('تلف المخزون العام صلاحية الأدمن وحده.', 'permission');
+        if (quantityM > balance.availableM)
+          return failWith(
+            'التلف أكبر من المتاح غير المحجوز - تلف كميةٍ محجوزة يُسجَّل من مسار حجزها.',
+            'validation',
+          );
+        const slot = `damage:${rollId}:${quantityM}`;
+        setBusy('adjust');
+        try {
+          const { error } = await supabase.rpc('record_stock_damage', {
+            p_roll_id: rollId,
+            p_quantity_m: quantityM,
+            p_reason_code: 'other',
+            p_idempotency_key: takeIdemKey(slot),
+            p_notes: reason.trim() || null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('adjust');
       await serverLatency();
       setBusy(null);
@@ -1831,7 +1962,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, db.stockMovements, mutate, addMovement, audit],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, currentUser?.role, db.stockMovements, mutate, addMovement, audit],
   );
 
   /* ── مكتبة الأقمشة ─────────────────────────────────────────────────
@@ -2072,6 +2203,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline;
       if (!(quantityM > 0)) return failWith('الكمية يجب أن تكون أكبر من صفر.', 'validation');
+      // تحويل البواقي دين مسجَّل على الخادم (TRACEABILITY بند 5) - يصل معه
+      if (source === 'live')
+        return failWith('تحويل Mini Roll يصل الخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       setBusy('mini-roll');
       await serverLatency();
       setBusy(null);
@@ -2098,7 +2232,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, addMovement, audit],
+    [guard, requireOnline, source, mutate, addMovement, audit],
   );
 
   // ── Tailor ────────────────────────────────────────────────────────────────
@@ -2232,6 +2366,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     }): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
+      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (!(input.amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
@@ -2282,7 +2417,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, audit, userId],
+    [guard, source, requireOnline, mutate, audit, userId],
   );
 
   /**
@@ -2301,6 +2436,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     }): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
+      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (input.checks.length === 0) return failWith('أدخل شيكًا واحدًا على الأقل.', 'validation');
@@ -2352,7 +2488,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
+    [guard, source, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
   );
 
   /**
@@ -2366,6 +2502,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     async (staffId: UUID, amountAgorot: number, note: string): Promise<Result<void>> => {
       const denied = guard('manage_users');
       if (denied) return denied;
+      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       const staff = db.profiles.find((p) => p.id === staffId);
@@ -2405,13 +2542,14 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, db.profiles, mutate, notify, audit, userId],
+    [guard, source, requireOnline, db.profiles, mutate, notify, audit, userId],
   );
 
   const reversePayment = useCallback(
     async (paymentId: UUID, reason: string): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
+      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (!reason.trim()) return failWith('سبب العكس إلزامي.', 'validation');
@@ -2439,7 +2577,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, requireOnline, mutate, audit, userId],
+    [guard, source, requireOnline, mutate, audit, userId],
   );
 
   // ── Notifications / settings ──────────────────────────────────────────────

@@ -926,6 +926,8 @@ function QuoteTab({
 
 function ProductionTab({ projectId }: { projectId: string }) {
   const { db, role, busy, autoReserveForProject } = useStore();
+  // رسالة الحجز حين لا يجري: كتم النتيجة كان يجعل الزر ضغطةً ميتة بلا أثر
+  const [reserveError, setReserveError] = useState<string | null>(null);
   const router = useRouter();
   const gaps = projectFabricGaps(db, projectId);
   const reservations = db.reservations.filter((r) => r.projectId === projectId);
@@ -989,6 +991,11 @@ function ProductionTab({ projectId }: { projectId: string }) {
           />
         )}
 
+        {!!reserveError && (
+          <View style={{ marginTop: spacing.md }}>
+            <Banner tone="warning" title="لم يُحجز" body={reserveError} />
+          </View>
+        )}
         {can(role, 'reserve_fabric') && ready.length > 0 && (
           <Button
             label="احجز الآن"
@@ -996,7 +1003,11 @@ function ProductionTab({ projectId }: { projectId: string }) {
             loading={busy === 'reserve'}
             icon={<Layers size={16} color={palette.ivory} />}
             style={{ marginTop: spacing.md }}
-            onPress={() => autoReserveForProject(projectId)}
+            onPress={async () => {
+              setReserveError(null);
+              const r = await autoReserveForProject(projectId);
+              if (!r.ok) setReserveError(r.error);
+            }}
           />
         )}
         {can(role, 'reserve_fabric') && gaps.some((g) => g.remaining > 0) && (
