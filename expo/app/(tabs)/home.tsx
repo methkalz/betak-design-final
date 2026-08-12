@@ -51,7 +51,7 @@ import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
 import { assignmentGaps, type AssignmentGap } from '@/domain/assignment';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { staffBalance } from '@/domain/staffLedger';
-import { useRollViews } from '@/hooks/selectors';
+import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
 import { QuotationDecision } from '@/components/QuotationDecision';
 import { formatDate, isSameDay, meters, money } from '@/lib/format';
@@ -318,6 +318,7 @@ function AdminDashboard() {
   const { db } = useStore();
   const router = useRouter();
   const rolls = useRollViews();
+  const variantStock = useVariantStockViews();
 
   // أرقام المالك من مصادر موثوقة في الوضعين (العروض لا الدفعات —
   // الدفعات تصل في شريحة لاحقة): اعتمادات الشهر، وما ينتظر رد الزبون.
@@ -391,9 +392,9 @@ function AdminDashboard() {
   }, [db.quotationVersions, db.projects, db.reservations]);
 
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending');
-  const lowStock = rolls.filter(
-    (r) => r.balance.availableM < LOW_STOCK_THRESHOLD_M && !r.roll.isMiniRoll,
-  );
+  // النقص على إجمالي الصنف لا على كل رولٍ وحده: صنفٌ وافرٌ موزَّع على
+  // رولات صغيرة كان يستنفر زورًا، والقرار قرار أمتارٍ لكل نوع
+  const lowStock = variantStock.filter((g) => g.availableM < LOW_STOCK_THRESHOLD_M);
   const expiringSoon = useMemo(() => {
     const soon = Date.now() + 3 * 24 * 60 * 60 * 1000;
     return db.quotationVersions.filter(
@@ -444,10 +445,10 @@ function AdminDashboard() {
       key: 'stock',
       icon: <AlertTriangle size={17} color={palette.danger} />,
       tint: palette.dangerSoft,
-      title: `${lowStock.length} ${lowStock.length === 1 ? 'رول' : 'رولات'} تحت حد المخزون`,
+      title: `${lowStock.length} ${lowStock.length === 1 ? 'صنف' : 'أصناف'} تحت حد المخزون`,
       sub: lowStock
         .slice(0, 3)
-        .map((r) => `${r.roll.code}: ${r.balance.availableM} م`)
+        .map((g) => `${g.product?.name ?? ''} ${g.variant?.colorName ?? ''}: ${g.availableM} م`)
         .join(' • '),
       onPress: () => router.push('/inventory'),
     });
@@ -656,7 +657,7 @@ function AdminDashboard() {
               )
             }
             value={`${lowStock.length}`}
-            label="رولات تحت الحد"
+            label="أصناف تحت الحد"
           />
         </Row>
         </Enter>

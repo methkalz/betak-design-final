@@ -53,6 +53,72 @@ export function useRollView(rollId: UUID | undefined): RollView | null {
   return useMemo(() => views.find((v) => v.roll.id === rollId) ?? null, [views, rollId]);
 }
 
+export interface VariantStockView {
+  variantId: UUID;
+  variant: FabricVariant | null;
+  product: FabricProduct | null;
+  availableM: number;
+  reservedM: number;
+  consumedM: number;
+  /** الاستلامات (الرولات داخليًا) بترتيب الأحدث أولًا. */
+  receipts: RollView[];
+  /** كم مترًا منها أمانةً عند خياطين - للسطر الهادئ تحت الرقم البطل. */
+  consignedM: number;
+}
+
+/**
+ * المخزون بالأمتار لكل صنفٍ لا بالرولات (قرار المالك 8.8.2026): «لن يتم
+ * تدوين عدد الرولات.. إنما عدد الأمتار فقط من كل نوع».
+ *
+ * الرول باقٍ تحت السطح - عليه تقوم دفعات الصبغ والحجز كل رولٍ على حدة -
+ * لكنه صار «استلامًا» يُسرد تفصيلًا تحت صنفه، لا وحدةَ العرض الأولى.
+ * الترتيب بالمتاح تنازليًا: ما يُدار يتصدّر، والفارغ يهبط آخر القائمة.
+ */
+export function useVariantStockViews(
+  /** يقصر التجميع على رولاتٍ بعينها - كحصّة خياطٍ واحد في «بضاعتي». */
+  filter?: (r: RollView) => boolean,
+): VariantStockView[] {
+  const rolls = useRollViews();
+  return useMemo(() => {
+    const map = new Map<UUID, VariantStockView>();
+    for (const r of filter ? rolls.filter(filter) : rolls) {
+      const key = r.roll.variantId;
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          variantId: key,
+          variant: r.variant,
+          product: r.product,
+          availableM: 0,
+          reservedM: 0,
+          consumedM: 0,
+          receipts: [],
+          consignedM: 0,
+        };
+        map.set(key, g);
+      }
+      g.availableM = round3(g.availableM + r.balance.availableM);
+      g.reservedM = round3(g.reservedM + r.balance.reservedM);
+      g.consumedM = round3(g.consumedM + r.balance.consumedM);
+      if (r.roll.assignedTailorId) {
+        g.consignedM = round3(g.consignedM + r.balance.availableM + r.balance.reservedM);
+      }
+      g.receipts.push(r);
+    }
+    for (const g of map.values()) {
+      g.receipts.sort((a, b) => b.roll.createdAt.localeCompare(a.roll.createdAt));
+    }
+    // القماش أولًا ثم البطانة زمرةً واحدة (قرار المالك): هما صنفان لكن
+    // البطانة تُقرأ معًا، والفاصل بين الزمرتين ترسمه الشاشة
+    return Array.from(map.values()).sort((a, b) => {
+      const aLining = a.product?.kind === 'lining' ? 1 : 0;
+      const bLining = b.product?.kind === 'lining' ? 1 : 0;
+      if (aLining !== bLining) return aLining - bLining;
+      return b.availableM - a.availableM;
+    });
+  }, [rolls, filter]);
+}
+
 export function currentVersion(db: Database, projectId: UUID): QuotationVersion | null {
   const quotation = db.quotations.find((q) => q.projectId === projectId);
   if (!quotation) return null;

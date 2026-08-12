@@ -1,8 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { AlertTriangle, Layers, Package, PackagePlus, Plus, Scissors } from 'lucide-react-native';
+import { AlertTriangle, Layers, Package, PackagePlus, Plus } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -16,33 +16,42 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
+import { availabilityTone, consumedInLastDays } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
-import { useRollViews } from '@/hooks/selectors';
+import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
 import { meters, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
-type Tab = 'rolls' | 'library';
+/** عدّ الاستلامات بعربيةٍ سليمة: واحد، اثنان (مثنّى)، ثم جمع. */
+function receiptsLabel(n: number): string {
+  if (n === 1) return 'استلام واحد';
+  if (n === 2) return 'استلامان';
+  return `${n} استلامات`;
+}
+
+type Tab = 'stock' | 'library';
 
 export default function InventoryScreen() {
   const { db, role } = useStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>('rolls');
+  const [tab, setTab] = useState<Tab>('stock');
   const rolls = useRollViews();
+  const stock = useVariantStockViews();
   const showCost = role === 'admin';
   const canManage = can(role, 'manage_fabrics');
 
   const totals = useMemo(() => {
     const available = rolls.reduce((s, r) => s + r.balance.availableM, 0);
     const reserved = rolls.reduce((s, r) => s + r.balance.reservedM, 0);
-    const consumed = rolls.reduce((s, r) => s + r.balance.consumedM, 0);
+    // استهلاك الشهر الأخير لا العمر كله: رقم العمر يكبر إلى الأبد
+    const consumed = consumedInLastDays(db.stockMovements, 30);
     const value = rolls.reduce(
       (s, r) => s + r.balance.onHandM * (r.variant?.costPerMeterAgorot ?? 0),
       0,
     );
     return { available, reserved, consumed, value };
-  }, [rolls]);
+  }, [rolls, db.stockMovements]);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
@@ -58,29 +67,32 @@ export default function InventoryScreen() {
         {/* الأرقام الثلاثة التي تُدار بها الورشة - لكلٍّ لون حالته */}
         <Row gap={spacing.md}>
           <TotalTile
-            label="متاح للحجز"
+            label="متاح"
             value={totals.available}
             tone={palette.success}
             tint={['rgba(16,185,129,0.09)', 'rgba(255,255,255,0)']}
           />
           <TotalTile
-            label="محجوز لمشاريع"
+            label="محجوز"
             value={totals.reserved}
             tone={palette.warning}
             tint={['rgba(245,158,11,0.09)', 'rgba(255,255,255,0)']}
           />
+          {/* البلاطة نفسها بوابة تقريرها: من يسأل «كم استهلكنا؟» يسأل
+              «وأين ولماذا؟» بعدها مباشرة */}
           <TotalTile
-            label="مستهلك"
+            label="استهلاك"
             value={totals.consumed}
             tone={palette.muted}
             tint={['rgba(120,126,155,0.08)', 'rgba(255,255,255,0)']}
+            onPress={() => router.push('/consumption')}
           />
         </Row>
         <SegmentedControl
           value={tab}
           onChange={setTab}
           options={[
-            { value: 'rolls', label: 'الرولات' },
+            { value: 'stock', label: 'المخزون' },
             { value: 'library', label: 'مكتبة الأقمشة' },
           ]}
         />
@@ -88,120 +100,134 @@ export default function InventoryScreen() {
             وهو في المكتبة - لا زرّ واحد يسأل «أيّهما تقصد؟» */}
         {canManage && (
           <Button
-            label={tab === 'rolls' ? 'استلام بضاعة' : 'قماش جديد'}
+            label={tab === 'stock' ? 'استلام بضاعة' : 'قماش جديد'}
             variant="secondary"
             full
             small
             icon={
-              tab === 'rolls' ? (
+              tab === 'stock' ? (
                 <PackagePlus size={15} color={palette.oliveDark} />
               ) : (
                 <Plus size={15} color={palette.oliveDark} />
               )
             }
-            onPress={() => router.push(tab === 'rolls' ? '/roll/new' : '/fabric/new')}
+            onPress={() => router.push(tab === 'stock' ? '/roll/new' : '/fabric/new')}
           />
         )}
       </View>
 
-      {tab === 'rolls' ? (
+      {tab === 'stock' ? (
+        /* المخزون بالأمتار لكل صنف (قرار المالك): بطاقة لكل لونٍ برقمه
+           البطل، والاستلامات تفصيلٌ خلف ضغطة - لا رولات في الواجهة. */
         <FlatList
-          data={rolls}
-          keyExtractor={(r) => r.roll.id}
+          data={stock}
+          keyExtractor={(g) => g.variantId}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => {
-            const low = item.balance.availableM < LOW_STOCK_THRESHOLD_M;
-            const availTone = low ? palette.danger : palette.success;
-            // عمر الرول كاملًا: ما بقي (متاح + محجوز) وما خرج (مستهلك)
-            const lifetime =
-              item.balance.availableM + item.balance.reservedM + item.balance.consumedM;
+          renderItem={({ item, index }) => {
+            // أول بطانةٍ في القائمة يسبقها فاصلٌ رفيع: البطانة صنفٌ يُشترى
+            // ويُدار، لكنها تُقرأ زمرةً تحت القماش لا مبعثرةً بينه
+            const firstLining =
+              item.product?.kind === 'lining' &&
+              index > 0 &&
+              stock[index - 1]?.product?.kind !== 'lining';
+            const tone = availabilityTone(item.availableM);
+            const availTone =
+              tone === 'danger'
+                ? palette.danger
+                : tone === 'warning'
+                  ? palette.warning
+                  : palette.success;
+            const lifetime = item.availableM + item.reservedM + item.consumedM;
             const seg = (v: number) => (lifetime > 0 ? (v / lifetime) * 100 : 0);
             return (
-              <Card onPress={() => router.push(`/roll/${item.roll.id}`)} style={{ padding: spacing.xl }}>
-                {/* نقطة تركيز واحدة: المتاح بأكبر خط وفي عمود ثابت على يسار
-                    كل بطاقة، فتنزل العين عمودًا واحدًا عند التصفح بدل أن
-                    تتنقل بين ثلاثة أرقام متساوية الوزن في كل بطاقة. */}
+              <View>
+                {firstLining && <View style={styles.groupRule} />}
+                <Card
+                  onPress={() =>
+                    router.push({ pathname: '/stock/[variantId]', params: { variantId: item.variantId } })
+                  }
+                  style={{ padding: spacing.xl }}
+                >
                 <Row justify="space-between" align="center" gap={spacing.md}>
                   <Row gap={spacing.md} style={{ flex: 1 }}>
                     <Swatch color={item.variant?.colorHex ?? palette.sand} size={44} />
-                    {/* اسم القماش هو ما يبحث عنه الخيّاط، والكود معرّف
-                        يُقرأ بعده - فالاسم فوق وبالخط العريض */}
                     <View style={{ flex: 1 }}>
-                      <AppText variant="heading" numberOfLines={1} style={{ fontSize: 16.5 }}>
-                        {item.product?.name} {item.variant?.colorName}
+                      <AppText variant="heading" numberOfLines={1} style={{ fontSize: 18 }}>
+                        {item.product?.name}
                       </AppText>
-                      <Row gap={spacing.sm}>
-                        <AppText variant="caption" color={palette.muted} numberOfLines={1}>
-                          {item.roll.code}
-                        </AppText>
-                        {item.roll.isMiniRoll && (
-                          <Pill label="بواقي" bg={palette.sand} fg={palette.muted} small />
-                        )}
-                      </Row>
+                      <AppText variant="caption" color={palette.muted} style={{ fontSize: 14.5 }}>
+                        {item.variant?.colorName} • {receiptsLabel(item.receipts.length)}
+                      </AppText>
                     </View>
                   </Row>
 
+                  {/* الرقم ووحدته يرسوان على حافة البطاقة لا على مركز
+                      عمودهما: المركز يجعل كل رقمٍ يتزحزح بعرض تسميته،
+                      والعين تمسح الأرقام عمودًا واحدًا عبر البطاقات -
+                      فتحتاج خطَّ رسوٍّ واحدًا */}
                   <View style={{ alignItems: 'flex-start' }}>
-                    <Row gap={4} align="baseline">
-                      <AppText variant="numberLarge" color={availTone}>
-                        {meters(item.balance.availableM, false)}
-                      </AppText>
-                      <AppText variant="caption" color={palette.muted}>
-                        متر
-                      </AppText>
-                    </Row>
-                    <Row gap={5}>
-                      {low && <AlertTriangle size={12} color={palette.danger} />}
-                      <AppText variant="caption" color={low ? palette.danger : palette.muted}>
-                        {low ? 'متاح - منخفض' : 'متاح'}
+                    <AppText
+                      variant="numberLarge"
+                      color={availTone}
+                      style={{ fontSize: 33, lineHeight: 40 }}
+                    >
+                      {meters(item.availableM, false)}
+                    </AppText>
+                    <Row gap={4}>
+                      {tone === 'danger' && <AlertTriangle size={12} color={palette.danger} />}
+                      <AppText
+                        variant="caption"
+                        color={tone === 'success' ? palette.muted : availTone}
+                      >
+                        {tone === 'danger'
+                          ? 'متر - اطلب'
+                          : tone === 'warning'
+                            ? 'متر - يقترب من الحد'
+                            : 'متر متاح'}
                       </AppText>
                     </Row>
                   </View>
                 </Row>
 
-                {/* شريط عمر الرول: متاح ← محجوز ← مستهلك */}
+                {/* شريط عمر الصنف كله: متاح ← محجوز ← مستهلك */}
                 <View style={styles.bar}>
-                  <View style={{ width: `${seg(item.balance.availableM)}%`, backgroundColor: availTone }} />
-                  <View style={{ width: `${seg(item.balance.reservedM)}%`, backgroundColor: palette.warning }} />
-                  <View style={{ width: `${seg(item.balance.consumedM)}%`, backgroundColor: palette.sandDeep }} />
+                  <View style={{ width: `${seg(item.availableM)}%`, backgroundColor: availTone }} />
+                  <View style={{ width: `${seg(item.reservedM)}%`, backgroundColor: palette.warning }} />
+                  <View style={{ width: `${seg(item.consumedM)}%`, backgroundColor: palette.sandDeep }} />
                 </View>
 
-                {/* سطر إسناد واحد هادئ: حاضرٌ للسياق، غير منافسٍ للرقم البطل */}
-                <Row justify="space-between" gap={spacing.sm} style={{ marginTop: spacing.sm }}>
-                  <Row gap={spacing.md}>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.warning }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        محجوز {meters(item.balance.reservedM)}
-                      </AppText>
-                    </Row>
-                    <Row gap={5}>
-                      <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
-                      <AppText variant="caption" color={palette.muted}>
-                        مستهلك {meters(item.balance.consumedM)}
-                      </AppText>
-                    </Row>
+                <Row gap={spacing.md} wrap style={{ marginTop: spacing.sm }}>
+                  <Row gap={5}>
+                    <View style={[styles.dot, { backgroundColor: palette.warning }]} />
+                    <AppText variant="caption" color={palette.muted}>
+                      محجوز {meters(item.reservedM)}
+                    </AppText>
                   </Row>
-                  {/* العهدة قبل الرف: أين البضاعة فعليًا أهم من موضعها على رفّ المعرض */}
-                  <AppText
-                    variant="caption"
-                    color={item.roll.assignedTailorId ? palette.terracotta : palette.muted}
-                    numberOfLines={1}
-                  >
-                    {item.roll.assignedTailorId
-                      ? `عند ${db.profiles.find((p) => p.id === item.roll.assignedTailorId)?.fullName ?? 'خياط'}`
-                      : `رف ${item.roll.location}`}
-                  </AppText>
+                  <Row gap={5}>
+                    <View style={[styles.dot, { backgroundColor: palette.sandDeep }]} />
+                    <AppText variant="caption" color={palette.muted}>
+                      مستهلك {meters(item.consumedM)}
+                    </AppText>
+                  </Row>
+                  {item.consignedM > 0 && (
+                    <Row gap={5}>
+                      <View style={[styles.dot, { backgroundColor: palette.terracotta }]} />
+                      <AppText variant="caption" color={palette.terracotta}>
+                        عند الخياطين {meters(item.consignedM)}
+                      </AppText>
+                    </Row>
+                  )}
                 </Row>
-              </Card>
+                </Card>
+              </View>
             );
           }}
           ListEmptyComponent={
             <EmptyState
               icon={<Package size={28} color={palette.olive} />}
-              title="لا توجد رولات"
-              body="أضف رولات لبدء إدارة المخزون."
+              title="لا بضاعة بعد"
+              body="سجّل أول استلام بضاعة لبدء إدارة المخزون."
             />
           }
         />
@@ -219,7 +245,9 @@ export default function InventoryScreen() {
                   <View style={{ flex: 1 }}>
                     <AppText variant="heading">{item.name}</AppText>
                     <AppText variant="caption" color={palette.muted}>
-                      {item.supplier} • عرض {item.widthCm} سم • {item.composition}
+                      {[item.supplier, `عرض ${item.widthCm} سم`, item.composition]
+                        .filter(Boolean)
+                        .join(' • ')}
                     </AppText>
                   </View>
                   <Layers size={20} color={palette.olive} />
@@ -233,12 +261,17 @@ export default function InventoryScreen() {
                   ))}
                 </Row>
                 <Row gap={spacing.sm} style={{ marginTop: spacing.md }}>
+                  {/* بالأمتار لا بالرولات (قرار المالك): كم عندك من هذا القماش */}
                   <Pill
-                    label={`${db.fabricRolls.filter((r) => variants.some((v) => v.id === r.variantId)).length} رول`}
+                    label={`متاح ${meters(
+                      rolls
+                        .filter((r) => variants.some((v) => v.id === r.roll.variantId))
+                        .reduce((sum, r) => sum + r.balance.availableM, 0),
+                    )}`}
                     bg={palette.ivoryDeep}
                     fg={palette.muted}
                     small
-                    icon={<Scissors size={12} color={palette.muted} />}
+                    icon={<Layers size={12} color={palette.muted} />}
                   />
                   {showCost && (
                     <Pill
@@ -268,14 +301,20 @@ function TotalTile({
   value,
   tone,
   tint,
+  onPress,
 }: {
   label: string;
   value: number;
   tone: string;
   tint: [string, string];
+  onPress?: () => void;
 }) {
   return (
-    <View style={[styles.totalTile, { borderColor: palette.line }]}>
+    <Pressable
+      disabled={!onPress}
+      onPress={onPress}
+      style={[styles.totalTile, { borderColor: palette.line }]}
+    >
       <LinearGradient
         colors={tint}
         start={{ x: 0.2, y: 0 }}
@@ -284,19 +323,20 @@ function TotalTile({
       />
       <Row gap={5}>
         <View style={[styles.dot, { backgroundColor: tone }]} />
-        <AppText variant="caption" color={palette.muted} numberOfLines={1} style={{ fontSize: 12 }}>
+        {/* بلا سقف أسطر: التسمية تلتفّ سطرين ولا تُقصّ أبدًا */}
+        <AppText variant="caption" color={palette.muted} style={{ fontSize: 12.5 }}>
           {label}
         </AppText>
       </Row>
       <Row gap={3} align="baseline">
-        <AppText variant="number" numberOfLines={1}>
+        <AppText variant="number" numberOfLines={1} style={{ fontSize: 23, lineHeight: 32 }}>
           {meters(value, false)}
         </AppText>
-        <AppText variant="caption" color={palette.muted} style={{ fontSize: 11 }}>
+        <AppText variant="caption" color={palette.muted} style={{ fontSize: 11.5 }}>
           متر
         </AppText>
       </Row>
-    </View>
+    </Pressable>
   );
 }
 
@@ -311,6 +351,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
+  /* فاصل الزمرتين: شعرةٌ واحدة بهوامش سخية - حدٌّ يُحسّ ولا يصرخ */
+  groupRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: palette.sandDeep,
+    marginVertical: spacing.sm,
+    marginHorizontal: spacing.xl,
+  },
   bar: {
     flexDirection: 'row-reverse',
     height: 6,
