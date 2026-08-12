@@ -37,7 +37,7 @@ import type { TailorStage } from '@/types/domain';
 export default function TailorAssignmentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { db, advanceStage } = useStore();
+  const { busy, db, advanceStage } = useStore();
 
   const [pending, setPending] = useState<{ to: TailorStage; back: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +178,7 @@ export default function TailorAssignmentScreen() {
               : undefined
         }
         confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل الأمر'}
+        loading={busy === 'advance-stage'}
         onConfirm={async () => {
           if (pending) {
             const res = await advanceStage(assignment.id, pending.to);
@@ -187,6 +188,8 @@ export default function TailorAssignmentScreen() {
         }}
         onCancel={() => setPending(null)}
       />
+
+      {!!error && <Banner tone="danger" title="تعذر نقل المرحلة" body={error} />}
 
       <WindowCompletion projectId={assignment.projectId} />
 

@@ -325,7 +325,8 @@ out = as_user(ADMIN, f"""select api.assign_tailor(
 TA = grab(r'"assignment_id"\s*:\s*"([0-9a-f-]+)"', out)
 probe = sql(f"""select p.status_code || '|' || p.tailor_id
  || '#' || (select count(*) from core.notifications
-            where organization_id = '{ORG}' and user_id = '{T1}' and kind = 'tailor_assignment')
+            where organization_id = '{ORG}' and user_id = '{T1}'
+              and kind = 'tailor_assignment' and deep_link = '/tailor/' || '{TA}')
 from core.projects p where p.id = '{PRJ2}';""", quiet=False)
 check('33 إسناد الخياط: الأمر يُنشأ والمشروع «مع الخياط» والإشعار يصل',
       TA is not None and f'with_tailor|{T1}#1' in probe, out + probe)
@@ -351,13 +352,20 @@ out = as_user(SALES, f"""select api.advance_stage('{TA}'::uuid, 'cutting', '{key
 check('38 البائع لا يقدّم مراحل → BD403', 'BD403' in out or 'خياط الأمر' in out, out)
 
 # «جاهز» ممنوع وفي المشروع شباك بلا تأكيد إنهاء (شباك key 39 بلا استهلاك)
-out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'cutting', '{key(46)}'::uuid)::text;""")
-out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'sewing', '{key(47)}'::uuid)::text;""")
-out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'ironing', '{key(48)}'::uuid)::text;""")
-out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'qc', '{key(49)}'::uuid)::text;""")
+walk_ok = True
+for st, kn in [('cutting', 46), ('sewing', 47), ('ironing', 48), ('qc', 49)]:
+    out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, '{st}', '{key(kn)}'::uuid)::text;""")
+    walk_ok = walk_ok and 'ERROR' not in out
 out = as_user(T1, f"""select api.advance_stage('{TA}'::uuid, 'ready', '{key(50)}'::uuid)::text;""")
-check('39 «جاهز» بلا إنهاء الشبابيك → BD409 بعدّها',
-      'BD409' in out or 'بلا تأكيد إنهاء' in out, out)
+check('39 المسير سليم و«جاهز» بلا إنهاء الشبابيك → BD409 بعدّها',
+      walk_ok and ('BD409' in out or 'بلا تأكيد إنهاء' in out), out)
+
+out = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ}'::uuid, '{T1}'::uuid, '{key(51)}'::uuid)::text;""")
+out2 = as_user(ADMIN, f"""select api.assign_tailor(
+  '{PRJ}'::uuid, '{T1}'::uuid, '{key(52)}'::uuid)::text;""")
+check('40 المشروع الواحد أمرٌ واحد: الثاني يُرفض برسالة مصممة لا 23505',
+      'ERROR' not in out and ('BD409' in out2 or 'أمر إنتاج مفتوح' in out2), out + out2)
 
 print('\n=== cleanup ===')
 sql(PURGE)

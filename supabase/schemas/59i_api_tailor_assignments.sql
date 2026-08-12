@@ -57,11 +57,18 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- أمر إنتاج مفتوح واحد لكل مشروع - تحت قفل المشروع فلا يمرّ متزامنان
+  -- أمر إنتاج واحد لكل مشروع (قيد الجدول الفريد) - تحت قفل المشروع،
+  -- وبرسالتين صادقتين: المفتوح يُدار، والمقفل لا يتكرر - تبديل الخياط
+  -- عبر إسناد الأدوار لا بأمر جديد
   perform 1 from core.projects where id = p_project_id for update;
   if exists (select 1 from core.tailor_assignments a
              where a.project_id = p_project_id and a.stage <> 'ready') then
-    raise exception 'يوجد أمر إنتاج مفتوح لهذا المشروع - أقفله أو بدّل خياطه.'
+    raise exception 'يوجد أمر إنتاج مفتوح لهذا المشروع - تبديل خياطه عبر إسناد الأدوار.'
+      using errcode = 'BD409';
+  end if;
+  if exists (select 1 from core.tailor_assignments a
+             where a.project_id = p_project_id) then
+    raise exception 'لهذا المشروع أمر إنتاج مُقفل - المشروع الواحد أمرٌ واحد.'
       using errcode = 'BD409';
   end if;
 

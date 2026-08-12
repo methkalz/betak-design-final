@@ -723,6 +723,7 @@ export function ConfirmSheet({
   icon,
   onConfirm,
   onCancel,
+  loading = false,
 }: {
   visible: boolean;
   title: string;
@@ -733,6 +734,8 @@ export function ConfirmSheet({
   icon?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
+  /** رحلة التأكيد الحية طويلة: الزر يُحمَّل فلا ضغطة ثانية تسبق اللقطة. */
+  loading?: boolean;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -761,6 +764,7 @@ export function ConfirmSheet({
           <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
             <Button
               label={confirmLabel}
+              loading={loading}
               variant={tone === 'danger' ? 'danger' : 'primary'}
               full
               onPress={onConfirm}
