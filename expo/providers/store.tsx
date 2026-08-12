@@ -3211,13 +3211,57 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * يتغيّر سعرٌ وقّعه زبون بأثر رجعي.
    */
   const updateSettings = useCallback(
-    (patch: Partial<BusinessSettings>): Result<void> => {
+    async (patch: Partial<BusinessSettings>): Promise<Result<void>> => {
       const denied = guard('edit_pricing_rules');
       if (denied) return denied;
       const bad = Object.entries(patch).find(
         ([, v]) => typeof v === 'number' && (!Number.isFinite(v) || v < 0),
       );
       if (bad) return failWith('القيم يجب أن تكون أرقامًا غير سالبة.', 'validation');
+      const pct = [
+        patch.minMarginPercent,
+        patch.vatPercent,
+        patch.employeeDiscountLimitPercent,
+        patch.adminDiscountLimitPercent,
+      ];
+      if (pct.some((v) => v != null && v > 100)) return failWith('النسب بين 0 و100.', 'validation');
+      if (patch.quotationValidityDays != null && patch.quotationValidityDays <= 0)
+        return failWith('صلاحية العرض بالأيام يجب أن تكون أكبر من صفر.', 'validation');
+
+      if (source === 'live') {
+        // الرقعة تذهب كما هي: الغائب يبقى عند الخادم على حاله، والتعديل
+        // يسري على العروض القادمة وحدها (المقفول يسعّر من لقطته - §10)
+        const slot = `settings:${Object.keys(patch).sort().join(',')}`;
+        setBusy('save-settings');
+        try {
+          const { error } = await supabase.rpc('update_business_settings', {
+            p_idempotency_key: takeIdemKey(slot),
+            p_track_cost_per_meter_agorot: patch.trackCostPerMeterAgorot ?? null,
+            p_delivery_cost_per_meter_agorot: patch.deliveryCostPerMeterAgorot ?? null,
+            p_measure_install_cost_per_meter_agorot: patch.measureInstallCostPerMeterAgorot ?? null,
+            p_lining_cost_per_meter_agorot: patch.liningCostPerMeterAgorot ?? null,
+            p_min_margin_percent: patch.minMarginPercent ?? null,
+            p_employee_discount_limit_percent: patch.employeeDiscountLimitPercent ?? null,
+            p_admin_discount_limit_percent: patch.adminDiscountLimitPercent ?? null,
+            p_quotation_validity_days: patch.quotationValidityDays ?? null,
+            p_vat_percent: patch.vatPercent ?? null,
+            p_field_visit_wage_agorot: patch.fieldVisitWageAgorot ?? null,
+            p_motorized_track_cost_per_meter_agorot: patch.motorizedTrackCostPerMeterAgorot ?? null,
+            p_motorized_track_price_per_meter_agorot: patch.motorizedTrackPricePerMeterAgorot ?? null,
+            p_motor_cost_agorot: patch.motorCostAgorot ?? null,
+            p_motor_price_agorot: patch.motorPriceAgorot ?? null,
+            p_remote_cost_agorot: patch.remoteCostAgorot ?? null,
+            p_remote_price_agorot: patch.remotePriceAgorot ?? null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       mutate((draft) => {
         Object.assign(draft.settings, patch);
         audit(
@@ -3230,13 +3274,47 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit],
   );
 
   const updatePricingRule = useCallback(
-    (ruleId: UUID, customerPricePerMeterAgorot: number, tailorCostPerMeterAgorot: number): Result<void> => {
+    async (
+      ruleId: UUID,
+      customerPricePerMeterAgorot: number,
+      tailorCostPerMeterAgorot: number,
+    ): Promise<Result<void>> => {
       const denied = guard('edit_pricing_rules');
       if (denied) return denied;
+      // مرآة الخادم: الوضعان يقبلان المدخلات نفسها ويرفضانها بالرسالة نفسها
+      if (!Number.isFinite(customerPricePerMeterAgorot) || customerPricePerMeterAgorot <= 0)
+        return failWith('سعر الزبون يجب أن يكون أكبر من صفر.', 'validation');
+      if (!Number.isFinite(tailorCostPerMeterAgorot) || tailorCostPerMeterAgorot < 0)
+        return failWith('تكلفة الخياط يجب أن تكون رقمًا غير سالب.', 'validation');
+
+      if (source === 'live') {
+        // المفتاح الثابت (الشريحة والفئة) لا معرّف الصف: معرّفات اللقطة
+        // الحية غير معرّفات البذرة
+        const rule = db.pricingRules.find((r) => r.id === ruleId);
+        if (!rule) return failWith('قاعدة التسعير غير موجودة.', 'validation');
+        const slot = `rule:${rule.band}:${rule.category}`;
+        setBusy('save-settings');
+        try {
+          const { error } = await supabase.rpc('update_pricing_rule', {
+            p_band: rule.band,
+            p_category: rule.category,
+            p_customer_price_per_meter_agorot: customerPricePerMeterAgorot,
+            p_tailor_cost_per_meter_agorot: tailorCostPerMeterAgorot,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       mutate((draft) => {
         draft.pricingRules = draft.pricingRules.map((r) =>
           r.id === ruleId ? { ...r, customerPricePerMeterAgorot, tailorCostPerMeterAgorot } : r,
@@ -3245,7 +3323,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, db.pricingRules, guard, mutate, audit],
   );
 
   const retryFailedOperations = useCallback(() => {

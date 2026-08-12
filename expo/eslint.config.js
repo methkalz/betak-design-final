@@ -4,6 +4,7 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
+    // tools/ صفحات ويب مستقلة تُرفع لموقع المالك كما هي - ليست كود التطبيق
+    ignores: ["dist/*", "tools/*"],
   },
 ]);
