@@ -92,6 +92,14 @@ begin
          decision_note = v_note
    where id = p_request_id;
 
+  -- صاحب الطلب يعلم القرار لحظته - كان الإشعار في التطبيق وضاع في التوصيل
+  insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
+  values (v_org, v_dr.requested_by, 'discount_request',
+          case when p_approve then 'تمت الموافقة على الخصم' else 'تم رفض الخصم' end,
+          format('طلب خصم %s%%%s', v_dr.requested_percent,
+                 case when v_note <> '' then ' — ' || v_note else '' end),
+          '/discounts');
+
   -- ★ المشروع آخر الأقفال دائمًا
   select p.lock_version into v_lock_ver
   from core.projects p where p.id = v_project for update;

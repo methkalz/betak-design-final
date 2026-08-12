@@ -253,6 +253,14 @@ begin
       using errcode = 'BD409';
   end if;
 
+  -- أول عرضٍ يحرّك المشروع «تم القياس» ← «عرض سعر» - كما في التطبيق،
+  -- وإلا بقيت قوائم القمع تعدّ المشروع مقاسًا وعرضُه مرسل
+  if v_status = 'measured' then
+    perform set_config('app.rpc_context', 'on', true);
+    update core.projects set status_code = 'quotation' where id = p_project_id;
+    perform set_config('app.rpc_context', '', true);
+  end if;
+
   insert into core.audit_logs
     (organization_id, actor_id, action, entity, entity_id, summary, payload)
   values (v_org, v_uid, 'quotation.create_version', 'quotation_version',

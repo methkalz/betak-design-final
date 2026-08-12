@@ -634,7 +634,7 @@ function RoomsTab({
   projectId: string;
   onFocusCard: (y: number) => void;
 }) {
-  const { db, role, addRoom, deleteRoom, createQuotation } = useStore();
+  const { db, role, busy: storeBusy, addRoom, deleteRoom, createQuotation } = useStore();
   const router = useRouter();
   const [newRoom, setNewRoom] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -778,10 +778,17 @@ function RoomsTab({
       {windows.length > 0 && can(role, 'create_quotation') && (
         <AdvanceButton
           caption={quotation ? 'العرض جاهز' : 'القياسات كافية'}
-          label={quotation ? 'فتح عرض السعر' : 'إنشاء عرض السعر'}
-          onPress={() => {
+          label={
+            storeBusy === 'create-quote'
+              ? 'جارِ الإنشاء...'
+              : quotation
+                ? 'فتح عرض السعر'
+                : 'إنشاء عرض السعر'
+          }
+          onPress={async () => {
+            if (storeBusy === 'create-quote') return;
             if (quotation) return router.push(`/quotation/${quotation.id}`);
-            const res = createQuotation(projectId);
+            const res = await createQuotation(projectId);
             if (res.ok) router.push(`/quotation/${res.data}`);
             else Alert.alert('تعذر الإنشاء', res.error);
           }}
@@ -800,7 +807,7 @@ function QuoteTab({
   projectId: string;
   onGoToProduction: () => void;
 }) {
-  const { db, role, createQuotation } = useStore();
+  const { db, role, busy: storeBusy, createQuotation } = useStore();
   const router = useRouter();
   const quotation = db.quotations.find((q) => q.projectId === projectId);
   const version = currentVersion(db, projectId);
@@ -822,9 +829,10 @@ function QuoteTab({
             can(role, 'create_quotation') && windows.length > 0 ? (
               <Button
                 label="إنشاء عرض سعر"
+                loading={storeBusy === 'create-quote'}
                 icon={<Sparkles size={16} color={palette.ivory} />}
-                onPress={() => {
-                  const res = createQuotation(projectId);
+                onPress={async () => {
+                  const res = await createQuotation(projectId);
                   if (res.ok) router.push(`/quotation/${res.data}`);
                   else Alert.alert('تعذر الإنشاء', res.error);
                 }}
@@ -925,7 +933,7 @@ function QuoteTab({
 /* ───────────────────────── Production ───────────────────────── */
 
 function ProductionTab({ projectId }: { projectId: string }) {
-  const { db, role, busy, autoReserveForProject } = useStore();
+  const { db, role, busy, source, autoReserveForProject } = useStore();
   // رسالة الحجز حين لا يجري: كتم النتيجة كان يجعل الزر ضغطةً ميتة بلا أثر
   const [reserveError, setReserveError] = useState<string | null>(null);
   const router = useRouter();
@@ -943,7 +951,11 @@ function ProductionTab({ projectId }: { projectId: string }) {
       <Card>
         <SectionHeader
           title="خطة القماش"
-          subtitle="تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك"
+          subtitle={
+            source === 'live'
+              ? 'احجز من الرولات - والحجز التلقائي يصل قريبًا'
+              : 'تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك'
+          }
         />
         {gaps.map((g) => {
           const variant = db.fabricVariants.find((v) => v.id === g.variantId);
@@ -998,12 +1010,15 @@ function ProductionTab({ projectId }: { projectId: string }) {
         )}
         {can(role, 'reserve_fabric') && ready.length > 0 && (
           <Button
-            label="احجز الآن"
+            label={source === 'live' ? 'احجز من الرولات' : 'احجز الآن'}
             full
             loading={busy === 'reserve'}
             icon={<Layers size={16} color={palette.ivory} />}
             style={{ marginTop: spacing.md }}
             onPress={async () => {
+              // الطريق الشغّال يتقدم: في الوضع الحي الحجز اليدوي هو
+              // الحقيقي، فالزر الأول يقود إليه لا إلى رفضٍ مضمون
+              if (source === 'live') return router.push(`/reserve/${projectId}`);
               setReserveError(null);
               const r = await autoReserveForProject(projectId);
               if (!r.ok) setReserveError(r.error);

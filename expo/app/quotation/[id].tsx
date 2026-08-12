@@ -64,7 +64,14 @@ export default function QuotationScreen() {
         .sort((a, b) => b.versionNumber - a.versionNumber),
     [db.quotationVersions, id],
   );
-  const version = versions.find((v) => v.id === quotation?.currentVersionId) ?? versions[0] ?? null;
+  // مسودة العمل أولًا: الخادم يُبقي المؤشر على آخر نسخةٍ رآها الزبون،
+  // وكل نسخة جديدة بعد الإرسال تولد خلفه - فتُعرض أحدث مسودة إن وُجدت
+  // وإلا فالنسخة المؤشَّر إليها
+  const version =
+    versions.find((v) => v.status === 'draft') ??
+    versions.find((v) => v.id === quotation?.currentVersionId) ??
+    versions[0] ??
+    null;
 
   if (!quotation || !version) {
     return (
@@ -88,7 +95,7 @@ export default function QuotationScreen() {
   const check = checkDiscount(version.items, activeDiscount, db.settings);
   const expired = new Date(version.validUntil).getTime() < Date.now() && version.status === 'sent';
 
-  const applyDiscount = () => {
+  const applyDiscount = async () => {
     setError(null);
     setInfo(null);
     // فوق حد الأدمن ليس ممنوعًا مطلقًا (Override موثق عبر طلب خصم معتمد —
@@ -103,11 +110,12 @@ export default function QuotationScreen() {
         setError('اكتب سبب الخصم لإرسال الطلب للأدمن.');
         return;
       }
-      requestDiscount(quotation.id, version.id, activeDiscount, reason);
+      const rq = await requestDiscount(quotation.id, version.id, activeDiscount, reason);
+      if (!rq.ok) return setError(rq.error);
       setInfo('تم إرسال طلب الخصم للأدمن. ستصلك النتيجة كإشعار.');
       return;
     }
-    const res = createVersion(quotation.id, activeDiscount, reason);
+    const res = await createVersion(quotation.id, activeDiscount, reason);
     if (!res.ok) return setError(res.error);
     setDiscount(null);
     setReason('');
@@ -375,6 +383,7 @@ export default function QuotationScreen() {
             }
             variant="secondary"
             full
+            loading={busy === 'create-quote' || busy === 'request-discount'}
             style={{ marginTop: spacing.md }}
             icon={<BadgePercent size={18} color={palette.oliveDark} />}
             onPress={applyDiscount}

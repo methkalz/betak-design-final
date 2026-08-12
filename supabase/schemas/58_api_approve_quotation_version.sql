@@ -123,6 +123,16 @@ begin
   update core.projects set status_code = 'customer_approved' where id = v_project;
   perform set_config('app.rpc_context', '', true);
 
+  -- M25: موافقة الزبون تعني ورشة قادمة - الخياط يعلم لحظتها لا حين
+  -- يصادف الأمر في قائمته
+  insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
+  select v_org, p.tailor_id, 'tailor_assignment', 'ورشة جديدة',
+         format('%s - وافق الزبون وسيصلك أمر الإنتاج.',
+                coalesce(nullif(p.title, ''), p.code)),
+         '/project/' || v_project::text
+  from core.projects p
+  where p.id = v_project and p.tailor_id is not null;
+
   insert into core.audit_logs
     (organization_id, actor_id, action, entity, entity_id, summary, payload)
   values (v_org, v_uid, 'quotation.approve_version', 'quotation_version',

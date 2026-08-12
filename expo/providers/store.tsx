@@ -1076,15 +1076,36 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   const createQuotation = useCallback(
-    (projectId: UUID): Result<string> => {
+    async (projectId: UUID): Promise<Result<string>> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       const items = buildItems(projectId);
       if (items.length === 0)
         return failWith('لا توجد شبابيك مقاسة - لا يمكن إنشاء عرض سعر.', 'validation');
       const existing = db.quotations.find((q) => q.projectId === projectId);
       if (existing) return { ok: true, data: existing.id };
+
+      if (source === 'live') {
+        // النسخة الأولى تُنشئ العرض ورقمه القانوني عند الخادم - والمحرك
+        // يسعّر من لقطته الذرية لا من حساب العميل
+        const slot = `qt-create:${projectId}`;
+        setBusy('create-quote');
+        try {
+          const { data, error } = await supabase.rpc('create_quotation_version', {
+            p_project_id: projectId,
+            p_discount_percent: 0,
+            p_note: '',
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          const qid = (data as { quotation_id?: string } | null)?.quotation_id ?? '';
+          return { ok: true, data: qid };
+        } finally {
+          setBusy(null);
+        }
+      }
       const qid = uid('qt');
       const vid = uid('qv');
       mutate((draft) => {
@@ -1130,19 +1151,39 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: qid };
     },
-    [source, guard, buildItems, db.quotations, mutate, audit, userId],
+    [source, guard, refreshLive, takeIdemKey, settleIdemKey, buildItems, db.quotations, mutate, audit, userId],
   );
 
   /** Sent versions are immutable — any change forks a brand new version. */
   const createVersion = useCallback(
-    (quotationId: UUID, discountPercent: number, note: string): Result<string> => {
+    async (quotationId: UUID, discountPercent: number, note: string): Promise<Result<string>> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
       const quotation = db.quotations.find((q) => q.id === quotationId);
       if (!quotation) return failWith('العرض غير موجود.', 'validation');
       if (discountPercent < 0 || discountPercent > 100)
         return failWith('نسبة الخصم غير صالحة.', 'validation');
+
+      if (source === 'live') {
+        const slot = `qv:${quotationId}:${discountPercent}`;
+        setBusy('create-quote');
+        try {
+          const { data, error } = await supabase.rpc('create_quotation_version', {
+            p_project_id: quotation.projectId,
+            p_discount_percent: discountPercent,
+            p_note: note,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          const vid = (data as { version_id?: string } | null)?.version_id ?? '';
+          return { ok: true, data: vid };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const items = buildItems(quotation.projectId);
       const vid = uid('qv');
       mutate((draft) => {
@@ -1188,7 +1229,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: vid };
     },
-    [source, guard, db.quotations, buildItems, mutate, audit, userId],
+    [source, guard, refreshLive, takeIdemKey, settleIdemKey, db.quotations, buildItems, mutate, audit, userId],
   );
 
   const sendVersion = useCallback(
@@ -1197,7 +1238,23 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
+      if (source === 'live') {
+        const slot = `send:${versionId}`;
+        setBusy('send-quote');
+        try {
+          const { error } = await supabase.rpc('send_quotation_version', {
+            p_version_id: versionId,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('send-quote');
       await serverLatency();
       setBusy(null);
@@ -1213,18 +1270,45 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, guard, requireOnline, mutate, audit],
+    [source, guard, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
   );
 
   const decideVersion = useCallback(
-    async (versionId: UUID, decision: 'approved' | 'rejected'): Promise<Result<void>> => {
+    async (
+      versionId: UUID,
+      decision: 'approved' | 'rejected',
+      note = '',
+    ): Promise<Result<void>> => {
       const denied = guard('create_quotation');
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
-      // اعتمادٌ محلي في الوضع الحي كذبةٌ تتبخر مع أول تحديث - يُقال
-      // ذلك صراحةً حتى تُوصَل RPCs العروض (وهي جاهزة على الخادم)
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
+      // الخادم يشترطها للرفض - والشرط هنا أيضًا كي لا يُملأ نموذج يُرفض آخره
+      if (decision === 'rejected' && !note.trim())
+        return failWith('ملاحظة قرار الرفض إلزامية - سجّل سبب رفض الزبون.', 'validation');
+      if (source === 'live') {
+        // القرار عند الخادم: يقفل النسخة، يحرّك المشروع، ويُخطر الخياط -
+        // واللقطة الراجعة تحمل ذلك كله
+        const slot = `decide:${versionId}:${decision}`;
+        setBusy('decide-quote');
+        try {
+          const { error } = await supabase.rpc(
+            decision === 'approved' ? 'approve_quotation_version' : 'reject_quotation_version',
+            {
+              p_version_id: versionId,
+              p_idempotency_key: takeIdemKey(slot),
+              p_decision_note: note.trim(),
+            },
+          );
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('decide-quote');
       await serverLatency();
       setBusy(null);
@@ -1233,7 +1317,10 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         if (!v) return;
         v.status = decision;
         v.locked = true;
+        v.decisionNote = note.trim();
+        v.decisionRecordedBy = userId;
         if (decision === 'approved') v.approvedAt = new Date().toISOString();
+        else v.rejectedAt = new Date().toISOString();
         const q = draft.quotations.find((x) => x.id === v.quotationId);
         if (q) {
           q.status = decision;
@@ -1264,13 +1351,62 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, guard, requireOnline, mutate, audit],
+    [source, guard, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, notify, audit, userId],
   );
 
   const requestDiscount = useCallback(
-    (quotationId: UUID, versionId: UUID, percent: number, reason: string): Result<void> => {
+    async (
+      quotationId: UUID,
+      versionId: UUID,
+      percent: number,
+      reason: string,
+    ): Promise<Result<void>> => {
       if (!reason.trim()) return failWith('سبب الخصم مطلوب.', 'validation');
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
+
+      if (source === 'live') {
+        // نموذج الخادم: النسبة المطلوبة تعيش على مسودةٍ والطلبُ يتعلق بها.
+        // إن لم تكن النسخة الحالية مسودةً بهذه النسبة تُنشأ أولًا. المفاتيح
+        // على العرض والنسبة لا على النسخة: الشاشة بعد التحديث تعرض المسودة
+        // الجديدة، فإعادة المحاولة تجدها وتطلب عليها نفسها - لا مسودة ثانية
+        const current = db.quotationVersions.find((v) => v.id === versionId);
+        const quotation = db.quotations.find((q) => q.id === quotationId);
+        if (!current || !quotation) return failWith('العرض غير موجود.', 'validation');
+        setBusy('request-discount');
+        try {
+          let targetVid = versionId;
+          if (!(current.status === 'draft' && current.discountPercent === percent)) {
+            const slotC = `drc:${quotationId}:${percent}`;
+            const { data, error } = await supabase.rpc('create_quotation_version', {
+              p_project_id: quotation.projectId,
+              p_discount_percent: percent,
+              p_note: `طلب خصم ${percent}%`,
+              p_idempotency_key: takeIdemKey(slotC),
+            });
+            settleIdemKey(slotC, error);
+            if (error) return liveFail(error);
+            targetVid = (data as { version_id?: string } | null)?.version_id ?? '';
+            if (!targetVid) return failWith('تعذر إنشاء نسخة الخصم.', 'validation');
+          }
+          const slotR = `drq:${quotationId}:${percent}`;
+          const { error: reqError } = await supabase.rpc('request_discount', {
+            p_version_id: targetVid,
+            p_reason: reason.trim(),
+            p_idempotency_key: takeIdemKey(slotR),
+          });
+          settleIdemKey(slotR, reqError);
+          if (reqError) {
+            // اللقطة تكشف الحقيقة: المسودة قائمة والطلب لم يلحق بها بعد -
+            // وإعادة المحاولة من الشاشة المحدثة تكمل الناقص لا تكرر الموجود
+            await refreshLive();
+            return liveFail(reqError);
+          }
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       mutate((draft) => {
         const id = uid('dr');
         draft.discountRequests.unshift({
@@ -1302,7 +1438,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, mutate, notify, audit, userId],
+    [source, refreshLive, takeIdemKey, settleIdemKey, db.quotationVersions, db.quotations, mutate, notify, audit, userId],
   );
 
   const decideDiscount = useCallback(
@@ -1311,7 +1447,25 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (denied) return denied;
       const offline = requireOnline();
       if (offline) return offline;
-      if (source === 'live') return failWith('عروض الأسعار تُوصَل بالخادم في الدفعة القادمة - في الوضع الحي لم يُحفظ شيء.', 'validation');
+      if (source === 'live') {
+        // الموافقة تشتق نسختها المعتمدة عند الخادم - لا إعادة بناء هنا
+        const slot = `dd:${requestId}:${decision}`;
+        setBusy('decide-discount');
+        try {
+          const { error } = await supabase.rpc('decide_discount_request', {
+            p_request_id: requestId,
+            p_approve: decision === 'approved',
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('decide-discount');
       await serverLatency();
       setBusy(null);
@@ -1366,7 +1520,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, guard, requireOnline, mutate, notify, audit, userId],
+    [source, guard, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, notify, audit, userId],
   );
 
   // ── Inventory (server-authoritative) ──────────────────────────────────────

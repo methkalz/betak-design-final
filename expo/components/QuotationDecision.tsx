@@ -13,7 +13,7 @@ import { CheckCircle2, Pencil, XCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, Banner, Row } from '@/components/ui';
+import { AppText, Banner, Field, Row } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
 import { useStore } from '@/providers/store';
 
@@ -34,6 +34,10 @@ export function QuotationDecision({
 }) {
   const { decideVersion, autoReserveForProject, busy } = useStore();
   const [error, setError] = useState<string | null>(null);
+  // الرفض يشترط سببه (الخادم يرفض بدونه): الضغطة الأولى تفتح الحقل،
+  // والتأكيد يرسل - فلا نموذج يُرفض آخره ولا سببٌ يضيع
+  const [rejecting, setRejecting] = useState<boolean>(false);
+  const [rejectNote, setRejectNote] = useState<string>('');
   const working = busy === 'decide-quote' || busy === 'reserve';
 
   const approve = async () => {
@@ -48,8 +52,14 @@ export function QuotationDecision({
 
   const reject = async () => {
     setError(null);
-    const res = await decideVersion(versionId, 'rejected');
-    if (!res.ok) setError(res.error);
+    if (!rejecting) {
+      setRejecting(true);
+      return;
+    }
+    const res = await decideVersion(versionId, 'rejected', rejectNote);
+    if (!res.ok) return setError(res.error);
+    setRejecting(false);
+    setRejectNote('');
   };
 
   const size = compact ? 17 : 19;
