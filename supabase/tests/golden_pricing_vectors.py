@@ -180,6 +180,64 @@ where i.version_id = '{ver}';""", quiet=False)
     check(f"vector via engine: {v['name']}", expected in probe,
           f'expected: {expected}\n     got: {probe}')
 
+print('\n=== مرآة المكوّنات: كهربائي + بطانة 100% بزيادتها ونسبتها ===')
+# الأرقام المتوقعة ولّدها محرك TS الحقيقي (lineArithmetic) لا حسابٌ يدوي:
+# شباك 300سم × 2، مضاعف 3، بطانة نسبتها 1.5 وزيادتها 1500، مسار كهربائي
+# 8000 سعرًا و5000 تكلفةً، ماتور 40000/20000 وجهاز تحكم 10000/5000 لكل
+# ستارة. unit = 20000+1500+8000 = 29500؛ line = floor(29500×6/100)×100
+# + (40000+10000)×2 = 277000؛ cost/rm = 2000×3+3000×1.5+3000+5000+1000
+# +3000 = 22500؛ internal = 135000 + 50000 = 185000؛ lining = 6×1.5 = 9.
+out = sql(f"""
+update core.business_settings
+   set track_cost_per_meter_agorot = 1000,
+       delivery_cost_per_meter_agorot = 1000,
+       measure_install_cost_per_meter_agorot = 3000,
+       motorized_track_cost_per_meter_agorot = 5000,
+       motorized_track_price_per_meter_agorot = 8000,
+       motor_cost_agorot = 20000, motor_price_agorot = 40000,
+       remote_cost_agorot = 5000, remote_price_agorot = 10000
+ where organization_id = '{ORG}';
+update core.pricing_rules
+   set customer_price_per_meter_agorot = 20000, tailor_cost_per_meter_agorot = 3000
+ where organization_id = '{ORG}';
+update core.fabric_variants
+   set cost_per_meter_agorot = 3000, customer_surcharge_per_meter_agorot = 1500,
+       meters_per_running_meter = 1.5
+ where id = '{VARL}';
+update core.windows
+   set width_cm = 300, quantity = 2, fullness = 3, has_lining = true,
+       track = 'motorized', fabric_variant_id = '{VARO}', lining_variant_id = '{VARL}'
+ where id = '{wid(1)}';""")
+if 'ERROR' in out:
+    check('component parity: seed', False, out)
+else:
+    out = as_user(ADMIN, f"""select api.create_quotation_version(
+      '{pid(1)}'::uuid, 0, '', '{key(9)}'::uuid)::text;""")
+    m = re.search(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
+    if not m:
+        check('component parity: create_quotation_version', False, out)
+    else:
+        ver = m.group(1)
+        probe = sql(f"""select i.running_meters::text || '|' || i.fabric_meters::text
+ || '|' || i.lining_meters::text || '|' || i.line_total_agorot
+ || '|' || i.internal_cost_agorot || '|' || i.unit_price_agorot
+ || '|' || v.subtotal_agorot || '|' || v.discount_agorot
+ || '|' || v.total_agorot || '|' || v.vat_agorot
+ || '|' || (v.total_agorot - v.vat_agorot) || '|' || v.margin_percent::text
+from core.quotation_items i
+join core.quotation_versions v on v.id = i.version_id
+where i.version_id = '{ver}';""", quiet=False)
+        expected = '6.000|18.000|9.000|277000|185000|29500|277000|0|326800|49800|277000|33.21'
+        check('component parity: motorized + lining-grade + surcharge == TS engine',
+              expected in probe, f'expected: {expected}\n     got: {probe}')
+        # واللقطة نفسها التقطت مفاتيح المكوّنات - مصدر المحرك الحصري
+        probe = sql(f"""select (pricing_context->'settings'->>'motorized_track_price_per_meter_agorot')
+ || '|' || (pricing_context->'settings'->>'motor_price_agorot')
+ || '|' || (pricing_context->'settings'->>'remote_cost_agorot')
+from core.quotation_versions where id = '{ver}';""", quiet=False)
+        check('component parity: snapshot captured the component keys',
+              '8000|40000|5000' in probe, probe)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

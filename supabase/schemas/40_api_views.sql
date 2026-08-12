@@ -43,7 +43,10 @@ SELECT business_settings.organization_id,
     business_settings.admin_discount_limit_percent,
     business_settings.quotation_validity_days,
     business_settings.vat_percent,
-    business_settings.currency
+    business_settings.currency,
+    business_settings.motorized_track_price_per_meter_agorot,
+    business_settings.motor_price_agorot,
+    business_settings.remote_price_agorot
    FROM core.business_settings;
 
 create or replace view api.business_settings_costs
@@ -52,7 +55,11 @@ SELECT business_settings.organization_id,
     business_settings.track_cost_per_meter_agorot,
     business_settings.delivery_cost_per_meter_agorot,
     business_settings.measure_install_cost_per_meter_agorot,
-    business_settings.lining_cost_per_meter_agorot
+    business_settings.lining_cost_per_meter_agorot,
+    business_settings.motorized_track_cost_per_meter_agorot,
+    business_settings.motor_cost_agorot,
+    business_settings.remote_cost_agorot,
+    business_settings.field_visit_wage_agorot
    FROM core.business_settings
   WHERE private.has_role(business_settings.organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role]);
 
@@ -168,7 +175,8 @@ SELECT r.id AS roll_id,
     r.location,
     r.initial_meters,
     r.is_mini_roll,
-    r.created_at
+    r.created_at,
+    r.assigned_tailor_id
    FROM core.fabric_rolls r
      JOIN core.fabric_variants v ON v.id = r.variant_id
      JOIN core.fabric_products pr ON pr.id = v.product_id
@@ -190,7 +198,8 @@ SELECT u.id AS usage_id,
     mr.label_ar AS reason_label,
     u.notes,
     u.created_by,
-    u.created_at
+    u.created_at,
+    u.window_id
    FROM core.fabric_usage u
      LEFT JOIN core.movement_reasons mr ON mr.code = u.reason_code;
 
@@ -216,7 +225,9 @@ SELECT v.id AS variant_id,
     v.color_name,
     v.color_hex,
     v.sku,
-    v.image_url
+    v.image_url,
+    v.customer_surcharge_per_meter_agorot,
+    v.meters_per_running_meter
    FROM core.fabric_variants v
      JOIN core.fabric_products pr ON pr.id = v.product_id
   WHERE v.archived_at IS NULL;
@@ -407,7 +418,9 @@ SELECT projects.id AS project_id,
     projects.created_at,
     projects.updated_at,
     projects.archived_at,
-    projects.lock_version
+    projects.lock_version,
+    projects.measurement_worker_id,
+    projects.installer_id
    FROM core.projects;
 
 create or replace view api.quotation_item_financials

@@ -68,6 +68,7 @@ CREATE TYPE core.notification_kind AS ENUM (
     'appointment_tomorrow',
     'sync_failed',
     'low_stock',
+    'stock_received',
     'payment'
 );
 

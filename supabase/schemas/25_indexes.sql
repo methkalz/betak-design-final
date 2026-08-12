@@ -24,7 +24,9 @@ CREATE INDEX notifications_unread_idx ON core.notifications USING btree (user_id
 CREATE INDEX organization_members_user_idx ON core.organization_members USING btree (user_id) WHERE is_active;
 CREATE INDEX payments_project_idx ON core.payments USING btree (organization_id, project_id, created_at DESC);
 CREATE INDEX projects_field_worker_idx ON core.projects USING btree (organization_id, field_worker_id) WHERE (field_worker_id IS NOT NULL);
+CREATE INDEX projects_installer_idx ON core.projects USING btree (organization_id, installer_id) WHERE (installer_id IS NOT NULL);
 CREATE INDEX projects_install_date_idx ON core.projects USING btree (organization_id, installation_date) WHERE (installation_date IS NOT NULL);
+CREATE INDEX projects_measurement_worker_idx ON core.projects USING btree (organization_id, measurement_worker_id) WHERE (measurement_worker_id IS NOT NULL);
 CREATE INDEX projects_org_customer_idx ON core.projects USING btree (organization_id, customer_id);
 CREATE INDEX projects_org_status_idx ON core.projects USING btree (organization_id, status_code);
 CREATE INDEX projects_tailor_idx ON core.projects USING btree (organization_id, tailor_id) WHERE (tailor_id IS NOT NULL);
@@ -33,11 +35,13 @@ CREATE UNIQUE INDEX quotation_versions_one_draft_idx ON core.quotation_versions 
 CREATE UNIQUE INDEX quotation_versions_one_sent_idx ON core.quotation_versions USING btree (organization_id, quotation_id) WHERE (status = 'sent'::core.quotation_status);
 CREATE INDEX reservations_project_idx ON core.fabric_reservations USING btree (organization_id, project_id);
 CREATE INDEX reservations_roll_open_idx ON core.fabric_reservations USING btree (organization_id, roll_id) WHERE (status = ANY (ARRAY['active'::core.reservation_status, 'partially_consumed'::core.reservation_status]));
+CREATE INDEX rolls_assigned_tailor_idx ON core.fabric_rolls USING btree (organization_id, assigned_tailor_id) WHERE ((assigned_tailor_id IS NOT NULL) AND (retired_at IS NULL));
 CREATE INDEX rolls_variant_idx ON core.fabric_rolls USING btree (organization_id, variant_id) WHERE (retired_at IS NULL);
 CREATE INDEX rooms_project_idx ON core.rooms USING btree (organization_id, project_id, sort_order);
 CREATE INDEX stock_movements_operation_group_idx ON core.stock_movements USING btree (operation_group_id) WHERE (operation_group_id IS NOT NULL);
 CREATE INDEX stock_movements_usage_returns_idx ON core.stock_movements USING btree (fabric_usage_id) WHERE (type = 'return'::core.movement_type);
 CREATE INDEX tailor_assignments_tailor_idx ON core.tailor_assignments USING btree (organization_id, tailor_id, stage);
+CREATE INDEX usage_window_idx ON core.fabric_usage USING btree (organization_id, window_id) WHERE (window_id IS NOT NULL);
 CREATE INDEX usage_reservation_idx ON core.fabric_usage USING btree (organization_id, reservation_id);
 CREATE INDEX variants_product_idx ON core.fabric_variants USING btree (organization_id, product_id) WHERE (archived_at IS NULL);
 CREATE INDEX versions_quotation_idx ON core.quotation_versions USING btree (organization_id, quotation_id, version_number DESC);

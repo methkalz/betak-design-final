@@ -60,13 +60,27 @@ CREATE TABLE core.business_settings (
     currency character(3) DEFAULT 'ILS'::bpchar NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     timezone text DEFAULT 'Asia/Jerusalem'::text NOT NULL,
+    field_visit_wage_agorot bigint DEFAULT 0 NOT NULL,
+    motorized_track_cost_per_meter_agorot bigint DEFAULT 0 NOT NULL,
+    motorized_track_price_per_meter_agorot bigint DEFAULT 0 NOT NULL,
+    motor_cost_agorot bigint DEFAULT 0 NOT NULL,
+    motor_price_agorot bigint DEFAULT 0 NOT NULL,
+    remote_cost_agorot bigint DEFAULT 0 NOT NULL,
+    remote_price_agorot bigint DEFAULT 0 NOT NULL,
     CONSTRAINT business_settings_admin_discount_limit_percent_check CHECK (((admin_discount_limit_percent >= (0)::numeric) AND (admin_discount_limit_percent <= (100)::numeric))),
     CONSTRAINT business_settings_delivery_cost_per_meter_agorot_check CHECK ((delivery_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_employee_discount_limit_percent_check CHECK (((employee_discount_limit_percent >= (0)::numeric) AND (employee_discount_limit_percent <= (100)::numeric))),
+    CONSTRAINT business_settings_field_visit_wage_agorot_check CHECK ((field_visit_wage_agorot >= 0)),
     CONSTRAINT business_settings_lining_cost_per_meter_agorot_check CHECK ((lining_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_measure_install_cost_per_meter_agorot_check CHECK ((measure_install_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_min_margin_percent_check CHECK (((min_margin_percent >= (0)::numeric) AND (min_margin_percent <= (100)::numeric))),
+    CONSTRAINT business_settings_motor_cost_agorot_check CHECK ((motor_cost_agorot >= 0)),
+    CONSTRAINT business_settings_motor_price_agorot_check CHECK ((motor_price_agorot >= 0)),
+    CONSTRAINT business_settings_motorized_track_cost_check CHECK ((motorized_track_cost_per_meter_agorot >= 0)),
+    CONSTRAINT business_settings_motorized_track_price_check CHECK ((motorized_track_price_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_quotation_validity_days_check CHECK ((quotation_validity_days > 0)),
+    CONSTRAINT business_settings_remote_cost_agorot_check CHECK ((remote_cost_agorot >= 0)),
+    CONSTRAINT business_settings_remote_price_agorot_check CHECK ((remote_price_agorot >= 0)),
     CONSTRAINT business_settings_timezone_check CHECK ((length(btrim(timezone)) > 0)),
     CONSTRAINT business_settings_track_cost_per_meter_agorot_check CHECK ((track_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_vat_percent_check CHECK (((vat_percent >= (0)::numeric) AND (vat_percent <= (100)::numeric))),
@@ -141,6 +155,8 @@ CREATE TABLE core.projects (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     archived_at timestamp with time zone,
     lock_version integer DEFAULT 1 NOT NULL,
+    measurement_worker_id uuid,
+    installer_id uuid,
     CONSTRAINT projects_code_check CHECK ((length(btrim(code)) > 0)),
     CONSTRAINT projects_lock_version_check CHECK ((lock_version > 0))
 );
@@ -212,6 +228,7 @@ CREATE TABLE core.fabric_rolls (
     is_mini_roll boolean DEFAULT false NOT NULL,
     retired_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    assigned_tailor_id uuid,
     CONSTRAINT fabric_rolls_code_check CHECK ((length(btrim(code)) > 0)),
     CONSTRAINT fabric_rolls_initial_meters_check CHECK ((initial_meters >= (0)::numeric))
 );
@@ -227,9 +244,13 @@ CREATE TABLE core.fabric_variants (
     image_url text,
     archived_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    customer_surcharge_per_meter_agorot bigint DEFAULT 0 NOT NULL,
+    meters_per_running_meter numeric(6,3) DEFAULT 0 NOT NULL,
     CONSTRAINT fabric_variants_color_hex_check CHECK ((color_hex ~ '^#[0-9A-Fa-f]{6}$'::text)),
     CONSTRAINT fabric_variants_color_name_check CHECK ((length(btrim(color_name)) > 0)),
-    CONSTRAINT fabric_variants_cost_per_meter_agorot_check CHECK ((cost_per_meter_agorot >= 0))
+    CONSTRAINT fabric_variants_cost_per_meter_agorot_check CHECK ((cost_per_meter_agorot >= 0)),
+    CONSTRAINT fabric_variants_customer_surcharge_check CHECK ((customer_surcharge_per_meter_agorot >= 0)),
+    CONSTRAINT fabric_variants_meters_per_running_meter_check CHECK ((meters_per_running_meter >= (0)::numeric))
 );
 
 CREATE TABLE core.fabric_usage (
@@ -245,6 +266,7 @@ CREATE TABLE core.fabric_usage (
     created_by uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     reason_code text,
+    window_id uuid,
     CONSTRAINT fabric_usage_actual_m_check CHECK ((actual_m >= (0)::numeric)),
     CONSTRAINT fabric_usage_planned_m_check CHECK ((planned_m >= (0)::numeric)),
     CONSTRAINT fabric_usage_waste_m_check CHECK ((waste_m >= (0)::numeric)),
