@@ -19,10 +19,11 @@ export default function NewCustomerScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
 
-  const submit = () => {
+  const submit = async () => {
+    if (saving) return;
     setSaving(true);
     setError(null);
-    const res = createCustomer({ fullName, phone, city, address, notes });
+    const res = await createCustomer({ fullName, phone, city, address, notes });
     setSaving(false);
     if (!res.ok) {
       setError(res.error);

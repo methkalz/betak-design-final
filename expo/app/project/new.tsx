@@ -67,10 +67,10 @@ export default function NewProjectScreen() {
     setTitle(chosen ? `بيت ${chosen.fullName}` : '');
   }, [chosen, titleEdited]);
 
-  const submit = () => {
+  const submit = async () => {
     setError(null);
     if (!customerId) return setError('اختر الزبون صاحب المشروع أولًا.');
-    const res = createProject({
+    const res = await createProject({
       customerId,
       title,
       priority,

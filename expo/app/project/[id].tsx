@@ -464,8 +464,11 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
             : undefined
         }
         confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل المشروع'}
-        onConfirm={() => {
-          if (pending) setProjectStatus(projectId, pending.to);
+        onConfirm={async () => {
+          if (pending) {
+            const res = await setProjectStatus(projectId, pending.to);
+            if (!res.ok) Alert.alert('تعذر تغيير الحالة', res.error);
+          }
           setPending(null);
         }}
         onCancel={() => setPending(null)}
@@ -558,8 +561,8 @@ function AssignRow({
           {options.map((p) => (
             <Pressable
               key={p.id}
-              onPress={() => {
-                const res = assignRole(projectId, p.id, kind);
+              onPress={async () => {
+                const res = await assignRole(projectId, p.id, kind);
                 if (!res.ok) setError(res.error);
                 else {
                   setError(null);
