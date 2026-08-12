@@ -181,9 +181,14 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     notes,
   ]);
 
-  const save = () => {
+  // رحلة الحفظ الحية طويلة (RPC ثم جلب اللقطة): الحارس يمنع شباكًا توأمًا
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const save = async () => {
+    if (saving) return false;
+    setSaving(true);
     setError(null);
-    const res = saveWindow({
+    const res = await saveWindow({
       id: existing?.id,
       projectId,
       roomId,
@@ -198,6 +203,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       quantity: 1,
       notes,
     });
+    setSaving(false);
     if (!res.ok) {
       setError(res.error);
       return false;
@@ -205,8 +211,8 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     return true;
   };
 
-  const submit = () => {
-    if (save()) goBack();
+  const submit = async () => {
+    if (await save()) goBack();
   };
 
   /**
@@ -217,9 +223,9 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
    * شباك وحده يُصفَّر (المقاسات، الملاحظات، الاسم يتقدّم للترتيب التالي).
    * هكذا تُدخَل خمسة شبابيك بخمسة قياسات لا بخمسة نماذج كاملة.
    */
-  const submitAndNext = () => {
+  const submitAndNext = async () => {
     const saved = name;
-    if (!save()) return;
+    if (!(await save())) return;
     setName(nextWindowName(roomCount + 1));
     setWidth('');
     setHeight('');
@@ -444,6 +450,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       {existing ? (
         <Button
           label="حفظ التعديلات"
+          loading={saving}
           full
           icon={<Save size={18} color={palette.ivory} />}
           onPress={submit}
@@ -454,12 +461,14 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               فزرّه هو الأساسي والإغلاق يليه */}
           <Button
             label="حفظ وإضافة التالي"
+          loading={saving}
             full
             icon={<Plus size={18} color={palette.ivory} />}
             onPress={submitAndNext}
           />
           <Button
             label="حفظ وإغلاق"
+          loading={saving}
             variant="secondary"
             full
             icon={<Save size={17} color={palette.oliveDark} />}
@@ -480,8 +489,12 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
               {
                 text: 'حذف',
                 style: 'destructive',
-                onPress: () => {
-                  deleteWindow(existing.id);
+                onPress: async () => {
+                  const res = await deleteWindow(existing.id);
+                  if (!res.ok) {
+                    Alert.alert('تعذر الحذف', res.error);
+                    return;
+                  }
                   goBack();
                 },
               },

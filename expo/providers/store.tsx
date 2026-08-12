@@ -884,10 +884,30 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   const addRoom = useCallback(
-    (projectId: UUID, name: string, floor: string): Result<string> => {
+    async (projectId: UUID, name: string, floor: string): Promise<Result<string>> => {
       const denied = guard('enter_measurements');
       if (denied) return denied as Result<string>;
       if (!name.trim()) return failWith('اسم الغرفة مطلوب.', 'validation');
+
+      if (source === 'live') {
+        const slot = `room:${projectId}:${name.trim()}`;
+        setBusy('add-room');
+        try {
+          const { data, error } = await supabase.rpc('add_room', {
+            p_project_id: projectId,
+            p_name: name,
+            p_idempotency_key: takeIdemKey(slot),
+            p_floor: floor,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return { ok: true, data: (data as { room_id?: string } | null)?.room_id ?? '' };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const id = uid('rm');
       mutate((draft) => {
         const count = draft.rooms.filter((r) => r.projectId === projectId).length;
@@ -905,11 +925,23 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, mutate, enqueue, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue, audit],
   );
 
   const deleteRoom = useCallback(
-    (roomId: UUID): Result<void> => {
+    async (roomId: UUID): Promise<Result<void>> => {
+      if (source === 'live') {
+        const slot = `room-del:${roomId}`;
+        const { error } = await supabase.rpc('delete_room', {
+          p_room_id: roomId,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         draft.windows = draft.windows.filter((w) => w.roomId !== roomId);
         draft.rooms = draft.rooms.filter((r) => r.id !== roomId);
@@ -917,11 +949,11 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
   );
 
   const saveWindow = useCallback(
-    (input: {
+    async (input: {
       id?: UUID;
       projectId: UUID;
       roomId: UUID;
@@ -935,7 +967,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       liningVariantId: UUID | null;
       quantity: number;
       notes: string;
-    }): Result<string> => {
+    }): Promise<Result<string>> => {
       const denied = guard('enter_measurements');
       if (denied) return denied as Result<string>;
       if (!(input.widthCm > 0) || !(input.heightCm > 0))
@@ -951,6 +983,39 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         return failWith('اختر القماش - عليه يقوم السعر والحجز التلقائي.', 'validation');
       if (input.hasLining && !input.liningVariantId)
         return failWith('اخترت «مع بطانة» - فحدّد قماش البطانة أو ألغِ الخيار.', 'validation');
+
+      if (source === 'live') {
+        // القياس أثقل إدخال يومي: مفتاح التكرار على الشباك (أو الغرفة
+        // للجديد) فالمحاولة المعادة تُسترجع لا تتكرر، والانشغال ممسوك
+        // حتى نهاية الجلب فلا تُنتج الضغطة الثانية شباكًا توأمًا
+        const slot = `win:${input.id ?? `${input.roomId}:${input.name}:${input.widthCm}x${input.heightCm}`}`;
+        setBusy('save-window');
+        try {
+        const { data, error } = await supabase.rpc('save_window', {
+          p_project_id: input.projectId,
+          p_room_id: input.roomId,
+          p_width_cm: input.widthCm,
+          p_height_cm: input.heightCm,
+          p_fabric_variant_id: input.fabricVariantId,
+          p_idempotency_key: takeIdemKey(slot),
+          p_window_id: input.id ?? null,
+          p_name: input.name,
+          p_has_lining: input.hasLining,
+          p_lining_variant_id: input.liningVariantId,
+          p_track: input.track,
+          p_fullness: input.fullness,
+          p_quantity: input.quantity,
+          p_notes: input.notes,
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return { ok: true, data: (data as { window_id?: string } | null)?.window_id ?? '' };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const id = input.id ?? uid('win');
       mutate((draft) => {
         const existing = draft.windows.find((w) => w.id === id);
@@ -986,18 +1051,30 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, mutate, enqueue, audit, userId],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue, audit, userId],
   );
 
   const deleteWindow = useCallback(
-    (windowId: UUID): Result<void> => {
+    async (windowId: UUID): Promise<Result<void>> => {
+      if (source === 'live') {
+        const slot = `win-del:${windowId}`;
+        const { error } = await supabase.rpc('delete_window', {
+          p_window_id: windowId,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         draft.windows = draft.windows.filter((w) => w.id !== windowId);
         audit(draft, 'window.delete', 'window', windowId, 'حذف شباك');
       });
       return okVoid;
     },
-    [mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
   );
 
   // ── Attachments (queued upload) ───────────────────────────────────────────

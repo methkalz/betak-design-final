@@ -204,7 +204,9 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     widthCm: n(w.width_cm),
     heightCm: n(w.height_cm),
     hasLining: Boolean(w.has_lining),
-    track: s(w.track) as WindowUnit['track'],
+    // مفردات المخطط القديم (ceiling_rail وأخواتها) كلها «عادي» عند
+    // التطبيق - قرار المالك: مساران لا أربعة
+    track: (s(w.track) === 'motorized' ? 'motorized' : 'standard') as WindowUnit['track'],
     fullness: n(w.fullness),
     fabricVariantId: sOrNull(w.fabric_variant_id),
     liningVariantId: sOrNull(w.lining_variant_id),
