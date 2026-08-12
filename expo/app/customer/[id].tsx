@@ -189,8 +189,12 @@ export default function CustomerScreen() {
               {
                 text: 'أرشفة',
                 style: 'destructive',
-                onPress: () => {
-                  archiveCustomer(customer.id);
+                onPress: async () => {
+                  const res = await archiveCustomer(customer.id);
+                  if (!res.ok) {
+                    Alert.alert('تعذرت الأرشفة', res.error);
+                    return;
+                  }
                   goBack();
                 },
               },

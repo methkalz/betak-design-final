@@ -897,8 +897,8 @@ function AssignmentGapCard({ gap }: { gap: AssignmentGap }) {
         {workers.map((w) => (
           <Pressable
             key={w.id}
-            onPress={() => {
-              const res = assignRole(project.id, w.id, gap.kind);
+            onPress={async () => {
+              const res = await assignRole(project.id, w.id, gap.kind);
               if (!res.ok) setError(res.error);
             }}
             style={({ pressed }) => [styles.assignChip, pressed && { backgroundColor: palette.sand }]}
@@ -964,8 +964,8 @@ function InstalledApprovalCard({ projectId }: { projectId: string }) {
       </Pressable>
       <View style={{ marginTop: spacing.md }}>
         <Pressable
-          onPress={() => {
-            const res = setProjectStatus(project.id, 'completed');
+          onPress={async () => {
+            const res = await setProjectStatus(project.id, 'completed');
             if (!res.ok) setError(res.error);
           }}
           style={({ pressed }) => [styles.assignChip, { alignSelf: 'stretch', minHeight: 44, justifyContent: 'center' }, pressed && { backgroundColor: palette.sand }]}

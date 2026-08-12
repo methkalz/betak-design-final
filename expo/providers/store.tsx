@@ -403,13 +403,37 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   // ── Customers ─────────────────────────────────────────────────────────────
   const createCustomer = useCallback(
-    (input: Pick<Customer, 'fullName' | 'phone' | 'city' | 'address' | 'notes'>): Result<string> => {
+    async (
+      input: Pick<Customer, 'fullName' | 'phone' | 'city' | 'address' | 'notes'>,
+    ): Promise<Result<string>> => {
       const denied = guard('manage_customers');
       if (denied) return denied as Result<string>;
       if (input.fullName.trim().length < 3)
         return failWith('اسم الزبون قصير جدًا.', 'validation');
       if (!/^0\d{1,2}-?\d{7}$/.test(input.phone.replace(/\s/g, '')))
         return failWith('رقم الهاتف غير صالح (مثال: 052-6444414).', 'validation');
+
+      if (source === 'live') {
+        const slot = `cust:${input.fullName.trim()}:${input.phone.trim()}`;
+        setBusy('save-customer');
+        try {
+          const { data, error } = await supabase.rpc('save_customer', {
+            p_full_name: input.fullName,
+            p_phone: input.phone,
+            p_idempotency_key: takeIdemKey(slot),
+            p_city: input.city ?? '',
+            p_address: input.address ?? '',
+            p_notes: input.notes ?? '',
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return { ok: true, data: (data as { customer_id?: string } | null)?.customer_id ?? '' };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const id = uid('cus');
       mutate((draft) => {
         draft.customers.unshift({
@@ -428,26 +452,65 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit],
   );
 
   const updateCustomer = useCallback(
-    (id: UUID, patch: Partial<Customer>): Result<void> => {
+    async (id: UUID, patch: Partial<Customer>): Promise<Result<void>> => {
       const denied = guard('manage_customers');
       if (denied) return denied;
+
+      if (source === 'live') {
+        const cur = db.customers.find((c) => c.id === id);
+        if (!cur) return failWith('الزبون غير موجود.', 'validation');
+        const next = { ...cur, ...patch };
+        const slot = `cust:${id}`;
+        setBusy('save-customer');
+        try {
+          const { error } = await supabase.rpc('save_customer', {
+            p_full_name: next.fullName,
+            p_phone: next.phone,
+            p_idempotency_key: takeIdemKey(slot),
+            p_customer_id: id,
+            p_city: next.city ?? '',
+            p_address: next.address ?? '',
+            p_notes: next.notes ?? '',
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       mutate((draft) => {
         draft.customers = draft.customers.map((c) => (c.id === id ? { ...c, ...patch } : c));
         audit(draft, 'customer.update', 'customer', id, 'تحديث بيانات الزبون');
       });
       return okVoid;
     },
-    [guard, mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, db.customers, guard, mutate, audit],
   );
 
   const archiveCustomer = useCallback(
-    (id: UUID): Result<void> => {
+    async (id: UUID): Promise<Result<void>> => {
       const denied = guard('manage_customers');
       if (denied) return denied;
+
+      if (source === 'live') {
+        const slot = `cust-arch:${id}`;
+        const { error } = await supabase.rpc('archive_customer', {
+          p_customer_id: id,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         draft.customers = draft.customers.map((c) =>
           c.id === id ? { ...c, archivedAt: new Date().toISOString() } : c,
@@ -456,12 +519,12 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit],
   );
 
   // ── Projects ──────────────────────────────────────────────────────────────
   const createProject = useCallback(
-    (input: {
+    async (input: {
       customerId: UUID;
       title: string;
       priority: Priority;
@@ -470,7 +533,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       tailorId: UUID | null;
       measurementDate: string | null;
       notes: string;
-    }): Result<string> => {
+    }): Promise<Result<string>> => {
       const denied = guard('manage_customers');
       if (denied) return denied as Result<string>;
       if (input.title.trim().length < 3) return failWith('عنوان المشروع قصير جدًا.', 'validation');
@@ -489,6 +552,32 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         if (!inst || inst.role !== 'field' || !inst.isActive)
           return failWith('عامل التركيب المختار غير مفعَّل.', 'validation');
       }
+
+      if (source === 'live') {
+        // الخادم يرقّم (BD-n من تسلسل المعرض) ويجدول زيارة القياس بإشعارها
+        const slot = `prj-create:${input.customerId}:${input.title.trim()}`;
+        setBusy('create-project');
+        try {
+          const { data, error } = await supabase.rpc('create_project', {
+            p_customer_id: input.customerId,
+            p_title: input.title,
+            p_tailor_id: input.tailorId,
+            p_measurement_worker_id: input.measurementWorkerId,
+            p_idempotency_key: takeIdemKey(slot),
+            p_priority: input.priority,
+            p_installer_id: input.installerId,
+            p_measurement_date: input.measurementDate,
+            p_notes: input.notes,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return { ok: true, data: (data as { project_id?: string } | null)?.project_id ?? '' };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const id = uid('prj');
       mutate((draft) => {
         const number = 1046 + draft.projects.length;
@@ -540,11 +629,29 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, mutate, audit, notify],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit, notify],
   );
 
   const updateProject = useCallback(
-    (id: UUID, patch: Partial<Project>): Result<void> => {
+    async (id: UUID, patch: Partial<Project>): Promise<Result<void>> => {
+      if (source === 'live') {
+        // غياب الحقل إبقاء لا مسح - الخادم يطبّق coalesce على كل بند
+        const slot = `prj-upd:${id}`;
+        const { error } = await supabase.rpc('update_project', {
+          p_project_id: id,
+          p_idempotency_key: takeIdemKey(slot),
+          p_title: patch.title ?? null,
+          p_priority: patch.priority ?? null,
+          p_notes: patch.notes ?? null,
+          p_measurement_date: patch.measurementDate ?? null,
+          p_installation_date: patch.installationDate ?? null,
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         draft.projects = draft.projects.map((p) =>
           p.id === id
@@ -555,14 +662,28 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [mutate, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
   );
 
   const setProjectStatus = useCallback(
-    (id: UUID, status: ProjectStatus): Result<void> => {
+    async (id: UUID, status: ProjectStatus): Promise<Result<void>> => {
       // قرار المرحلة بيد الأدمن وحده - كانت الشاشة وحدها من يحرس
       const denied = guard('manage_users');
       if (denied) return denied;
+
+      if (source === 'live') {
+        const slot = `prj-status:${id}:${status}`;
+        const { error } = await supabase.rpc('set_project_status', {
+          p_project_id: id,
+          p_status: status,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         const project = draft.projects.find((p) => p.id === id);
         if (!project) return;
@@ -590,7 +711,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, audit, notify],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit, notify],
   );
 
   /**
@@ -603,7 +724,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * يعد مسؤولًا فيراها في قائمته ولا يراها صاحبها الجديد.
    */
   const assignRole = useCallback(
-    (projectId: UUID, workerId: UUID, kind: AssignmentKind): Result<void> => {
+    async (projectId: UUID, workerId: UUID, kind: AssignmentKind): Promise<Result<void>> => {
       const denied = guard('manage_users');
       if (denied) return denied;
       const worker = db.profiles.find((p) => p.id === workerId);
@@ -613,6 +734,21 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           kind === 'tailor' ? 'اختر خياطًا مفعَّلًا.' : 'اختر عاملًا ميدانيًا مفعَّلًا.',
           'validation',
         );
+
+      if (source === 'live') {
+        const slot = `prj-assign:${projectId}:${kind}:${workerId}`;
+        const { error } = await supabase.rpc('assign_project_role', {
+          p_project_id: projectId,
+          p_worker_id: workerId,
+          p_kind: kind,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         const project = draft.projects.find((p) => p.id === projectId);
         if (!project) return;
@@ -679,7 +815,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, db.profiles, mutate, notify, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, db.profiles, mutate, notify, audit],
   );
 
   // ── Rooms & windows (offline-first) ───────────────────────────────────────
