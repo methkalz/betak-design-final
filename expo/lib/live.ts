@@ -11,6 +11,9 @@
 import type { Database } from '@/data/seed';
 import { supabase } from '@/lib/supabase';
 import type {
+  AppNotification,
+  Attachment,
+  AuditLog,
   BusinessSettings,
   Customer,
   DiscountRequest,
@@ -19,7 +22,9 @@ import type {
   FabricRoll,
   FabricUsage,
   FabricVariant,
+  FieldVisit,
   Organization,
+  Payment,
   PricingRule,
   Profile,
   Project,
@@ -28,6 +33,7 @@ import type {
   QuotationVersion,
   Room,
   StockMovement,
+  TailorAssignment,
   WindowUnit,
 } from '@/types/domain';
 
@@ -35,6 +41,12 @@ type Row = Record<string, unknown>;
 const s = (v: unknown): string => (v == null ? '' : String(v));
 const sOrNull = (v: unknown): string | null => (v == null ? null : String(v));
 const n = (v: unknown): number => (v == null ? 0 : Number(v));
+// طوابع الخادم تأتي بصيغة +00:00 وبكسور ثوانٍ متفاوتة الطول؛ تُوحَّد إلى
+// صيغة Z الثابتة حتى يصحّ الترتيب بالمقارنة النصية في الشاشات
+const ts = (v: unknown): string => (v == null ? '' : new Date(String(v)).toISOString());
+const tsOrNull = (v: unknown): string | null => (v == null ? null : ts(v));
+const byNewest = (a: { createdAt: string }, b: { createdAt: string }): number =>
+  b.createdAt.localeCompare(a.createdAt);
 
 export interface LiveIdentity {
   userId: string;
@@ -77,6 +89,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     orgRows, settingsRows, members, customers, projects, rooms, windows,
     products, variants, rolls, movements, reservations, usages,
     rules, quotations, versions, items, discounts,
+    assignments, visits, payments, attachments, notifications, auditLogs,
     settingsCosts, variantCosts, versionFin, itemFin,
   ] = await Promise.all([
     select('organization'), select('business_settings'), select('team_members'),
@@ -85,6 +98,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     select('stock_movements'), select('fabric_reservations'), select('fabric_usage'),
     select('pricing_rules'), select('quotations'), select('quotation_versions'),
     select('quotation_items'), select('discount_requests'),
+    select('tailor_assignments'), select('field_visits'), select('payments'),
+    select('attachments'), select('notifications'), select('audit_logs'),
     selectPrivileged('business_settings_costs'),
     selectPrivileged('fabric_variant_costs'),
     selectPrivileged('quotation_version_financials'),
@@ -386,6 +401,113 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     createdAt: s(d.created_at),
   }));
 
+  const assignmentsMapped: TailorAssignment[] = assignments
+    .map((a) => ({
+      id: s(a.assignment_id),
+      organizationId: s(a.organization_id),
+      projectId: s(a.project_id),
+      tailorId: s(a.tailor_id),
+      stage: s(a.stage) as TailorAssignment['stage'],
+      instructions: s(a.instructions),
+      dueDate: ts(a.due_date),
+      startedAt: tsOrNull(a.started_at),
+      completedAt: tsOrNull(a.completed_at),
+      // الشكل الخادمي للسجل لم يتقرر بعد (لا RPC يكتبه) - يُقرأ دفاعيًا
+      stageHistory: (Array.isArray(a.stage_history) ? (a.stage_history as Row[]) : [])
+        .filter((h) => h && typeof h === 'object' && h.stage != null)
+        .map((h) => ({
+          stage: s(h.stage) as TailorAssignment['stage'],
+          at: ts(h.at ?? h.changed_at),
+        })),
+    }))
+    .sort((a, b) => (b.startedAt ?? b.dueDate).localeCompare(a.startedAt ?? a.dueDate));
+
+  const visitsMapped: FieldVisit[] = visits
+    .map((v) => ({
+      id: s(v.visit_id),
+      organizationId: s(v.organization_id),
+      projectId: s(v.project_id),
+      assigneeId: s(v.assignee_id),
+      type: s(v.type) as FieldVisit['type'],
+      status: s(v.status) as FieldVisit['status'],
+      scheduledAt: ts(v.scheduled_at),
+      startedAt: tsOrNull(v.started_at),
+      completedAt: tsOrNull(v.completed_at),
+      notes: s(v.notes),
+      checklist: {
+        track: Boolean(v.check_track),
+        curtain: Boolean(v.check_curtain),
+        height: Boolean(v.check_height),
+        cleanliness: Boolean(v.check_cleanliness),
+      },
+      customerSignedOff: Boolean(v.customer_signed_off),
+    }))
+    .sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt));
+
+  const paymentsMapped: Payment[] = payments
+    .map((p) => ({
+      id: s(p.payment_id),
+      organizationId: s(p.organization_id),
+      projectId: s(p.project_id),
+      amountAgorot: n(p.amount_agorot),
+      kind: s(p.kind) as Payment['kind'],
+      method: s(p.method) as Payment['method'],
+      // عمودا موعد الصرف وصورة الشيك يصلان الخادم مع شريحة الكتابة
+      dueAt: null,
+      photoUri: null,
+      reference: s(p.reference),
+      note: s(p.note),
+      reversedPaymentId: sOrNull(p.reversed_payment_id),
+      createdBy: s(p.created_by),
+      createdAt: ts(p.created_at),
+    }))
+    .sort(byNewest);
+
+  const attachmentsMapped: Attachment[] = attachments
+    .map((a) => ({
+      id: s(a.attachment_id),
+      organizationId: s(a.organization_id),
+      projectId: s(a.project_id),
+      roomId: sOrNull(a.room_id),
+      windowId: sOrNull(a.window_id),
+      visitId: sOrNull(a.visit_id),
+      kind: s(a.kind) as Attachment['kind'],
+      // مسار التخزين لا رابط عرض - رابط التنزيل الموقّع يأتي مع شريحة المرفقات
+      uri: s(a.storage_path),
+      caption: s(a.caption),
+      createdBy: s(a.created_by),
+      createdAt: ts(a.created_at),
+      uploaded: true,
+    }))
+    .sort(byNewest);
+
+  const notificationsMapped: AppNotification[] = notifications
+    .map((nt) => ({
+      id: s(nt.notification_id),
+      organizationId: s(nt.organization_id),
+      userId: s(nt.user_id),
+      kind: s(nt.kind) as AppNotification['kind'],
+      title: s(nt.title),
+      body: s(nt.body),
+      deepLink: sOrNull(nt.deep_link),
+      readAt: tsOrNull(nt.read_at),
+      createdAt: ts(nt.created_at),
+    }))
+    .sort(byNewest);
+
+  const auditLogsMapped: AuditLog[] = auditLogs
+    .map((a) => ({
+      id: s(a.log_id),
+      organizationId: s(a.organization_id),
+      actorId: s(a.actor_id),
+      action: s(a.action),
+      entity: s(a.entity),
+      entityId: s(a.entity_id),
+      summary: s(a.summary),
+      createdAt: ts(a.created_at),
+    }))
+    .sort(byNewest);
+
   const db: Database = {
     organization,
     settings,
@@ -404,14 +526,15 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     quotations: quotationsMapped,
     quotationVersions: versionsMapped,
     discountRequests: discountsMapped,
-    // خارج نطاق الشريحة الأولى — الشاشات تعرض حالاتها الفارغة المصممة أصلًا
-    tailorAssignments: [],
-    fieldVisits: [],
-    payments: [],
+    tailorAssignments: assignmentsMapped,
+    fieldVisits: visitsMapped,
+    payments: paymentsMapped,
+    // دفتر الطاقم بلا جدول خادمي بعد - يصل مع شريحة المحاسبة
     staffLedger: [],
-    attachments: [],
-    notifications: [],
-    auditLogs: [],
+    attachments: attachmentsMapped,
+    notifications: notificationsMapped,
+    auditLogs: auditLogsMapped,
+    // طابور العمليات محلي بطبيعته - لا يُجلب من الخادم
     operations: [],
   };
 

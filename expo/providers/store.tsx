@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { buildSeed, SEED_VERSION, type Database } from '@/data/seed';
 import {
@@ -20,6 +21,7 @@ import type { AssignmentKind } from '@/domain/assignment';
 import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid } from '@/lib/id';
+import { fetchLiveDatabase } from '@/lib/live';
 import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
@@ -284,13 +286,62 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   );
 
   // ── الوضع الحي (شريحة الربط الأولى — قراءة) ──────────────────────────────
+  const liveRefreshingRef = useRef<boolean>(false);
+  const liveRefreshedAtRef = useRef<number>(0);
+  // مرآة متزامنة للمصدر: حالة React تصل متأخرة دورة، وقرار «هل ما زلنا
+  // في الوضع الحي؟» بعد await يجب أن يُقرأ لحظة الوصول لا لحظة الإقلاع -
+  // وإلا هبطت لقطة خادمية متأخرة فوق جلسة تجريبية وانحفظت في التخزين المحلي
+  const sourceRef = useRef<'demo' | 'live'>('demo');
+
   const enterLive = useCallback((liveDb: Database, liveUserId: UUID) => {
+    sourceRef.current = 'live';
     setSource('live');
     setDb(liveDb);
     setUserId(liveUserId);
+    liveRefreshedAtRef.current = Date.now();
   }, []);
 
+  /**
+   * يجلب لقطة خادمية طازجة ويستبدل الحالية - فتصير العودة إلى التطبيق
+   * أو السحب للتحديث كافيةً لرؤية ما سجّله الزملاء، لا إعادة تسجيل دخول.
+   * الفشل يُبقي آخر لقطة صالحة: الشبكة تتقلب في الميدان ولا يصح أن يفقد
+   * المستخدم ما أمامه لأن طلب تحديثٍ خلفي تعثّر.
+   */
+  const refreshLive = useCallback(async (): Promise<Result<void>> => {
+    if (source !== 'live') return okVoid;
+    if (liveRefreshingRef.current) return okVoid;
+    liveRefreshingRef.current = true;
+    try {
+      const { db: liveDb, me } = await fetchLiveDatabase();
+      // خرج المستخدم أثناء الجلب؟ تُهمل اللقطة المتأخرة كلها - لا يصح أن
+      // تبعث جلسةً حيةً بعد إغلاقها أو تُكتب فوق الوضع التجريبي
+      if (sourceRef.current !== 'live') return okVoid;
+      setDb(liveDb);
+      setUserId(me.userId);
+      liveRefreshedAtRef.current = Date.now();
+      return okVoid;
+    } catch (e) {
+      console.log('[store] live refresh failed', e);
+      return failWith('تعذر تحديث البيانات من الخادم - تُعرض آخر نسخة.', 'offline');
+    } finally {
+      liveRefreshingRef.current = false;
+    }
+  }, [source]);
+
+  // العودة إلى المقدمة في الوضع الحي = تحديث تلقائي، مع مهلة قصيرة تمنع
+  // التذبذب السريع بين التطبيقات من قصف الخادم
+  useEffect(() => {
+    if (source !== 'live') return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      if (Date.now() - liveRefreshedAtRef.current < 15_000) return;
+      void refreshLive();
+    });
+    return () => sub.remove();
+  }, [source, refreshLive]);
+
   const exitLive = useCallback(async () => {
+    sourceRef.current = 'demo';
     setSource('demo');
     setUserId(null);
     try {
@@ -2391,6 +2442,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       source,
       enterLive,
       exitLive,
+      refreshLive,
       setIsOnline,
       signIn,
       signOut,
@@ -2453,6 +2505,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       source,
       enterLive,
       exitLive,
+      refreshLive,
       signIn,
       signOut,
       createCustomer,
