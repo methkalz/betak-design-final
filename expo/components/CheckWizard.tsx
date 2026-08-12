@@ -166,7 +166,7 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
         <Row gap={spacing.md} align="center">
           <Image source={{ uri: photoUri }} style={styles.thumb} />
           <AppText variant="caption" color={palette.muted} style={{ flex: 1 }}>
-            صورة الرزمة مرفقة - مضغوطة للأرشفة.
+            صورة الرزمة محفوظة على الجهاز - أرشفتها إلى الخادم تصل مع شريحة المرفقات.
           </AppText>
           <Pressable onPress={() => setPhotoUri(null)} hitSlop={10}>
             <X size={18} color={palette.muted} />

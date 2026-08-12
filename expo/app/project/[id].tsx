@@ -1296,7 +1296,13 @@ function MoneyTab({ projectId }: { projectId: string }) {
                 onPress={() =>
                   Alert.alert('عكس الدفعة', 'سيتم إنشاء قيد عكسي دائم في السجل.', [
                     { text: 'إلغاء', style: 'cancel' },
-                    { text: 'تأكيد', onPress: () => reversePayment(p.id, 'تصحيح إداري') },
+                    {
+                              text: 'تأكيد',
+                              onPress: async () => {
+                                const r = await reversePayment(p.id, 'تصحيح إداري');
+                                if (!r.ok) Alert.alert('تعذر العكس', r.error);
+                              },
+                            },
                   ])
                 }
               />

@@ -145,6 +145,14 @@ ALTER TABLE ONLY core.user_devices
     ADD CONSTRAINT user_devices_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY core.user_devices
     ADD CONSTRAINT user_devices_user_id_expo_push_token_key UNIQUE (user_id, expo_push_token);
+ALTER TABLE ONLY core.staff_ledger
+    ADD CONSTRAINT staff_ledger_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.staff_ledger
+    ADD CONSTRAINT staff_ledger_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.staff_ledger
+    ADD CONSTRAINT staff_ledger_organization_id_staff_id_fkey FOREIGN KEY (organization_id, staff_id) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY core.staff_ledger
+    ADD CONSTRAINT staff_ledger_organization_id_created_by_fkey FOREIGN KEY (organization_id, created_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.windows
     ADD CONSTRAINT windows_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.windows
