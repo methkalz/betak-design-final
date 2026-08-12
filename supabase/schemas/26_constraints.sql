@@ -198,6 +198,8 @@ ALTER TABLE ONLY core.fabric_reservations
 ALTER TABLE ONLY core.fabric_rolls
     ADD CONSTRAINT fabric_rolls_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.fabric_rolls
+    ADD CONSTRAINT fabric_rolls_organization_id_assigned_tailor_id_fkey FOREIGN KEY (organization_id, assigned_tailor_id) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
+ALTER TABLE ONLY core.fabric_rolls
     ADD CONSTRAINT fabric_rolls_organization_id_variant_id_fkey FOREIGN KEY (organization_id, variant_id) REFERENCES core.fabric_variants(organization_id, id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.fabric_usage
     ADD CONSTRAINT fabric_usage_organization_id_created_by_fkey FOREIGN KEY (organization_id, created_by) REFERENCES core.organization_members(organization_id, user_id) ON DELETE RESTRICT;
@@ -211,6 +213,8 @@ ALTER TABLE ONLY core.fabric_usage
     ADD CONSTRAINT fabric_usage_organization_id_roll_id_fkey FOREIGN KEY (organization_id, roll_id) REFERENCES core.fabric_rolls(organization_id, id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.fabric_usage
     ADD CONSTRAINT fabric_usage_reason_code_fkey FOREIGN KEY (reason_code) REFERENCES core.movement_reasons(code);
+ALTER TABLE ONLY core.fabric_usage
+    ADD CONSTRAINT fabric_usage_organization_id_window_id_fkey FOREIGN KEY (organization_id, window_id) REFERENCES core.windows(organization_id, id) ON DELETE SET NULL (window_id);
 ALTER TABLE ONLY core.fabric_variants
     ADD CONSTRAINT fabric_variants_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.fabric_variants
@@ -249,6 +253,10 @@ ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_organization_id_tailor_id_fkey FOREIGN KEY (organization_id, tailor_id) REFERENCES core.organization_members(organization_id, user_id) ON DELETE SET NULL (tailor_id);
+ALTER TABLE ONLY core.projects
+    ADD CONSTRAINT projects_organization_id_measurement_worker_id_fkey FOREIGN KEY (organization_id, measurement_worker_id) REFERENCES core.organization_members(organization_id, user_id) ON DELETE SET NULL (measurement_worker_id);
+ALTER TABLE ONLY core.projects
+    ADD CONSTRAINT projects_organization_id_installer_id_fkey FOREIGN KEY (organization_id, installer_id) REFERENCES core.organization_members(organization_id, user_id) ON DELETE SET NULL (installer_id);
 ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_status_code_fkey FOREIGN KEY (status_code) REFERENCES core.project_statuses(status_code);
 ALTER TABLE ONLY core.quotation_items

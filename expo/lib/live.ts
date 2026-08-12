@@ -130,9 +130,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     quotationValidityDays: n(st.quotation_validity_days),
     vatPercent: n(st.vat_percent),
     currency: 'ILS',
-    // عمود أجرة الزيارة يصل الخادم مع شريحة الكتابة
-    fieldVisitWageAgorot: n(st.field_visit_wage_agorot),
-    // أعمدة المسار الكهربائي وملحقاته تصل الخادم مع شريحة الكتابة
+    // الأجرة بيانات تعويض - خلف حاجز الدور مع سائر التكاليف
+    fieldVisitWageAgorot: n(stCosts.field_visit_wage_agorot),
     motorizedTrackCostPerMeterAgorot: n(stCosts.motorized_track_cost_per_meter_agorot),
     motorizedTrackPricePerMeterAgorot: n(st.motorized_track_price_per_meter_agorot),
     motorCostAgorot: n(stCosts.motor_cost_agorot),

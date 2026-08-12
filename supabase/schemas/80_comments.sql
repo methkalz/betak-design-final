@@ -22,6 +22,14 @@ COMMENT ON CONSTRAINT reversal_shape ON core.payments IS 'يمنع دفعة عا
 COMMENT ON COLUMN core.projects.field_worker_id IS 'الربط المركب يضمن أن العامل المعين عضو في المؤسسة نفسها.';
 COMMENT ON COLUMN core.projects.lock_version IS 'قفل تفاؤلي. يرفض RPC الكتابة إذا تغيرت النسخة — يمنع الكتابة فوق تعديل غيرك.';
 COMMENT ON TABLE core.discount_requests IS 'الحد الأعلى المسموح يقرأ من business_settings — لا يثبت في قيد جدول.';
+COMMENT ON COLUMN core.business_settings.field_visit_wage_agorot IS 'أجرة الزيارة الميدانية الواحدة (قياس أو تركيب) - تغذي دفتر الطاقم.';
+COMMENT ON COLUMN core.business_settings.motorized_track_price_per_meter_agorot IS 'سعر المتر للمسار الكهربائي على الزبون. العادي داخل في سعر القماش بلا زيادة.';
+COMMENT ON COLUMN core.fabric_rolls.assigned_tailor_id IS 'الخياط الحائز للرول: يضيفه لنفسه (receive_own_fabric) أو تسنده الإدارة. NULL = مخزن المعرض.';
+COMMENT ON COLUMN core.fabric_usage.window_id IS 'الشباك الذي استُهلك له - «الشباك مُنجز» يُشتق من وجود سجلات استهلاكه حصرًا. يبقى القيد لو حُذف الشباك (SET NULL).';
+COMMENT ON COLUMN core.fabric_variants.customer_surcharge_per_meter_agorot IS 'زيادة على سعر المتر الطولي للزبون حين تُختار بطانةً (100% مثلًا). السالب ممنوع.';
+COMMENT ON COLUMN core.fabric_variants.meters_per_running_meter IS 'استهلاك البطانة لكل متر طولي (70% ← 3، 100% ← 1.5). صفر = اتبع مضاعف الشباك.';
+COMMENT ON COLUMN core.projects.measurement_worker_id IS 'عامل القياس - انفصل عن field_worker_id القديم الذي بقي للتوافق.';
+COMMENT ON COLUMN core.projects.installer_id IS 'المركّب - قد يكون غير عامل القياس، وإشعار «جاهز للتركيب» يستهدفه أولًا.';
 COMMENT ON COLUMN core.fabric_products.kind IS 'يحدد فئة التسعير: crepe مقابل other. lining يعامل كبطانة لا كقماش رئيسي.';
 COMMENT ON TABLE core.fabric_reservations IS 'الحجز يمسك القماش دون إخراجه: available = on_hand − reserved.';
 COMMENT ON COLUMN core.fabric_reservations.quantity_m IS 'المحجوز الأصلي — ثابت لا يُنقص. الإنقاص يتم عبر consumed_m و released_m.';
