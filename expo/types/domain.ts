@@ -529,6 +529,7 @@ export type NotificationKind =
   | 'appointment_tomorrow'
   | 'sync_failed'
   | 'low_stock'
+  | 'stock_received'
   | 'payment';
 
 export interface AppNotification {

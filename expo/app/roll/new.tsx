@@ -28,8 +28,10 @@ import { useStore } from '@/providers/store';
 
 export default function NewRollScreen() {
   const { variantId: preset } = useLocalSearchParams<{ variantId?: string }>();
-  const { db, addFabricRoll } = useStore();
+  const { db, role, currentUser, addFabricRoll } = useStore();
   const router = useRouter();
+  // الخياط يستلم لمخزونه هو حصرًا: لا سؤال عن المكان، والوجهة نفسه
+  const selfMode = role === 'tailor';
 
   const [variantId, setVariantId] = useState<string>(preset ?? '');
   const [metersIn, setMetersIn] = useState('');
@@ -58,10 +60,15 @@ export default function NewRollScreen() {
     const res = addFabricRoll({
       variantId,
       meters: parseFloat(metersIn || '0'),
-      location,
-      assignedTailorId: tailorId,
+      location: selfMode ? '' : location,
+      assignedTailorId: selfMode ? (currentUser?.id ?? null) : tailorId,
     });
     if (!res.ok) return setError(res.error);
+    if (selfMode) {
+      // الخياط يعود إلى بضاعته فيرى رصيده وقد كبر بما أضاف
+      router.replace('/mystock');
+      return;
+    }
     // الهبوط على رصيد الصنف لا على الرول: يرى الأدمن الإجمالي وقد كبر
     // باستلامه، والاستلام نفسه أول سطرٍ في السجل تحته
     router.replace({ pathname: '/stock/[variantId]', params: { variantId } });
@@ -139,12 +146,14 @@ export default function NewRollScreen() {
             suffix="متر"
             placeholder="0"
           />
-          <Field
-            label="الموقع في المخزن (اختياري)"
-            value={location}
-            onChangeText={setLocation}
-            placeholder="رف A3"
-          />
+          {!selfMode && (
+            <Field
+              label="الموقع في المخزن (اختياري)"
+              value={location}
+              onChangeText={setLocation}
+              placeholder="رف A3"
+            />
+          )}
           <AppText variant="caption" color={palette.muted}>
             رقم الرول ودفعة الصبغ يُسجَّلان تلقائيًا - كل استلام دفعة مستقلة،
             وتحذير اختلاف الدفعات يبقى يعمل كما هو.
@@ -152,7 +161,7 @@ export default function NewRollScreen() {
         </View>
       </Card>
 
-      {tailors.length > 0 && (
+      {!selfMode && tailors.length > 0 && (
         <Card>
           {/* بضاعة أمانة (M24): المسنَدة لخياط تظهر في معمله وحده -
               يراها قراءةً بإحصاءاتها، ولا يراها خياط غيره */}

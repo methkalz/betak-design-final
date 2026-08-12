@@ -250,6 +250,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   const guard = useCallback(
     (capability: Capability): Result<void> | null => {
       if (!currentUser) return failWith('الجلسة منتهية - يرجى تسجيل الدخول.', 'permission');
+      // التعطيل يسري فورًا ولو كانت الجلسة مفتوحة - لا صلاحية لحسابٍ معطَّل
+      if (!currentUser.isActive)
+        return failWith('هذا الحساب معطَّل - راجع الإدارة.', 'permission');
       if (!can(currentUser.role, capability))
         return failWith('لا تملك صلاحية تنفيذ هذه العملية.', 'permission');
       return null;
@@ -1837,11 +1840,22 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       /** بضاعة أمانة (M24): تُسنَد لخياط لحظة الاستلام فتظهر في معمله. */
       assignedTailorId?: UUID | null;
     }): Result<string> => {
-      const denied = guard('manage_fabrics');
+      /**
+       * مساران للاستلام: إدارة الأقمشة تستلم لأي وجهة، والخياط يستلم
+       * لمخزونه هو حصرًا - هو مسؤول القماش يطلبه ويزيده بنفسه، والأدمن
+       * يتابع لا يوافق (قرار المالك 11.8.2026). التقييد بالذات يمنع أن
+       * يُسجّل خياطٌ بضاعةً على زميله أو على مخزن المعرض.
+       */
+      const selfReceipt =
+        currentUser?.role === 'tailor' && input.assignedTailorId === currentUser.id;
+      const denied = guard(selfReceipt ? 'receive_own_fabric' : 'manage_fabrics');
       if (denied) return denied as Result<string>;
       const variant = db.fabricVariants.find((v) => v.id === input.variantId);
       if (!variant) return failWith('اللون غير موجود.', 'validation');
-      if (!(input.meters > 0)) return failWith('الأمتار يجب أن تكون أكبر من صفر.', 'validation');
+      if (!Number.isFinite(input.meters) || input.meters <= 0)
+        return failWith('الأمتار يجب أن تكون رقمًا أكبر من صفر.', 'validation');
+      if (input.meters > 10000)
+        return failWith('الكمية أكبر من أي شحنةٍ حقيقية - راجع الرقم.', 'validation');
       if (input.assignedTailorId) {
         const t = db.profiles.find((p) => p.id === input.assignedTailorId);
         if (!t || t.role !== 'tailor' || !t.isActive)
@@ -1883,7 +1897,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           variantId: input.variantId,
           code,
           dyeLot,
-          location: (input.location ?? '').trim(),
+          location: selfReceipt ? '' : (input.location ?? '').trim(),
           initialMeters: round3(input.meters),
           isMiniRoll: false,
           assignedTailorId: input.assignedTailorId ?? null,
@@ -1891,10 +1905,25 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         });
         addMovement(draft, id, 'receipt', input.meters, null, null, 'استلام بضاعة');
         audit(draft, 'inventory.roll.create', 'fabric_roll', id, `استلام رول ${code} بـ${round3(input.meters)} م`);
+        if (selfReceipt && currentUser) {
+          // الأدمن يتابع تحركات الخياط لا يوافق عليها: إشعارٌ لكل أدمن
+          // بكل إضافة، ورابطه يفتح رصيد الصنف نفسه
+          const product = draft.fabricProducts.find((p) => p.id === variant.productId);
+          for (const admin of draft.profiles.filter((p) => p.role === 'admin' && p.isActive)) {
+            notify(
+              draft,
+              admin.id,
+              'stock_received',
+              `${currentUser.fullName} أضاف بضاعة لمخزونه`,
+              `${round3(input.meters)} م ${product?.name ?? ''} ${variant.colorName}`,
+              `/stock/${input.variantId}`,
+            );
+          }
+        }
       });
       return { ok: true, data: id };
     },
-    [guard, db.fabricRolls, db.fabricVariants, mutate, addMovement, audit],
+    [guard, db.fabricRolls, db.fabricVariants, mutate, addMovement, audit, currentUser, notify],
   );
 
   const createMiniRoll = useCallback(

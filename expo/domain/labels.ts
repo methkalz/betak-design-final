@@ -195,5 +195,6 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   appointment_tomorrow: 'موعد غدًا',
   sync_failed: 'فشل مزامنة',
   low_stock: 'مخزون منخفض',
+  stock_received: 'إضافة بضاعة',
   payment: 'دفعة',
 };

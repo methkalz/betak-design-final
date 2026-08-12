@@ -17,6 +17,7 @@ export type Capability =
   | 'approve_discount'
   | 'manage_users'
   | 'manage_fabrics'
+  | 'receive_own_fabric'
   | 'view_reports'
   | 'create_quotation'
   | 'install';
@@ -35,6 +36,9 @@ const MATRIX: Record<Capability, Record<Role, Level>> = {
   manage_users: { admin: 'yes', sales: 'no', field: 'no', tailor: 'no' },
   // المكتبة تحكم السعر والتكلفة معًا، فتعديلها بيد من يملك القرار المالي
   manage_fabrics: { admin: 'yes', sales: 'no', field: 'no', tailor: 'no' },
+  // الخياط مسؤول القماش: يطلب بضاعته ويضيفها إلى مخزونه بنفسه، والأدمن
+  // يتابع لا يوافق (قرار المالك 11.8.2026)
+  receive_own_fabric: { admin: 'yes', sales: 'no', field: 'no', tailor: 'yes' },
   view_reports: { admin: 'yes', sales: 'limited', field: 'no', tailor: 'no' },
   create_quotation: { admin: 'yes', sales: 'yes', field: 'no', tailor: 'no' },
   install: { admin: 'yes', sales: 'no', field: 'yes', tailor: 'no' },
@@ -64,6 +68,7 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
   approve_discount: 'اعتماد خصم استثنائي',
   manage_users: 'إدارة المستخدمين',
   manage_fabrics: 'إدارة مكتبة الأقمشة',
+  receive_own_fabric: 'إضافة بضاعة إلى مخزونه',
   view_reports: 'التقارير',
   create_quotation: 'إنشاء عرض سعر',
   install: 'التركيب الميداني',
