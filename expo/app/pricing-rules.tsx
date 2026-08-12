@@ -56,22 +56,22 @@ const PRICE_FIELDS = [
 ] as const;
 
 export default function PricingRulesScreen() {
-  const { db, role, updatePricingRule, updateSettings } = useStore();
+  const { db, role, busy, updatePricingRule, updateSettings } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
   const [price, setPrice] = useState<string>('');
   const [tailor, setTailor] = useState<string>('');
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const shekel = (k: string) =>
     draft[k] ?? String(Math.round((db.settings[k as keyof typeof db.settings] as number) / 100));
-  const saveNumbers = () => {
+  const saveNumbers = async () => {
     const patch: Record<string, number> = {};
     for (const [k, v] of Object.entries(draft)) patch[k] = Math.round(parseFloat(v || '0')) * 100;
-    const res = updateSettings(patch);
-    if (!res.ok) return setInfo(res.error);
+    const res = await updateSettings(patch);
+    if (!res.ok) return setInfo({ text: res.error, tone: 'warning' });
     setDraft({});
-    setInfo('حُفظت التسعيرة. تسري على العروض الجديدة وحدها.');
+    setInfo({ text: 'حُفظت التسعيرة. تسري على العروض الجديدة وحدها.', tone: 'success' });
   };
 
   if (!can(role, 'edit_pricing_rules')) {
@@ -93,7 +93,7 @@ export default function PricingRulesScreen() {
         title="التسعير لكل شباك"
         body="السعر يُحسب لكل متر طولي حسب شريحة الارتفاع ونوع القماش ووجود البطانة، ثم تُجمع البنود في عرض واحد."
       />
-      {!!info && <Banner tone="success" title={info} />}
+      {!!info && <Banner tone={info.tone} title={info.text} />}
 
       <Card>
         <SectionHeader
@@ -138,7 +138,7 @@ export default function PricingRulesScreen() {
       </Card>
 
       {Object.keys(draft).length > 0 && (
-        <Button label="حفظ التسعيرة" full onPress={saveNumbers} />
+        <Button label="حفظ التسعيرة" full loading={busy === 'save-settings'} onPress={saveNumbers} />
       )}
 
       {(['standard', 'tall'] as HeightBand[]).map((band) => (
@@ -200,14 +200,19 @@ export default function PricingRulesScreen() {
                       <Button
                         label="حفظ القاعدة"
                         full
-                        onPress={() => {
-                          updatePricingRule(
+                        loading={busy === 'save-settings'}
+                        onPress={async () => {
+                          const res = await updatePricingRule(
                             rule.id,
                             Math.round(parseFloat(price || '0') * 100),
                             Math.round(parseFloat(tailor || '0') * 100),
                           );
+                          if (!res.ok) return setInfo({ text: res.error, tone: 'warning' });
                           setEditing(null);
-                          setInfo('تم تحديث قاعدة التسعير. تنعكس على العروض الجديدة فقط.');
+                          setInfo({
+                            text: 'تم تحديث قاعدة التسعير. تنعكس على العروض الجديدة فقط.',
+                            tone: 'success',
+                          });
                         }}
                       />
                     </View>

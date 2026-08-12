@@ -72,6 +72,7 @@ delete from core.document_sequences  where organization_id = '{ORG}';
 delete from core.projects            where organization_id = '{ORG}';
 delete from core.customers           where organization_id = '{ORG}';
 delete from core.organization_members where organization_id = '{ORG}';
+delete from core.pricing_rules       where organization_id = '{ORG}';
 delete from core.business_settings   where organization_id = '{ORG}';
 delete from core.organizations       where id = '{ORG}';
 delete from core.profiles            where id in ('{ADMIN}','{SALES}','{F1}','{F2}','{F3}','{T1}');
@@ -366,6 +367,76 @@ out2 = as_user(ADMIN, f"""select api.assign_tailor(
   '{PRJ}'::uuid, '{T1}'::uuid, '{key(52)}'::uuid)::text;""")
 check('40 المشروع الواحد أمرٌ واحد: الثاني يُرفض برسالة مصممة لا 23505',
       'ERROR' not in out and ('BD409' in out2 or 'أمر إنتاج مفتوح' in out2), out + out2)
+
+out = sql(f"""insert into core.pricing_rules
+ (organization_id, band, category, customer_price_per_meter_agorot, tailor_cost_per_meter_agorot)
+ values ('{ORG}', 'standard', 'other_with_lining', 35000, 4000)
+ on conflict (organization_id, band, category) do nothing;""")
+
+# ── الإعدادات والتسعيرة ──────────────────────────────────────────────────────
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(60)}'::uuid, p_motor_price_agorot => 95000)::text;""")
+probe = sql(f"""select 'M=' || motor_price_agorot || '|T=' || track_cost_per_meter_agorot
+ from core.business_settings where organization_id = '{ORG}';""", quiet=False)
+check('41 رقعة إعداد واحد: الماتور يتغير وسواه يبقى',
+      'ERROR' not in out and 'M=95000|T=1000' in probe, out + probe)
+
+out = as_user(SALES, f"""select api.update_business_settings(
+  '{key(61)}'::uuid, p_motor_price_agorot => 1)::text;""")
+check('42 التسعيرة للأدمن وحده → BD403', 'BD403' in out or 'الأدمن وحده' in out, out)
+
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(62)}'::uuid, p_employee_discount_limit_percent => 50,
+  p_admin_discount_limit_percent => 10)::text;""")
+check('43 سقف الموظف فوق سقف الأدمن → BD400 برسالة مصممة',
+      'BD400' in out or 'لا يتجاوز' in out, out)
+
+# مسار الدمج الحقيقي: معامل واحد يُدمج مع المخزون (موظف 5 / أدمن 10 افتراضًا)
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(64)}'::uuid, p_admin_discount_limit_percent => 4)::text;""")
+check('44 خفض سقف الأدمن تحت سقف الموظف المخزون → BD400 عبر الدمج',
+      'BD400' in out or 'لا يتجاوز' in out, out)
+
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(65)}'::uuid, p_employee_discount_limit_percent => 8)::text;""")
+probe = sql(f"""select 'E=' || employee_discount_limit_percent || '|A=' || admin_discount_limit_percent
+ from core.business_settings where organization_id = '{ORG}';""", quiet=False)
+check('45 رفع سقف الموظف ضمن سقف الأدمن المخزون يمر عبر الدمج',
+      'ERROR' not in out and 'E=8.00|A=10.00' in probe, out + probe)
+
+# عقد الإعادة يصمد أمام تغيّر الحالة اللاحق: الرد المفقود يستعيد نتيجته
+# المسجلة لا BD400 من حارسٍ صارت حالتُه تناقض المدخلات القديمة
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(66)}'::uuid, p_employee_discount_limit_percent => 4,
+  p_admin_discount_limit_percent => 5)::text;""")
+out2 = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(65)}'::uuid, p_employee_discount_limit_percent => 8)::text;""")
+check('46 الإعادة تسبق حارس السقف: تسترجع النتيجة لا BD400',
+      'ERROR' not in out and '"was_replayed": true' in out2, out + out2)
+
+out = as_user(ADMIN, f"""select api.update_pricing_rule(
+  'standard', 'other_with_lining', 36000, 4500, '{key(63)}'::uuid)::text;""")
+probe = sql(f"""select 'P=' || customer_price_per_meter_agorot || '|C=' || tailor_cost_per_meter_agorot
+ from core.pricing_rules where organization_id = '{ORG}'
+   and band = 'standard' and category = 'other_with_lining';""", quiet=False)
+check('47 قاعدة تسعير بالمفتاح الثابت تتحدث',
+      'ERROR' not in out and 'P=36000|C=4500' in probe, out + probe)
+
+out = as_user(ADMIN, f"""select api.update_pricing_rule(
+  'standard', 'other_with_lining', 36000, 4500, '{key(63)}'::uuid)::text;""")
+check('48 الإعادة بنفس المفتاح: was_replayed', '"was_replayed": true' in out, out)
+
+out = as_user(ADMIN, f"""select api.update_pricing_rule(
+  'tall', 'crepe_with_lining', 36000, 4500, '{key(67)}'::uuid)::text;""")
+check('49 قاعدة غائبة → BD404 برسالة مصممة',
+      'BD404' in out or 'غير موجودة' in out, out)
+
+# غياب صف الإعدادات: رفض صريح لا «نجاح» على صفر صفوف يُسجَّل ويُعاد للأبد
+sql(f"""delete from core.business_settings where organization_id = '{ORG}';""")
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(68)}'::uuid, p_motor_price_agorot => 77000)::text;""")
+check('50 لا صف إعدادات → BD404 لا نجاح وهمي',
+      'BD404' in out or 'غير مهيأة' in out, out)
 
 print('\n=== cleanup ===')
 sql(PURGE)
