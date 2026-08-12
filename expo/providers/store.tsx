@@ -2706,9 +2706,29 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   // ── Tailor ────────────────────────────────────────────────────────────────
   const advanceStage = useCallback(
-    (assignmentId: UUID, stage: TailorStage): Result<void> => {
+    async (assignmentId: UUID, stage: TailorStage): Promise<Result<void>> => {
       const denied = guard('update_production');
       if (denied) return denied;
+
+      if (source === 'live') {
+        // حُرّاس الخطوة الواحدة وبوابة «جاهز» عند الخادم تحت قفله
+        const slot = `stage:${assignmentId}:${stage}`;
+        setBusy('advance-stage');
+        try {
+          const { error } = await supabase.rpc('advance_stage', {
+            p_assignment_id: assignmentId,
+            p_stage: stage,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const current = db.tailorAssignments.find((x) => x.id === assignmentId);
       if (!current) return failWith('أمر الإنتاج غير موجود.', 'validation');
       // خطوة واحدة في الاتجاهين لا قفزًا: القفز يترك مراحل بلا توقيت في
@@ -2782,11 +2802,31 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, db, mutate, notify, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, db, mutate, notify, audit],
   );
 
   const assignTailor = useCallback(
-    (projectId: UUID, tailorId: UUID, instructions: string, dueDate: string): Result<string> => {
+    async (
+      projectId: UUID,
+      tailorId: UUID,
+      instructions: string,
+      dueDate: string,
+    ): Promise<Result<string>> => {
+      if (source === 'live') {
+        const slot = `assign-tailor:${projectId}:${tailorId}`;
+        const { data, error } = await supabase.rpc('assign_tailor', {
+          p_project_id: projectId,
+          p_tailor_id: tailorId,
+          p_idempotency_key: takeIdemKey(slot),
+          p_instructions: instructions,
+          p_due_date: dueDate || null,
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return { ok: true, data: (data as { assignment_id?: string } | null)?.assignment_id ?? '' };
+      }
+
       const id = uid('ta');
       mutate((draft) => {
         draft.tailorAssignments.unshift({
@@ -2818,7 +2858,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [mutate, notify, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, mutate, notify, audit],
   );
 
   // ── Payments ──────────────────────────────────────────────────────────────

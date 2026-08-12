@@ -178,9 +178,9 @@ export default function TailorAssignmentScreen() {
               : undefined
         }
         confirmLabel={pending?.back ? 'تأكيد الرجوع' : 'نعم، انقل الأمر'}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (pending) {
-            const res = advanceStage(assignment.id, pending.to);
+            const res = await advanceStage(assignment.id, pending.to);
             if (!res.ok) setError(res.error);
           }
           setPending(null);
