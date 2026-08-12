@@ -480,10 +480,13 @@ export function Field({
   editable = true,
   testID,
   autoCapitalize,
+  onBlur,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
+  /** للحفظ عند مغادرة الحقل - فلا رحلة خادمية مع كل حرف. */
+  onBlur?: () => void;
   placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'phone-pad' | 'decimal-pad';
   multiline?: boolean;
@@ -511,6 +514,7 @@ export function Field({
           testID={testID}
           value={value}
           onChangeText={onChangeText}
+          onBlur={onBlur}
           autoCapitalize={autoCapitalize}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}

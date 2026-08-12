@@ -277,6 +277,47 @@ out = as_user(F2, f"""select api.add_room('{PRJ2}'::uuid, 'غرفة دخيلة',
 check('27 ميداني غير مسنَد للمشروع -> BD403 خارج النطاق',
       'BD403' in out or 'خارج نطاق' in out, out)
 
+# ── الزيارات الميدانية ───────────────────────────────────────────────────────
+# PRJ2 عليه زيارة قياس؟ لا - أُنشئ بلا موعد. تُجدول له الآن ثم تُدار دورتها
+out = as_user(ADMIN, f"""select api.schedule_visit(
+  '{PRJ2}'::uuid, '{F1}'::uuid, 'measurement', now() + interval '1 day', '{key(30)}'::uuid)::text;""")
+FV = grab(r'"visit_id"\s*:\s*"([0-9a-f-]+)"', out)
+probe = sql(f"""select count(*) from core.notifications
+ where organization_id = '{ORG}' and user_id = '{F1}'
+   and kind = 'visit_assigned' and deep_link = '/visit/' || '{FV}';""", quiet=False)
+check('28 جدولة زيارة قياس: تُنشأ ويُخطر المسنَد',
+      FV is not None and 'ERROR' not in out and re.search(r'\b1\b', probe), out + probe)
+
+out = as_user(ADMIN, f"""select api.schedule_visit(
+  '{PRJ2}'::uuid, '{F1}'::uuid, 'measurement', now() + interval '2 days', '{key(31)}'::uuid)::text;""")
+check('29 زيارة ثانية من النوع نفسه → BD409', 'BD409' in out or 'مجدولة بالفعل' in out, out)
+
+# الغرفة وشباكها حُذفا في 25-26: يُعاد التسجيل قبل إكمال القياس
+out = as_user(F1, f"""select api.add_room('{PRJ2}'::uuid, 'صالون ثانٍ', '{key(38)}'::uuid)::text;""")
+ROOM2 = grab(r'"room_id"\s*:\s*"([0-9a-f-]+)"', out)
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ2}'::uuid, '{ROOM2}'::uuid, 220, 260, '{VAR}'::uuid, '{key(39)}'::uuid)::text;""")
+out = as_user(F1, f"""select api.complete_visit('{FV}'::uuid, '{key(32)}'::uuid)::text;""")
+probe = sql(f"""select status_code from core.projects where id = '{PRJ2}';""", quiet=False)
+check('30 إكمال القياس: المشروع بقي measured (شبابيكه مسجلة سلفًا)',
+      'ERROR' not in out and 'measured' in probe, out + probe)
+
+out = as_user(ADMIN, f"""select api.schedule_visit(
+  '{PRJ}'::uuid, '{F2}'::uuid, 'installation', now() + interval '3 days', '{key(33)}'::uuid)::text;""")
+FV2 = grab(r'"visit_id"\s*:\s*"([0-9a-f-]+)"', out)
+out = as_user(F2, f"""select api.start_visit('{FV2}'::uuid, '{key(34)}'::uuid)::text;""")
+out2 = as_user(F2, f"""select api.complete_visit('{FV2}'::uuid, '{key(35)}'::uuid)::text;""")
+check('31 التركيب لا يُقفل بلا قائمة التحقق → BD422',
+      'ERROR' not in out and ('BD422' in out2 or 'قائمة التحقق' in out2), out + out2)
+
+out = as_user(F2, f"""select api.update_visit('{FV2}'::uuid, '{key(36)}'::uuid,
+  p_check_track => true, p_check_curtain => true, p_check_height => true,
+  p_check_cleanliness => true, p_customer_signed_off => true)::text;""")
+out2 = as_user(F2, f"""select api.complete_visit('{FV2}'::uuid, '{key(37)}'::uuid)::text;""")
+probe = sql(f"""select status_code from core.projects where id = '{PRJ}';""", quiet=False)
+check('32 قائمة كاملة وتوقيع → التركيب يُقفل والمشروع installed',
+      'ERROR' not in out and 'ERROR' not in out2 and 'installed' in probe, out + out2 + probe)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

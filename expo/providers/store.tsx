@@ -1124,9 +1124,30 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   // ── Field visits ──────────────────────────────────────────────────────────
   const scheduleVisit = useCallback(
-    (projectId: UUID, assigneeId: UUID, type: VisitType, scheduledAt: string): Result<string> => {
+    async (
+      projectId: UUID,
+      assigneeId: UUID,
+      type: VisitType,
+      scheduledAt: string,
+    ): Promise<Result<string>> => {
       const denied = guard('install');
       if (denied) return denied as Result<string>;
+
+      if (source === 'live') {
+        const slot = `visit:${projectId}:${type}`;
+        const { data, error } = await supabase.rpc('schedule_visit', {
+          p_project_id: projectId,
+          p_assignee_id: assigneeId,
+          p_type: type,
+          p_scheduled_at: scheduledAt,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return { ok: true, data: (data as { visit_id?: string } | null)?.visit_id ?? '' };
+      }
+
       // زيارة تركيب واحدة مفتوحة لكل مشروع: جدولتها مرتين تُنتج زيارتين
       // متطابقتين وموعدَي تركيب متضاربين على المشروع نفسه
       if (
@@ -1166,26 +1187,87 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, db.fieldVisits, mutate, notify, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, db.fieldVisits, mutate, notify, audit],
   );
 
   const updateVisit = useCallback(
-    (id: UUID, patch: Partial<FieldVisit>): Result<void> => {
+    async (id: UUID, patch: Partial<FieldVisit>): Promise<Result<void>> => {
       const denied = guard('install');
       if (denied) return denied;
+
+      if (source === 'live') {
+        // تُرسَل الفروق وحدها قياسًا على اللقطة: نقرات القائمة المتسارعة
+        // لا تتصادم على مفتاحٍ واحد ولا تُرجِع قيمًا بائتة فوق ما التزم
+        const cur = db.fieldVisits.find((v) => v.id === id);
+        if (!cur) return failWith('الزيارة غير موجودة.', 'validation');
+        const diff = {
+          p_scheduled_at:
+            patch.scheduledAt != null && patch.scheduledAt !== cur.scheduledAt
+              ? patch.scheduledAt
+              : null,
+          p_notes: patch.notes != null && patch.notes !== cur.notes ? patch.notes : null,
+          p_check_track:
+            patch.checklist != null && patch.checklist.track !== cur.checklist.track
+              ? patch.checklist.track
+              : null,
+          p_check_curtain:
+            patch.checklist != null && patch.checklist.curtain !== cur.checklist.curtain
+              ? patch.checklist.curtain
+              : null,
+          p_check_height:
+            patch.checklist != null && patch.checklist.height !== cur.checklist.height
+              ? patch.checklist.height
+              : null,
+          p_check_cleanliness:
+            patch.checklist != null &&
+            patch.checklist.cleanliness !== cur.checklist.cleanliness
+              ? patch.checklist.cleanliness
+              : null,
+          p_customer_signed_off:
+            patch.customerSignedOff != null &&
+            patch.customerSignedOff !== cur.customerSignedOff
+              ? patch.customerSignedOff
+              : null,
+        };
+        if (Object.values(diff).every((v) => v == null)) return okVoid;
+        const slot = `visit-upd:${id}:${JSON.stringify(diff)}`;
+        const { error } = await supabase.rpc('update_visit', {
+          p_visit_id: id,
+          p_idempotency_key: takeIdemKey(slot),
+          ...diff,
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         draft.fieldVisits = draft.fieldVisits.map((v) => (v.id === id ? { ...v, ...patch } : v));
         enqueue(draft, 'visit.update', 'تحديث زيارة ميدانية', id);
       });
       return okVoid;
     },
-    [guard, mutate, enqueue],
+    [db.fieldVisits, source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue],
   );
 
   const startVisit = useCallback(
-    (id: UUID): Result<void> => {
+    async (id: UUID): Promise<Result<void>> => {
       const denied = guard('install');
       if (denied) return denied;
+
+      if (source === 'live') {
+        const slot = `visit-start:${id}`;
+        const { error } = await supabase.rpc('start_visit', {
+          p_visit_id: id,
+          p_idempotency_key: takeIdemKey(slot),
+        });
+        settleIdemKey(slot, error);
+        if (error) return liveFail(error);
+        await refreshLive();
+        return okVoid;
+      }
+
       mutate((draft) => {
         const visit = draft.fieldVisits.find((v) => v.id === id);
         if (!visit) return;
@@ -1202,13 +1284,33 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, mutate, enqueue, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue, audit],
   );
 
   const completeVisit = useCallback(
-    (id: UUID): Result<void> => {
+    async (id: UUID): Promise<Result<void>> => {
       const denied = guard('install');
       if (denied) return denied;
+
+      if (source === 'live') {
+        // حُرّاس الإثبات عند الخادم (شباكٌ مسجَّل، قائمة تحقق، توقيع) -
+        // ورسائله عربية تصل كما هي
+        const slot = `visit-done:${id}`;
+        setBusy('complete-visit');
+        try {
+          const { error } = await supabase.rpc('complete_visit', {
+            p_visit_id: id,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const visit = db.fieldVisits.find((v) => v.id === id);
       if (!visit) return failWith('الزيارة غير موجودة.', 'validation');
       if (visit.type === 'measurement') {
@@ -1244,7 +1346,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, db.fieldVisits, db.windows, db.attachments, mutate, enqueue, audit],
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, db.fieldVisits, db.windows, db.attachments, mutate, enqueue, audit],
   );
 
   // ── Quotations ────────────────────────────────────────────────────────────

@@ -84,10 +84,10 @@ export function PendingInstallations() {
         visible={!!target}
         value={inDays(2)}
         title="موعد التركيب"
-        onConfirm={(iso) => {
+        onConfirm={async (iso) => {
           setError(null);
           if (!target || !currentUser) return setTarget(null);
-          const res = scheduleVisit(target, currentUser.id, 'installation', iso);
+          const res = await scheduleVisit(target, currentUser.id, 'installation', iso);
           setTarget(null);
           if (!res.ok) return setError(res.error);
           // الانتقال إلى الزيارة نفسها: هي الشاشة التي سيعمل عليها يوم التركيب
