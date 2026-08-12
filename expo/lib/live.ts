@@ -14,6 +14,7 @@ import type {
   AppNotification,
   Attachment,
   AuditLog,
+  StaffLedgerEntry,
   BusinessSettings,
   Customer,
   DiscountRequest,
@@ -89,7 +90,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     orgRows, settingsRows, members, customers, projects, rooms, windows,
     products, variants, rolls, movements, reservations, usages,
     rules, quotations, versions, items, discounts,
-    assignments, visits, payments, attachments, notifications, auditLogs,
+    assignments, visits, payments, staffLedgerRows, attachments, notifications, auditLogs,
     settingsCosts, variantCosts, versionFin, itemFin,
   ] = await Promise.all([
     select('organization'), select('business_settings'), select('team_members'),
@@ -99,6 +100,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     select('pricing_rules'), select('quotations'), select('quotation_versions'),
     select('quotation_items'), select('discount_requests'),
     select('tailor_assignments'), select('field_visits'), select('payments'),
+    select('staff_ledger'),
     select('attachments'), select('notifications'), select('audit_logs'),
     selectPrivileged('business_settings_costs'),
     selectPrivileged('fabric_variant_costs'),
@@ -453,9 +455,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       amountAgorot: n(p.amount_agorot),
       kind: s(p.kind) as Payment['kind'],
       method: s(p.method) as Payment['method'],
-      // عمودا موعد الصرف وصورة الشيك يصلان الخادم مع شريحة الكتابة
-      dueAt: null,
-      photoUri: null,
+      dueAt: tsOrNull(p.due_at),
+      photoUri: p.photo_uri ? s(p.photo_uri) : null,
       reference: s(p.reference),
       note: s(p.note),
       reversedPaymentId: sOrNull(p.reversed_payment_id),
@@ -496,6 +497,18 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     }))
     .sort(byNewest);
 
+  const staffLedgerMapped: StaffLedgerEntry[] = staffLedgerRows
+    .map((e) => ({
+      id: s(e.entry_id),
+      organizationId: s(e.organization_id),
+      staffId: s(e.staff_id),
+      amountAgorot: n(e.amount_agorot),
+      note: s(e.note),
+      createdBy: s(e.created_by),
+      createdAt: ts(e.created_at),
+    }))
+    .sort(byNewest);
+
   const auditLogsMapped: AuditLog[] = auditLogs
     .map((a) => ({
       id: s(a.log_id),
@@ -530,8 +543,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     tailorAssignments: assignmentsMapped,
     fieldVisits: visitsMapped,
     payments: paymentsMapped,
-    // دفتر الطاقم بلا جدول خادمي بعد - يصل مع شريحة المحاسبة
-    staffLedger: [],
+    staffLedger: staffLedgerMapped,
     attachments: attachmentsMapped,
     notifications: notificationsMapped,
     auditLogs: auditLogsMapped,

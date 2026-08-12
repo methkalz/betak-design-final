@@ -102,6 +102,9 @@ jobs:
       - name: customer + project CRUD RPCs suite
         run: python3 supabase/tests/crud_rpcs.py 2>&1 | tee logs/crud.log
 
+      - name: payments + staff ledger RPCs suite
+        run: python3 supabase/tests/payments_rpcs.py 2>&1 | tee logs/payments.log
+
       - name: discount RPCs suite
         run: python3 supabase/tests/discount_rpcs.py 2>&1 | tee logs/discount.log
 

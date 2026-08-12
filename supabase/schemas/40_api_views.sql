@@ -331,9 +331,24 @@ SELECT pay.id AS payment_id,
     pay.reversed_payment_id,
     pay.created_by,
     p.full_name AS created_by_name,
-    pay.created_at
+    pay.created_at,
+    pay.due_at,
+    pay.photo_uri
    FROM core.payments pay
      LEFT JOIN core.profiles p ON p.id = pay.created_by;
+
+create or replace view api.staff_ledger
+  with (security_invoker = on) as
+SELECT sl.id AS entry_id,
+    sl.organization_id,
+    sl.staff_id,
+    p.full_name AS staff_name,
+    sl.amount_agorot,
+    sl.note,
+    sl.created_by,
+    sl.created_at
+   FROM core.staff_ledger sl
+     LEFT JOIN core.profiles p ON p.id = sl.staff_id;
 
 create or replace view api.pricing_rules
   with (security_invoker = on) as

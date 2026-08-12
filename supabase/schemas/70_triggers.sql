@@ -8,6 +8,7 @@
 CREATE TRIGGER audit_logs_immutable BEFORE DELETE OR UPDATE ON core.audit_logs FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
 CREATE TRIGGER customers_no_delete BEFORE DELETE ON core.customers FOR EACH ROW EXECUTE FUNCTION private.block_delete();
 CREATE TRIGGER payments_immutable BEFORE DELETE OR UPDATE ON core.payments FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
+CREATE TRIGGER staff_ledger_immutable BEFORE DELETE OR UPDATE ON core.staff_ledger FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
 CREATE TRIGGER projects_guard BEFORE UPDATE ON core.projects FOR EACH ROW EXECUTE FUNCTION private.guard_project_update();
 CREATE TRIGGER projects_no_delete BEFORE DELETE ON core.projects FOR EACH ROW EXECUTE FUNCTION private.block_delete();
 CREATE TRIGGER quotation_items_guard BEFORE INSERT OR DELETE OR UPDATE ON core.quotation_items FOR EACH ROW EXECUTE FUNCTION private.guard_locked_items();

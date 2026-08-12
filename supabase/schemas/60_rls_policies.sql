@@ -122,3 +122,10 @@ CREATE POLICY "user reads own operations" ON core.client_operations FOR SELECT T
 CREATE POLICY "user updates own profile" ON core.profiles FOR UPDATE TO authenticated USING ((id = ( SELECT auth.uid() AS uid))) WITH CHECK ((id = ( SELECT auth.uid() AS uid)));
 ALTER TABLE core.user_devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.windows ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE core.staff_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE core.staff_ledger FORCE ROW LEVEL SECURITY;
+-- الأدمن يرى الدفتر كله، والموظف قيوده هو - والكتابة عبر RPC حصرًا
+CREATE POLICY staff_ledger_read ON core.staff_ledger FOR SELECT
+  USING (private.has_role(organization_id, ARRAY['admin'::core.app_role])
+         OR (staff_id = ( SELECT auth.uid() AS uid)));

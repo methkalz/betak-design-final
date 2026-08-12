@@ -133,6 +133,8 @@ CREATE TABLE core.payments (
     reversed_payment_id uuid,
     created_by uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    due_at timestamp with time zone,
+    photo_uri text DEFAULT ''::text NOT NULL,
     CONSTRAINT payments_amount_agorot_check CHECK ((amount_agorot <> 0)),
     CONSTRAINT reversal_needs_note CHECK (((kind <> 'reversal'::core.payment_kind) OR (length(btrim(note)) > 0))),
     CONSTRAINT reversal_shape CHECK ((((kind = 'reversal'::core.payment_kind) AND (amount_agorot < 0) AND (reversed_payment_id IS NOT NULL)) OR ((kind <> 'reversal'::core.payment_kind) AND (amount_agorot > 0) AND (reversed_payment_id IS NULL))))
@@ -538,6 +540,18 @@ CREATE TABLE core.document_sequences (
     CONSTRAINT document_sequences_doc_type_check CHECK ((length(btrim(doc_type)) > 0)),
     CONSTRAINT document_sequences_last_number_check CHECK ((last_number >= 0)),
     CONSTRAINT document_sequences_year_check CHECK (((year >= 2000) AND (year <= 2100)))
+);
+
+CREATE TABLE core.staff_ledger (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    staff_id uuid NOT NULL,
+    amount_agorot bigint NOT NULL,
+    note text DEFAULT ''::text NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT staff_ledger_amount_positive CHECK ((amount_agorot > 0)),
+    CONSTRAINT staff_ledger_whole_shekel CHECK (((amount_agorot % 100) = 0))
 );
 
 CREATE TABLE core.user_devices (

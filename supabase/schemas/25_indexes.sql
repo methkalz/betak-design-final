@@ -36,6 +36,7 @@ CREATE UNIQUE INDEX quotation_versions_one_sent_idx ON core.quotation_versions U
 CREATE INDEX reservations_project_idx ON core.fabric_reservations USING btree (organization_id, project_id);
 CREATE INDEX reservations_roll_open_idx ON core.fabric_reservations USING btree (organization_id, roll_id) WHERE (status = ANY (ARRAY['active'::core.reservation_status, 'partially_consumed'::core.reservation_status]));
 CREATE INDEX rolls_assigned_tailor_idx ON core.fabric_rolls USING btree (organization_id, assigned_tailor_id) WHERE ((assigned_tailor_id IS NOT NULL) AND (retired_at IS NULL));
+CREATE INDEX staff_ledger_staff_idx ON core.staff_ledger USING btree (organization_id, staff_id);
 CREATE INDEX rolls_variant_idx ON core.fabric_rolls USING btree (organization_id, variant_id) WHERE (retired_at IS NULL);
 CREATE INDEX rooms_project_idx ON core.rooms USING btree (organization_id, project_id, sort_order);
 CREATE INDEX stock_movements_operation_group_idx ON core.stock_movements USING btree (operation_group_id) WHERE (operation_group_id IS NOT NULL);

@@ -2875,10 +2875,35 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     }): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
-      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (!(input.amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
+      if (input.amountAgorot % 100 !== 0)
+        return failWith('المبلغ بالشيكل الصحيح - لا أغورة.', 'validation');
+
+      if (source === 'live') {
+        // عقد §11 عند الخادم: لا دفعة قبل عرض معتمد، والشيكل صحيح
+        const slot = `pay:${input.projectId}:${input.amountAgorot}:${input.reference}`;
+        setBusy('payment');
+        try {
+          const { error } = await supabase.rpc('record_payment', {
+            p_project_id: input.projectId,
+            p_amount_agorot: input.amountAgorot,
+            p_kind: input.kind,
+            p_method: input.method,
+            p_idempotency_key: takeIdemKey(slot),
+            p_reference: input.reference,
+            p_note: input.note,
+            p_due_at: input.dueAt ?? null,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
       // لا دفعة بلا عرض معتمد: بدونه لا مبلغ متفق عليه تُقاس عليه الدفعة،
       // فتظهر مستحقات وأرصدة لا أصل لها. القاعدة تُفرض في المحرك أيضًا حين
       // تُبنى دالة record_payment (انظر DECISIONS §11).
@@ -2926,7 +2951,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, source, requireOnline, mutate, audit, userId],
+    [refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, mutate, audit, userId],
   );
 
   /**
@@ -2945,10 +2970,33 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     }): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
-      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (input.checks.length === 0) return failWith('أدخل شيكًا واحدًا على الأقل.', 'validation');
+
+      if (source === 'live') {
+        // الرزمة كلها معاملة خادمية واحدة - صورة الرزمة تلحق مع شريحة
+        // المرفقات (لا رفع تخزين بعد)
+        const slot = `chk:${input.projectId}:${input.checks.length}:${input.checks[0]?.dueAt ?? ''}`;
+        setBusy('payment');
+        try {
+          const { error } = await supabase.rpc('record_check_series', {
+            p_project_id: input.projectId,
+            p_checks: input.checks.map((c) => ({
+              amount_agorot: c.amountAgorot,
+              due_at: c.dueAt,
+            })),
+            p_idempotency_key: takeIdemKey(slot),
+            p_note: input.note,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
       if (input.checks.some((c) => !(c.amountAgorot > 0)))
         return failWith('كل شيك يجب أن يكون مبلغه أكبر من صفر.', 'validation');
       const approved = db.quotationVersions.some(
@@ -2997,7 +3045,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, source, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
+    [refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
   );
 
   /**
@@ -3011,10 +3059,31 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     async (staffId: UUID, amountAgorot: number, note: string): Promise<Result<void>> => {
       const denied = guard('manage_users');
       if (denied) return denied;
-      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       const staff = db.profiles.find((p) => p.id === staffId);
+      if (source === 'live') {
+        if (!staff) return failWith('الموظف غير موجود.', 'validation');
+        if (!(amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
+        if (amountAgorot % 100 !== 0)
+          return failWith('المبلغ بالشيكل الصحيح - لا أغورة.', 'validation');
+        const slot = `payout:${staffId}:${amountAgorot}`;
+        setBusy('payout');
+        try {
+          const { error } = await supabase.rpc('record_staff_payout', {
+            p_staff_id: staffId,
+            p_amount_agorot: amountAgorot,
+            p_idempotency_key: takeIdemKey(slot),
+            p_note: note,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
       if (!staff) return failWith('الموظف غير موجود.', 'validation');
       if (!(amountAgorot > 0)) return failWith('المبلغ يجب أن يكون أكبر من صفر.', 'validation');
       if (amountAgorot % 100 !== 0)
@@ -3051,20 +3120,46 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, source, requireOnline, db.profiles, mutate, notify, audit, userId],
+    [refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, db.profiles, mutate, notify, audit, userId],
   );
 
   const reversePayment = useCallback(
     async (paymentId: UUID, reason: string): Promise<Result<void>> => {
       const denied = guard('record_payment');
       if (denied) return denied;
-      if (source === 'live') return failWith('الدفعات والدفاتر تُوصَل بالخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
       const offline = requireOnline();
       if (offline) return offline;
       if (!reason.trim()) return failWith('سبب العكس إلزامي.', 'validation');
+
+      if (source === 'live') {
+        const slot = `rev:${paymentId}`;
+        setBusy('reverse');
+        try {
+          const { error } = await supabase.rpc('reverse_payment', {
+            p_payment_id: paymentId,
+            p_reason: reason,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
       setBusy('reverse');
       await serverLatency();
       setBusy(null);
+      // حارسا الخادم في التجريبي أيضًا: لا عكس لعكسٍ ولا عكس مرتين
+      {
+        const original = db.payments.find((p) => p.id === paymentId);
+        if (!original) return failWith('الدفعة غير موجودة.', 'validation');
+        if (original.kind === 'reversal')
+          return failWith('قيد العكس لا يُعكس - سجّل دفعة جديدة إن لزم.', 'conflict');
+        if (db.payments.some((p) => p.reversedPaymentId === paymentId))
+          return failWith('الدفعة معكوسة بالفعل.', 'conflict');
+      }
       mutate((draft) => {
         const original = draft.payments.find((p) => p.id === paymentId);
         if (!original) return;
@@ -3086,7 +3181,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, source, requireOnline, mutate, audit, userId],
+    [db.payments, refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, mutate, audit, userId],
   );
 
   // ── Notifications / settings ──────────────────────────────────────────────
