@@ -944,7 +944,7 @@ function QuoteTab({
 /* ───────────────────────── Production ───────────────────────── */
 
 function ProductionTab({ projectId }: { projectId: string }) {
-  const { db, role, busy, source, autoReserveForProject } = useStore();
+  const { db, role, busy, autoReserveForProject } = useStore();
   // رسالة الحجز حين لا يجري: كتم النتيجة كان يجعل الزر ضغطةً ميتة بلا أثر
   const [reserveError, setReserveError] = useState<string | null>(null);
   const router = useRouter();
@@ -962,11 +962,7 @@ function ProductionTab({ projectId }: { projectId: string }) {
       <Card>
         <SectionHeader
           title="خطة القماش"
-          subtitle={
-            source === 'live'
-              ? 'احجز من الرولات - والحجز التلقائي يصل قريبًا'
-              : 'تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك'
-          }
+          subtitle="تُحجز تلقائيًا عند اعتماد العرض حسب اختيار كل شباك"
         />
         {gaps.map((g) => {
           const variant = db.fabricVariants.find((v) => v.id === g.variantId);
@@ -1021,15 +1017,12 @@ function ProductionTab({ projectId }: { projectId: string }) {
         )}
         {can(role, 'reserve_fabric') && ready.length > 0 && (
           <Button
-            label={source === 'live' ? 'احجز من الرولات' : 'احجز الآن'}
+            label="احجز الآن"
             full
             loading={busy === 'reserve'}
             icon={<Layers size={16} color={palette.ivory} />}
             style={{ marginTop: spacing.md }}
             onPress={async () => {
-              // الطريق الشغّال يتقدم: في الوضع الحي الحجز اليدوي هو
-              // الحقيقي، فالزر الأول يقود إليه لا إلى رفضٍ مضمون
-              if (source === 'live') return router.push(`/reserve/${projectId}`);
               setReserveError(null);
               const r = await autoReserveForProject(projectId);
               if (!r.ok) setReserveError(r.error);

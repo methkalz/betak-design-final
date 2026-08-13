@@ -89,10 +89,16 @@ export type FabricGap = {
 export function projectFabricGaps(db: Database, projectId: UUID): FabricGap[] {
   const active = db.reservations.filter((r) => r.projectId === projectId && r.status !== 'released');
   return projectFabricPlan(db, projectId).map((need) => {
+    // ما فُكّ جزئيًا أو تلف من المحجوز لم يعد يغطي الحاجة - عدّه كاملًا كان
+    // يُظهر «مكتمل» ويمنع استكمال الحجز بينما الأمتار ناقصة فعلًا (المستهلَك
+    // يبقى محسوبًا: غطّى حاجته بالقص)
     const reserved = round3(
       active
         .filter((r) => db.fabricRolls.find((x) => x.id === r.rollId)?.variantId === need.variantId)
-        .reduce((s, r) => s + r.quantityM, 0),
+        .reduce(
+          (s, r) => s + Math.max(0, r.quantityM - (r.releasedM ?? 0) - (r.damagedReservedM ?? 0)),
+          0,
+        ),
     );
     const available = round3(
       db.fabricRolls
