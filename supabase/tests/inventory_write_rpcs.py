@@ -239,6 +239,100 @@ out = as_user(T1, f"""select api.complete_window(
   '{W3}'::uuid, 6, '{key(15)}'::uuid, null, null)::text;""")
 check('17 شباك بلا حجوزات → BD422', 'BD422' in out or 'لا يوجد قماش محجوز' in out, out)
 
+# ── الحجز الذرّي: عقيدة دفعة الصبغ والصنف كله أو لا شيء ─────────────────────
+PRJA = 'bbbb6666-0000-4000-8000-00000000ad01'
+ROOMA = 'bbbb6666-0000-4000-8000-00000000ad02'
+PRJB = 'bbbb6666-0000-4000-8000-00000000ad03'
+VA = 'bbbb6666-0000-4000-8000-00000000ae01'   # قماش الستائر
+VL = 'bbbb6666-0000-4000-8000-00000000ae02'   # بطانة تستهلك ×3
+WA1 = 'bbbb6666-0000-4000-8000-00000000af01'
+WA2 = 'bbbb6666-0000-4000-8000-00000000af02'
+RA1 = 'bbbb6666-0000-4000-8000-00000000ba01'
+RA2 = 'bbbb6666-0000-4000-8000-00000000ba02'
+RA3 = 'bbbb6666-0000-4000-8000-00000000ba03'
+RB1 = 'bbbb6666-0000-4000-8000-00000000bb01'
+RB2 = 'bbbb6666-0000-4000-8000-00000000bb02'
+out = sql(f"""insert into core.fabric_variants
+ (id,organization_id,product_id,color_name,sku,cost_per_meter_agorot,meters_per_running_meter) values
+ ('{VA}','{ORG}','{PROD}','حجزي','AV1',2000,0),
+ ('{VL}','{ORG}','{PROD}','بطانة الحجز','AL1',900,3);
+insert into core.projects (id,organization_id,customer_id,code,status_code) values
+ ('{PRJA}','{ORG}','{CUST}','AR-1','customer_approved'),
+ ('{PRJB}','{ORG}','{CUST}','AR-2','quotation');
+insert into core.rooms (id,organization_id,project_id,name)
+values ('{ROOMA}','{ORG}','{PRJA}','مجلس');
+-- WA1: قماش 300سم × مضاعف 3 = 9.000 | WA2: قماش 2.500 + بطانة 100سم × نسبة 3 = 3.000
+-- (مضاعف WA2 هو 2.5 عمدًا: لو حُسبت البطانة بالمضاعف لخرجت 2.500 لا 3.000)
+insert into core.windows (id,organization_id,project_id,room_id,name,width_cm,height_cm,
+                          has_lining,fullness,quantity,fabric_variant_id,lining_variant_id) values
+ ('{WA1}','{ORG}','{PRJA}','{ROOMA}','شباك كبير',300,250,false,3,1,'{VA}',null),
+ ('{WA2}','{ORG}','{PRJA}','{ROOMA}','شباك مبطن',100,250,true,2.5,1,'{VA}','{VL}');
+insert into core.fabric_rolls (id,organization_id,variant_id,code,initial_meters) values
+ ('{RA1}','{ORG}','{VA}','AV-1',30), ('{RA2}','{ORG}','{VA}','AV-2',13),
+ ('{RA3}','{ORG}','{VA}','AV-3',5),  ('{RB1}','{ORG}','{VL}','AL-1',2);
+insert into core.stock_movements (organization_id,roll_id,type,quantity_m,notes,created_by,idempotency_key) values
+ ('{ORG}','{RA1}','receipt',30,'بذرة','{ADMIN}',gen_random_uuid()),
+ ('{ORG}','{RA2}','receipt',13,'بذرة','{ADMIN}',gen_random_uuid()),
+ ('{ORG}','{RA3}','receipt',5,'بذرة','{ADMIN}',gen_random_uuid()),
+ ('{ORG}','{RB1}','receipt',2,'بذرة','{ADMIN}',gen_random_uuid());""")
+if 'ERROR' in out:
+    print(out)
+    sys.exit(1)
+
+# القماش يحتاج 11.500 (9 + 2.5): الرول الأضيق الكافي وحده هو AV-2 (13)
+# لا AV-1 (30) - والبطانة تحتاج 3.000 والمتاح 2.000 → نقص معلن
+out = as_user(SALES, f"""select api.auto_reserve_for_project(
+  '{PRJA}'::uuid, '{key(30)}'::uuid)::text;""")
+probe = sql(f"""select 'R2=' || count(*) filter (where roll_id = '{RA2}' and quantity_m = 11.500)
+ || '|N=' || count(*) from core.fabric_reservations where project_id = '{PRJA}';""", quiet=False)
+check('18 رول واحد يكفي: الأضيق هامشًا لا الأكبر، والنقص بالأرقام',
+      '"reserved_count": 1' in out and '"available": 2.000' in out
+      and 'R2=1|N=1' in probe, out + probe)
+
+out = as_user(SALES, f"""select api.auto_reserve_for_project(
+  '{PRJA}'::uuid, '{key(30)}'::uuid)::text;""")
+probe = sql(f"""select 'N=' || count(*) from core.fabric_reservations
+ where project_id = '{PRJA}';""", quiet=False)
+check('19 الإعادة بنفس المفتاح لا تضاعف الحجوزات',
+      '"was_replayed": true' in out and 'N=1' in probe, out + probe)
+
+probe = sql(f"""select 'S=' || status_code from core.projects where id = '{PRJA}';""", quiet=False)
+check('20 النقص يمنع تقدم المرحلة', 'S=customer_approved' in probe, probe)
+
+# وصول رول بطانة 1.5م: لا رول يكفي وحده (2 و1.5) والمجموع يكفي →
+# الأكبر فالأكبر: 2.000 من AL-1 ثم 1.000 من AL-2، والمرحلة تتقدم
+out = sql(f"""insert into core.fabric_rolls (id,organization_id,variant_id,code,initial_meters)
+ values ('{RB2}','{ORG}','{VL}','AL-2',1.5);
+insert into core.stock_movements (organization_id,roll_id,type,quantity_m,notes,created_by,idempotency_key)
+ values ('{ORG}','{RB2}','receipt',1.5,'بذرة','{ADMIN}',gen_random_uuid());""")
+if 'ERROR' in out:
+    print(out)
+    sys.exit(1)
+out = as_user(SALES, f"""select api.auto_reserve_for_project(
+  '{PRJA}'::uuid, '{key(31)}'::uuid)::text;""")
+probe = sql(f"""select 'Q=' || string_agg(quantity_m::text, '+' order by quantity_m desc)
+ || '|S=' || (select status_code from core.projects where id = '{PRJA}')
+ from core.fabric_reservations
+ where project_id = '{PRJA}' and roll_id in ('{RB1}','{RB2}');""", quiet=False)
+check('21 التوزيع الأكبر فالأكبر يكمل النقص والمرحلة تتقدم',
+      '"reserved_count": 2' in out and '"short": []' in out
+      and '"status_advanced": true' in out and 'Q=2.000+1.000|S=fabric_allocated' in probe,
+      out + probe)
+
+out = as_user(SALES, f"""select api.auto_reserve_for_project(
+  '{PRJA}'::uuid, '{key(32)}'::uuid)::text;""")
+check('22 مشروع مكتمل الحجز: صفر حجوزات جديدة بلا خطأ',
+      '"reserved_count": 0' in out and '"short": []' in out, out)
+
+out = as_user(T1, f"""select api.auto_reserve_for_project(
+  '{PRJA}'::uuid, '{key(33)}'::uuid)::text;""")
+check('23 الخياط لا يحجز → BD403', 'BD403' in out or 'دورك لا يسمح' in out, out)
+
+out = as_user(SALES, f"""select api.auto_reserve_for_project(
+  '{PRJB}'::uuid, '{key(34)}'::uuid)::text;""")
+check('24 مشروع قبل الاعتماد → BD409 برسالة مصممة',
+      'BD409' in out or 'اعتماد الزبون' in out, out)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

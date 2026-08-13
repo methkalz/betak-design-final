@@ -1950,15 +1950,43 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline as Result<{ reserved: number; short: FabricGap[] }>;
 
-      // «الصنف كله أو لا شيء» عبر رولات عدة يحتاج معاملة خادمية واحدة -
-      // تنسيقها من العميل يعيد إنتاج الحجز الجزئي الذي تمنعه القاعدة.
-      // RPC الحجز التلقائي يصل في دفعة قادمة؛ حتى حينها الحجز اليدوي
-      // (رولًا رولًا) يعمل على الخادم من شاشة حجز القماش.
-      if (source === 'live')
-        return failWith(
-          'الحجز التلقائي يصل الخادم في دفعة قادمة - احجز يدويًا من شاشة حجز القماش.',
-          'validation',
-        );
+      if (source === 'live') {
+        // «الصنف كله أو لا شيء» عبر رولات عدة في معاملة خادمية واحدة -
+        // تنسيقها من العميل كان يعيد إنتاج الحجز الجزئي الذي تمنعه القاعدة
+        const slot = `autoreserve:${projectId}`;
+        setBusy('reserve');
+        try {
+          const { data, error } = await supabase.rpc('auto_reserve_for_project', {
+            p_project_id: projectId,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error) as Result<{ reserved: number; short: FabricGap[] }>;
+          await refreshLive();
+          const d = data as {
+            reserved_count?: number;
+            short?: {
+              variant_id: string;
+              label: string;
+              required: number;
+              reserved: number;
+              remaining: number;
+              available: number;
+            }[];
+          } | null;
+          const short: FabricGap[] = (d?.short ?? []).map((s) => ({
+            variantId: s.variant_id,
+            label: s.label,
+            required: s.required,
+            reserved: s.reserved,
+            remaining: s.remaining,
+            available: s.available,
+          }));
+          return { ok: true, data: { reserved: d?.reserved_count ?? 0, short } };
+        } finally {
+          setBusy(null);
+        }
+      }
 
       setBusy('reserve');
       await serverLatency();
@@ -2019,7 +2047,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: { reserved, short } };
     },
-    [guard, requireOnline, source, mutate, addMovement, audit, userId],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, mutate, addMovement, audit, userId],
   );
 
   const releaseReservation = useCallback(

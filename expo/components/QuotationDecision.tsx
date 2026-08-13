@@ -45,8 +45,10 @@ export function QuotationDecision({
     const res = await decideVersion(versionId, 'approved');
     if (!res.ok) return setError(res.error);
     // النقص لا يُبلَّغ هنا: تبويب القماش هو من يشرحه بالأرقام، والانتقال
-    // إليه جزء من الاعتماد أصلًا.
-    await autoReserveForProject(projectId);
+    // إليه جزء من الاعتماد أصلًا. أما إخفاق النداء نفسه (انقطاع، تعارض)
+    // فيُعرض - الاعتماد تم والحجز لم يتم، وكتمانه يترك النقص بلا إشارة
+    const reserve = await autoReserveForProject(projectId);
+    if (!reserve.ok) return setError(reserve.error);
     onApproved();
   };
 
