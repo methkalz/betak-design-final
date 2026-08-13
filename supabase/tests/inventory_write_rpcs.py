@@ -419,6 +419,36 @@ check('38 رول مسنَد لخياط: المبيعات محجوبة والأد
       ('BD403' in out or 'مسار الاستلام' in out)
       and '"available_quantity_m": 27.000' in out2, out + out2)
 
+# ── سياسات مخزن المرفقات: المسار نفسه ينطق بالصلاحية ─────────────────────────
+out = as_user(SALES, f"""insert into storage.objects (bucket_id, name)
+ values ('attachments', '{ORG}/{PRJA}/p1.jpg');""")
+probe = sql(f"""select 'N=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJA}/p1.jpg';""", quiet=False)
+check('39 الرفع لمسار مؤسستك ومشروعٍ تراه يمر',
+      'ERROR' not in out and 'N=1' in probe, out + probe)
+
+out = as_user(T1, f"""insert into storage.objects (bucket_id, name)
+ values ('attachments', '{ORG}/{PRJA}/p2.jpg');""")
+check('40 خياط لا يرى المشروع: الرفع محجوب بسياسة الصف',
+      'ERROR' in out or 'row-level' in out, out)
+
+out = as_user(SALES, f"""insert into storage.objects (bucket_id, name)
+ values ('attachments', 'ffffffff-0000-4000-8000-000000000001/{PRJA}/p3.jpg');""")
+check('41 مسار مؤسسة غريبة محجوب', 'ERROR' in out or 'row-level' in out, out)
+
+# سياسة القراءة هي ما يفحصه توليد الرابط الموقّع: من لا يرى المشروع
+# لا يرى صوره - وعضوية المؤسسة وحدها لا تكفي
+out = as_user(T1, f"""select 'N=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJA}/p1.jpg';""")
+out2 = as_user(SALES, f"""select 'N=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJA}/p1.jpg';""")
+check('42 القراءة لمن يرى المشروع وحده: الخياط الغريب صفر والمبيعات واحد',
+      'N=0' in out and 'N=1' in out2, out + out2)
+
+# محفّز storage-api يمنع الحذف المباشر إلا عبر بوابته المسماة
+sql(f"""select set_config('storage.allow_delete_query', 'true', false) \\g /dev/null
+delete from storage.objects where bucket_id = 'attachments' and name like '{ORG}/%';""")
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

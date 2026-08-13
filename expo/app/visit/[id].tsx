@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -28,6 +27,7 @@ import {
   ScrollScreen,
   SectionHeader,
 } from '@/components/ui';
+import { SignedImage } from '@/components/SignedImage';
 import { palette, radius, spacing } from '@/constants/theme';
 import { ATTACHMENT_KIND_LABELS, VISIT_STATUS_LABELS, VISIT_TYPE_LABELS } from '@/domain/labels';
 import { cm, formatDateTime } from '@/lib/format';
@@ -46,7 +46,7 @@ export default function VisitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const goBack = useGoBack('/visits');
-  const { db, isOnline, startVisit, completeVisit, updateVisit, addAttachment } = useStore();
+  const { db, isOnline, busy, startVisit, completeVisit, updateVisit, addAttachment } = useStore();
   const [error, setError] = useState<string | null>(null);
   // null = لم يلمس الحقل؛ '' = مسحٌ مقصود يُحفَظ - فلا يبعث النص القديم
   const [note, setNote] = useState<string | null>(null);
@@ -81,13 +81,14 @@ export default function VisitScreen() {
         result = await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
       }
       if (result.canceled || !result.assets?.[0]) return;
-      addAttachment({
+      const res = await addAttachment({
         projectId: visit.projectId,
         visitId: visit.id,
         kind,
         uri: result.assets[0].uri,
         caption: ATTACHMENT_KIND_LABELS[kind],
       });
+      if (!res.ok) setError(res.error);
     } catch (e) {
       console.log('[visit] capture failed', e);
       setError('تعذر فتح الكاميرا. تحقق من الأذونات وحاول مجددًا.');
@@ -297,6 +298,7 @@ export default function VisitScreen() {
                 label="صورة قبل"
                 variant="secondary"
                 small
+                loading={busy === 'attach'}
                 icon={<Camera size={15} color={palette.oliveDark} />}
                 onPress={() => capture('before_install')}
               />
@@ -304,6 +306,7 @@ export default function VisitScreen() {
                 label="صورة بعد"
                 variant="accent"
                 small
+                loading={busy === 'attach'}
                 icon={<Camera size={15} color={palette.white} />}
                 onPress={() => capture('after_install')}
               />
@@ -313,6 +316,7 @@ export default function VisitScreen() {
               label="التقاط صورة قياس"
               variant="secondary"
               small
+              loading={busy === 'attach'}
               icon={<Camera size={15} color={palette.oliveDark} />}
               onPress={() => capture('measurement')}
             />
@@ -322,8 +326,8 @@ export default function VisitScreen() {
         <Row gap={spacing.sm} wrap style={{ marginTop: spacing.md }}>
           {photos.map((p) => (
             <View key={p.id} style={{ width: 96, gap: 4 }}>
-              <Image
-                source={{ uri: p.uri }}
+              <SignedImage
+                uri={p.uri}
                 style={{ width: 96, height: 96, borderRadius: radius.md, backgroundColor: palette.sand }}
                 contentFit="cover"
               />

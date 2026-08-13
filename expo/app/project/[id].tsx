@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -47,6 +46,7 @@ import {
 } from '@/components/ui';
 import { CheckWizard } from '@/components/CheckWizard';
 import { QuotationDecision } from '@/components/QuotationDecision';
+import { SignedImage } from '@/components/SignedImage';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
 import { font, gradients, palette, radius, spacing } from '@/constants/theme';
@@ -1327,8 +1327,8 @@ function MediaTab({ projectId }: { projectId: string }) {
     <View style={{ gap: spacing.md }}>
       {attachments.map((a) => (
         <Card key={a.id} padded={false} style={{ overflow: 'hidden' }}>
-          <Image
-            source={{ uri: a.uri }}
+          <SignedImage
+            uri={a.uri}
             style={{ width: '100%', height: 200, backgroundColor: palette.sand }}
             contentFit="cover"
             transition={200}
