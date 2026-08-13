@@ -333,6 +333,40 @@ out = as_user(SALES, f"""select api.auto_reserve_for_project(
 check('24 مشروع قبل الاعتماد → BD409 برسالة مصممة',
       'BD409' in out or 'اعتماد الزبون' in out, out)
 
+# ── الميني رول: تحويل لا خلق، بسقف المتاح وميراث الدفعة ─────────────────────
+# AV-1 متاحه 30 (حجز القماش وقع على AV-2 الأضيق) - تحويل 4 يترك 26
+out = as_user(SALES, f"""select api.create_mini_roll(
+  '{RA1}'::uuid, 4, '{key(40)}'::uuid)::text;""")
+probe = sql(f"""select 'C=' || r.code || '|M=' || r.is_mini_roll || '|I=' || r.initial_meters
+ || '|T=' || (select count(*) from core.stock_movements m
+              where m.roll_id in ('{RA1}', r.id) and m.type::text like 'transfer%'
+                and m.operation_group_id is not null)
+ from core.fabric_rolls r
+ where r.organization_id = '{ORG}' and r.is_mini_roll;""", quiet=False)
+check('25 التحويل ينشئ AV-M01 بحركتين مجمّعتين والأصل ينقص',
+      '"code": "AV-M01"' in out and '"source_available_m": 26.000' in out
+      and 'C=AV-M01|M=true|I=4.000|T=2' in probe, out + probe)
+
+out = as_user(SALES, f"""select api.create_mini_roll(
+  '{RA1}'::uuid, 4, '{key(40)}'::uuid)::text;""")
+probe = sql(f"""select 'N=' || count(*) from core.fabric_rolls
+ where organization_id = '{ORG}' and is_mini_roll;""", quiet=False)
+check('26 الإعادة بنفس المفتاح لا تكرر التحويل',
+      '"was_replayed": true' in out and 'N=1' in probe, out + probe)
+
+out = as_user(SALES, f"""select api.create_mini_roll(
+  '{RA3}'::uuid, 9, '{key(41)}'::uuid)::text;""")
+check('27 فوق متاح الأصل → BD422 بالأرقام',
+      'BD422' in out or 'أكبر من المتاح' in out, out)
+
+out = as_user(T1, f"""select api.create_mini_roll(
+  '{RA1}'::uuid, 1, '{key(42)}'::uuid)::text;""")
+check('28 الخياط لا يحوّل → BD403', 'BD403' in out or 'تحويل البقايا' in out, out)
+
+out = as_user(SALES, f"""select api.create_mini_roll(
+  '{RA3}'::uuid, 2, '{key(43)}'::uuid)::text;""")
+check('29 الرمز يتسلسل: الثاني AV-M02', '"code": "AV-M02"' in out, out)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')
