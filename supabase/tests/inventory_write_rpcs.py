@@ -367,6 +367,58 @@ out = as_user(SALES, f"""select api.create_mini_roll(
   '{RA3}'::uuid, 2, '{key(43)}'::uuid)::text;""")
 check('29 الرمز يتسلسل: الثاني AV-M02', '"code": "AV-M02"' in out, out)
 
+# ── التسويات والاستلام الإضافي: الزيادة روتين والنقصان موثّق ─────────────────
+# AV-3 بعد الميني رول: 5 - 2 = 3 متاحة
+out = as_user(SALES, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'receipt', 3, '{key(50)}'::uuid, 'فاتورة 88')::text;""")
+check('30 استلام إضافي على رول قائم يرفع الرصيد',
+      '"available_quantity_m": 6.000' in out, out)
+
+out = as_user(SALES, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'receipt', 3, '{key(50)}'::uuid, 'فاتورة 88')::text;""")
+check('31 الإعادة بنفس المفتاح لا تكرر الحركة', '"was_replayed": true' in out, out)
+
+out = as_user(SALES, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'adjustment_out', 1, '{key(51)}'::uuid, 'جرد')::text;""")
+check('32 تسوية النقصان للأدمن وحده → BD403',
+      'BD403' in out or 'الأدمن وحده' in out, out)
+
+out = as_user(ADMIN, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'adjustment_out', 2, '{key(52)}'::uuid, 'جرد سنوي')::text;""")
+probe = sql(f"""select 'R=' || coalesce(reason_code, 'NULL') from core.stock_movements
+ where roll_id = '{RA3}' and type = 'adjustment_out';""", quiet=False)
+check('33 تسوية نقصان بسبب: الرصيد ينزل ورمز السبب معتمد',
+      '"available_quantity_m": 4.000' in out and 'R=other' in probe, out + probe)
+
+out = as_user(ADMIN, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'adjustment_out', 99, '{key(53)}'::uuid, 'خطأ')::text;""")
+check('34 فوق المتاح → BD422', 'BD422' in out or 'أكبر من المتاح' in out, out)
+
+out = as_user(ADMIN, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'adjustment_out', 1, '{key(54)}'::uuid, '  ')::text;""")
+check('35 نقصان بلا سبب → BD400 برسالة مصممة',
+      'BD400' in out or 'سببًا مسجَّلًا' in out, out)
+
+out = as_user(ADMIN, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'return', 1, '{key(55)}'::uuid, 'x')::text;""")
+check('36 الإرجاع اليدوي مرفوض من هذا المسار أبدًا',
+      'BD400' in out or 'غير معتمد من هذا المسار' in out, out)
+
+out = as_user(SALES, f"""select api.adjust_stock(
+  '{RA3}'::uuid, 'receipt', 20000, '{key(56)}'::uuid, 'خطأ مطبعي')::text;""")
+check('37 فوق سقف الشحنة الحقيقية → BD400 لا أمتار وهمية',
+      'BD400' in out or 'راجع الرقم' in out, out)
+
+# رصيد الخياط المسنَد: بابه مسار الاستلام لا التسوية - قرار المالك 11.8
+sql(f"""update core.fabric_rolls set assigned_tailor_id = '{T1}' where id = '{RA1}';""")
+out = as_user(SALES, f"""select api.adjust_stock(
+  '{RA1}'::uuid, 'receipt', 1, '{key(57)}'::uuid, '')::text;""")
+out2 = as_user(ADMIN, f"""select api.adjust_stock(
+  '{RA1}'::uuid, 'receipt', 1, '{key(58)}'::uuid, '')::text;""")
+check('38 رول مسنَد لخياط: المبيعات محجوبة والأدمن يمر',
+      ('BD403' in out or 'مسار الاستلام' in out)
+      and '"available_quantity_m": 27.000' in out2, out + out2)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

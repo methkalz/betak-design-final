@@ -28,9 +28,10 @@ import { useStore } from '@/providers/store';
 
 type Action = 'receipt' | 'return' | 'damage' | 'adjustment_in' | 'adjustment_out';
 
+// الإرجاع ليس هنا: لكل إرجاعٍ سجلُّ استخدامٍ يقيّده (الربط الخماسي)
+// ودربه إتمام الشباك - قيد الخادم يمنع الإرجاع اليدوي أبدًا
 const ACTIONS: { value: Action; label: string }[] = [
   { value: 'receipt', label: 'استلام' },
-  { value: 'return', label: 'إرجاع' },
   { value: 'damage', label: 'تلف' },
   { value: 'adjustment_in', label: 'تسوية +' },
   { value: 'adjustment_out', label: 'تسوية −' },
@@ -44,7 +45,7 @@ export default function RollScreen() {
   const { db, role, busy, adjustStock, createMiniRoll } = useStore();
   const view = useRollView(id);
 
-  const [action, setAction] = useState<Action>('return');
+  const [action, setAction] = useState<Action>('receipt');
   const [quantity, setQuantity] = useState<string>('');
   const [reason, setReason] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,10 @@ export default function RollScreen() {
   const reservations = db.reservations.filter((r) => r.rollId === roll.id && r.status !== 'released');
   const showCost = role === 'admin';
   const editable = can(role, 'reserve_fabric');
+  // ما يُنقص الرصيد للأدمن وحده - إخفاؤه خير من نموذجٍ يُملأ ثم يُرفض آخره
+  const actions = ACTIONS.filter(
+    (a) => role === 'admin' || (a.value !== 'damage' && a.value !== 'adjustment_out'),
+  );
 
   const submit = async () => {
     setError(null);
@@ -168,7 +173,7 @@ export default function RollScreen() {
       {editable && (
         <Card>
           <SectionHeader title="حركة يدوية" subtitle="كل حركة تُسجَّل في السجل الدائم" />
-          <SegmentedControl value={action} onChange={setAction} options={ACTIONS} />
+          <SegmentedControl value={action} onChange={setAction} options={actions} />
           <View style={{ marginTop: spacing.md, gap: spacing.md }}>
             <Field
               label="الكمية"

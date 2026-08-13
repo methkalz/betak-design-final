@@ -2399,41 +2399,69 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       // السبب إلزامي لما يُنقص الرصيد أو يوثّق تلفًا (أثر تدقيقي لا غنى عنه)،
       // واختياري لما يزيده: الاستلام والإرجاع روتين يومي، وإلزام تبريره
       // يُنتج أسبابًا صورية تُفسد التقارير بدل أن تُثريها
+      // الإرجاع اليدوي متقاعد في الوضعين: لكل إرجاعٍ سجلُّ استخدامٍ يقيّده
+      // (الربط الخماسي) ودربه إتمام الشباك - قيد الخادم يمنعه أبدًا
+      if (type === 'return')
+        return failWith(
+          'الإرجاع يُسجَّل من إتمام الشباك - لكل إرجاعٍ سجلُّ استخدامٍ يقيّده.',
+          'validation',
+        );
       const needsReason = type === 'damage' || type === 'adjustment_out';
       if (needsReason && !reason.trim()) {
         return failWith('حركات التلف والتسوية بالنقصان تحتاج سببًا مسجَّلًا.', 'validation');
       }
+      // حواجز الخادم نفسها في الوضعين كي لا يملأ المستخدم نموذجًا يُرفض
+      // آخره: ما يُنقص الرصيد للأدمن وحده، وسقفه المتاح غير المحجوز
+      if ((type === 'receipt' || type === 'adjustment_in') && quantityM > 10000)
+        return failWith('الكمية أكبر من أي شحنةٍ حقيقية - راجع الرقم.', 'validation');
+      const adjRoll = db.fabricRolls.find((r) => r.id === rollId);
+      if (
+        (type === 'receipt' || type === 'adjustment_in') &&
+        adjRoll?.assignedTailorId &&
+        currentUser?.role !== 'admin'
+      )
+        return failWith(
+          'رصيد خياطٍ مسنَد: يزيده الأدمن أو الخياط نفسه من مسار الاستلام.',
+          'permission',
+        );
       const balance = rollBalance(rollId, db.stockMovements);
-      if ((type === 'damage' || type === 'adjustment_out') && quantityM > balance.onHandM)
-        return failWith('لا يمكن أن يصبح الرصيد سالبًا.', 'validation');
-
-      if (source === 'live') {
-        // التلف وحده له RPC اليوم؛ سائر التسويات تصل في دفعة قادمة -
-        // ويُقال ذلك صراحةً بدل نجاحٍ محلي يتبخر عند أول تحديث
-        if (type !== 'damage')
-          return failWith(
-            'هذه الحركة تصل الخادم في دفعة قادمة - لم يُسجَّل شيء.',
-            'validation',
-          );
-        // حاجزا الخادم نفساهما هنا كي لا يملأ المستخدم نموذجًا يُرفض آخره:
-        // التلف العام للأدمن وحده، وسقفه المتاح غير المحجوز
+      if (type === 'damage' || type === 'adjustment_out') {
         if (currentUser?.role !== 'admin')
-          return failWith('تلف المخزون العام صلاحية الأدمن وحده.', 'permission');
+          return failWith(
+            type === 'damage'
+              ? 'تلف المخزون العام صلاحية الأدمن وحده.'
+              : 'تسوية النقصان صلاحية الأدمن وحده.',
+            'permission',
+          );
         if (quantityM > balance.availableM)
           return failWith(
-            'التلف أكبر من المتاح غير المحجوز - تلف كميةٍ محجوزة يُسجَّل من مسار حجزها.',
+            type === 'damage'
+              ? 'التلف أكبر من المتاح غير المحجوز - تلف كميةٍ محجوزة يُسجَّل من مسار حجزها.'
+              : 'التسوية أكبر من المتاح غير المحجوز في الرول.',
             'validation',
           );
-        const slot = `damage:${rollId}:${quantityM}`;
+      }
+
+      if (source === 'live') {
+        const slot = `${type}:${rollId}:${quantityM}`;
         setBusy('adjust');
         try {
-          const { error } = await supabase.rpc('record_stock_damage', {
-            p_roll_id: rollId,
-            p_quantity_m: quantityM,
-            p_reason_code: 'other',
-            p_idempotency_key: takeIdemKey(slot),
-            p_notes: reason.trim() || null,
-          });
+          const { error } =
+            type === 'damage'
+              ? await supabase.rpc('record_stock_damage', {
+                  p_roll_id: rollId,
+                  p_quantity_m: quantityM,
+                  p_reason_code: 'other',
+                  p_idempotency_key: takeIdemKey(slot),
+                  p_notes: reason.trim() || null,
+                })
+              : await supabase.rpc('adjust_stock', {
+                  p_roll_id: rollId,
+                  p_type: type,
+                  p_quantity_m: quantityM,
+                  p_idempotency_key: takeIdemKey(slot),
+                  p_notes: reason.trim() || null,
+                });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);
           await refreshLive();
