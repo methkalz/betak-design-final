@@ -438,6 +438,41 @@ out = as_user(ADMIN, f"""select api.update_business_settings(
 check('50 لا صف إعدادات → BD404 لا نجاح وهمي',
       'BD404' in out or 'غير مهيأة' in out, out)
 
+# ── علامة قراءة الإشعارات: سطح مباشر مقصود، وRLS يحرسه ──────────────────────
+N1 = '0d0d0d0d-0000-4000-8000-000000000001'  # لعامل الميدان
+N2 = '0d0d0d0d-0000-4000-8000-000000000002'  # للمبيعات
+N3 = '0d0d0d0d-0000-4000-8000-000000000003'  # لعامل الميدان - يبقى بلا قراءة
+sql(f"""insert into core.notifications (id, organization_id, user_id, kind, title) values
+ ('{N1}', '{ORG}', '{F1}',    'payment', 'إشعار عامل'),
+ ('{N2}', '{ORG}', '{SALES}', 'payment', 'إشعار مبيعات'),
+ ('{N3}', '{ORG}', '{F1}',    'payment', 'إشعار عامل آخر');""")
+
+out = as_user(F1, f"""update api.notifications set read_at = now()
+ where notification_id = '{N1}' and read_at is null;""")
+probe = sql(f"""select 'N1=' || (read_at is not null)::text
+ from core.notifications where id = '{N1}';""", quiet=False)
+check('51 صاحب الإشعار يعلّمه مقروءًا عبر العرض مباشرة',
+      'ERROR' not in out and 'N1=true' in probe, out + probe)
+
+out = as_user(F1, f"""update api.notifications set read_at = now()
+ where notification_id = '{N2}';""")
+probe = sql(f"""select 'N2=' || (read_at is not null)::text
+ from core.notifications where id = '{N2}';""", quiet=False)
+check('52 إشعار الغير محجوب: صفر صفوف لا خطأ',
+      'ERROR' not in out and 'N2=false' in probe, out + probe)
+
+out = as_user(SALES, """update api.notifications set read_at = now()
+ where read_at is null;""")
+probe = sql(f"""select 'N2=' || (select read_at is not null from core.notifications where id = '{N2}')::text
+ || '|N3=' || (select read_at is not null from core.notifications where id = '{N3}')::text;""", quiet=False)
+check('53 «قرأتها كلها» تطال صفوف صاحبها وحدها',
+      'ERROR' not in out and 'N2=true|N3=false' in probe, out + probe)
+
+out = as_user(F1, f"""update api.notifications set title = 'عبث'
+ where notification_id = '{N3}';""")
+check('54 المنحة عمود واحد: تحرير العنوان مرفوض حتى لصاحبه',
+      'permission denied' in out or 'ERROR' in out, out)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')
