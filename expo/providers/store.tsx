@@ -22,6 +22,7 @@ import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
+import { attachmentExt, uploadAttachmentFile } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
@@ -1079,7 +1080,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   // ── Attachments (queued upload) ───────────────────────────────────────────
   const addAttachment = useCallback(
-    (input: {
+    async (input: {
       projectId: UUID;
       roomId?: UUID | null;
       windowId?: UUID | null;
@@ -1087,7 +1088,39 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       kind: AttachmentKind;
       uri: string;
       caption?: string;
-    }): Result<string> => {
+    }): Promise<Result<string>> => {
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline as Result<string>;
+        // البايتات أولًا ثم الصف: صفٌّ بلا ملف كذبةٌ في الدفتر، وملفٌ بلا
+        // صف يتيمٌ غير مرئي - هذا الترتيب يجعل فشل المنتصف يتيمًا لا كذبة
+        const liveId = uuidv4();
+        const path = `${db.organization.id}/${input.projectId}/${liveId}.${attachmentExt(input.uri)}`;
+        setBusy('attach');
+        try {
+          const up = await uploadAttachmentFile(path, input.uri);
+          if (!up.ok) return failWith(`تعذر رفع الملف: ${up.error}`, 'validation');
+          const { error } = await supabase.from('attachments').insert({
+            attachment_id: liveId,
+            organization_id: db.organization.id,
+            project_id: input.projectId,
+            room_id: input.roomId ?? null,
+            window_id: input.windowId ?? null,
+            visit_id: input.visitId ?? null,
+            kind: input.kind,
+            storage_path: path,
+            caption: input.caption ?? '',
+            byte_size: up.byteSize,
+            created_by: userId,
+          });
+          if (error) return liveFail(error) as Result<string>;
+          await refreshLive();
+          return { ok: true, data: liveId };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const id = uid('att');
       mutate((draft) => {
         const att: Attachment = {
@@ -1109,17 +1142,21 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [mutate, enqueue, userId],
+    [source, requireOnline, refreshLive, db.organization.id, mutate, enqueue, userId],
   );
 
   const removeAttachment = useCallback(
     (id: UUID): Result<void> => {
+      // الدفاتر لا تُمحى: لا منحة حذف على الخادم بالتصميم - صور الإثبات
+      // جزء من سجل المشروع الدائم
+      if (source === 'live')
+        return failWith('حذف المرفقات غير متاح: صور الإثبات جزء من السجل الدائم.', 'validation');
       mutate((draft) => {
         draft.attachments = draft.attachments.filter((a) => a.id !== id);
       });
       return okVoid;
     },
-    [mutate],
+    [source, mutate],
   );
 
   // ── Field visits ──────────────────────────────────────────────────────────
