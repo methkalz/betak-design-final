@@ -2700,36 +2700,69 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const offline = requireOnline();
       if (offline) return offline;
       if (!(quantityM > 0)) return failWith('الكمية يجب أن تكون أكبر من صفر.', 'validation');
-      // تحويل البواقي دين مسجَّل على الخادم (TRACEABILITY بند 5) - يصل معه
-      if (source === 'live')
-        return failWith('تحويل Mini Roll يصل الخادم في دفعة قادمة - لم يُسجَّل شيء.', 'validation');
+      // مرآة الخادم في الوضعين: تحويل لا خلق - السقف متاح الأصل
+      const srcRoll = db.fabricRolls.find((r) => r.id === sourceRollId);
+      if (!srcRoll) return failWith('الرول غير موجود.', 'validation');
+      const avail = rollBalance(sourceRollId, db.stockMovements).availableM;
+      if (round3(quantityM) > avail)
+        return failWith(
+          `الكمية المطلوبة (${round3(quantityM)} م) أكبر من المتاح (${avail} م) في الرول ${srcRoll.code}.`,
+          'validation',
+        );
+
+      if (source === 'live') {
+        const slot = `miniroll:${sourceRollId}`;
+        setBusy('mini-roll');
+        try {
+          const { error } = await supabase.rpc('create_mini_roll', {
+            p_source_roll_id: sourceRollId,
+            p_quantity_m: round3(quantityM),
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+
       setBusy('mini-roll');
       await serverLatency();
       setBusy(null);
       mutate((draft) => {
-        const source = draft.fabricRolls.find((r) => r.id === sourceRollId);
-        if (!source) return;
         const id = uid('roll');
-        const count = draft.fabricRolls.filter((r) => r.isMiniRoll).length + 1;
+        // العدّاد يقفز فوق المحجوز كما يفعل الخادم - بذرة الديمو تحمل
+        // CR-M07 سلفًا وكان العدّ الأعمى يصطدم بها
+        const base = srcRoll.code.split('-')[0];
+        let n = draft.fabricRolls.filter((r) => r.isMiniRoll).length;
+        let code = '';
+        do {
+          n += 1;
+          code = `${base}-M${String(n).padStart(2, '0')}`;
+        } while (draft.fabricRolls.some((r) => r.code.toUpperCase() === code.toUpperCase()));
         draft.fabricRolls.push({
           id,
           organizationId: draft.organization.id,
-          variantId: source.variantId,
-          code: `${source.code.split('-')[0]}-M${String(count).padStart(2, '0')}`,
-          dyeLot: source.dyeLot,
-          location: source.location,
+          variantId: srcRoll.variantId,
+          code,
+          dyeLot: srcRoll.dyeLot,
+          location: srcRoll.location,
           initialMeters: round3(quantityM),
           isMiniRoll: true,
           // البقايا تبقى حيث القصّ: عند الخياط نفسه إن كان الأصل مسنَدًا له
-          assignedTailorId: source.assignedTailorId,
+          assignedTailorId: srcRoll.assignedTailorId,
           createdAt: new Date().toISOString(),
         });
-        addMovement(draft, id, 'receipt', quantityM, null, null, `بقايا من ${source.code}`);
-        audit(draft, 'inventory.mini_roll', 'fabric_roll', id, `إنشاء Mini Roll من ${source.code}`);
+        // تحويل لا خلق: ما يدخل الميني رول يخرج من أصله - كما يكتب الخادم
+        addMovement(draft, sourceRollId, 'transfer_out', quantityM, null, null, `تحويل بقايا إلى ${code}`);
+        addMovement(draft, id, 'transfer_in', quantityM, null, null, `بقايا من ${srcRoll.code}`);
+        audit(draft, 'inventory.mini_roll', 'fabric_roll', id, `إنشاء Mini Roll ${code} من ${srcRoll.code}`);
       });
       return okVoid;
     },
-    [guard, requireOnline, source, mutate, addMovement, audit],
+    [guard, requireOnline, source, refreshLive, takeIdemKey, settleIdemKey, db.fabricRolls, db.stockMovements, mutate, addMovement, audit],
   );
 
   // ── Tailor ────────────────────────────────────────────────────────────────

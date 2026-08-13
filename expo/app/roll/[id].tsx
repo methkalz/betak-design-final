@@ -195,12 +195,18 @@ export default function RollScreen() {
             label="تحويل البقايا إلى Mini Roll"
             variant="ghost"
             full
+            loading={busy === 'mini-roll'}
             icon={<Scissors size={16} color={palette.olive} />}
             onPress={async () => {
+              setError(null);
+              setInfo(null);
               const qty = parseFloat(quantity || '0');
               const res = await createMiniRoll(roll.id, qty);
-              if (!res.ok) setError(res.error);
-              else setInfo('تم إنشاء Mini Roll من البقايا.');
+              if (!res.ok) return setError(res.error);
+              // الكمية المحوَّلة لا تبقى في نموذج الحركة اليدوية بجانبها -
+              // نقرة واحدة كانت تكفي لتسجيلها مرة ثانية كاستلام
+              setQuantity('');
+              setInfo('تم إنشاء Mini Roll من البقايا.');
             }}
           />
         </Card>
