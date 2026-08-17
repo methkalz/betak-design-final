@@ -48,3 +48,8 @@ CREATE INDEX variants_product_idx ON core.fabric_variants USING btree (organizat
 CREATE INDEX versions_quotation_idx ON core.quotation_versions USING btree (organization_id, quotation_id, version_number DESC);
 CREATE INDEX windows_project_idx ON core.windows USING btree (organization_id, project_id);
 CREATE INDEX windows_room_idx ON core.windows USING btree (organization_id, room_id);
+
+-- عائلة المشروع: الجذر يُجمَّع عليه، والأب يُبحث به
+CREATE INDEX projects_root_idx ON core.projects (organization_id, root_project_id);
+CREATE INDEX projects_parent_idx ON core.projects (organization_id, parent_project_id)
+  WHERE parent_project_id IS NOT NULL;

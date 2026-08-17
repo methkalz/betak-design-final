@@ -277,6 +277,19 @@ begin
   end if;
 
   if p_window_id is null then
+    -- الباب الذي كان مفتوحًا: شباكٌ يُضاف بعد اعتماد الزبون لا يمكن أن
+    -- يُسعَّر أبدًا (create_quotation_version ترفض نسخةً بعد الاعتماد)،
+    -- ومع ذلك كان يدخل الإنتاج والتركيب - فيُقصّ ويُخاط ويُركَّب بلا سطرٍ
+    -- في أي عرض، ويُنقص حساب المشروع ما سُلّم فعلًا. يُرفض حتى يصل الملحق
+    if exists (
+      select 1 from core.quotation_versions v
+      join core.quotations q on q.id = v.quotation_id
+      where q.project_id = p_project_id and v.status = 'approved')
+    then
+      raise exception
+        'العرض معتمد من الزبون - لا يُضاف شباك إلى مشروعٍ مسعَّرٍ ومتفقٍ عليه. افتح مشروعًا للإضافة.'
+        using errcode = 'BD409';
+    end if;
     insert into core.windows
       (organization_id, project_id, room_id, name, width_cm, height_cm,
        has_lining, track, fullness, fabric_variant_id, lining_variant_id,

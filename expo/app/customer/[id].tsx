@@ -62,8 +62,10 @@ export default function CustomerScreen() {
   }
 
   const projects = db.projects.filter((p) => p.customerId === customer.id);
-  const total = projects.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
-  const due = projects.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
+  // المال على الجذور: أرقام العائلة تُقرأ من أصلها مرةً واحدة
+  const roots = projects.filter((p) => !p.parentProjectId);
+  const total = roots.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
+  const due = roots.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
   const showMoney = role === 'admin' || role === 'sales';
 
   const call = () => {

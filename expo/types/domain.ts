@@ -74,6 +74,17 @@ export interface Project {
   installerId: UUID | null;
   /** الخياط إلزامي عند الإنشاء - لا مشروع بلا من ينفّذه. */
   tailorId: UUID | null;
+  /**
+   * الملحق: إضافة الزبون بعد الاتفاق.
+   *
+   * العرض المعتمد لا يُمسّ، فالإضافة تصير مستندًا مستقلًا معلَّقًا على أصله:
+   * شبابيكه وعرضه وأمر إنتاجه له، والدفعات والرصيد للأصل وحده. عمقٌ واحد
+   * لا شجرة - `parentProjectId` غير معرَّف أو null يعني «هذا هو الأصل».
+   */
+  parentProjectId?: UUID | null;
+  /** 0 للأصل، 1..n للملاحق - يظهر في رمزه: BD-1042/1 */
+  annexSeq?: number;
+  annexReason?: string;
   measurementDate: string | null;
   installationDate: string | null;
   notes: string;

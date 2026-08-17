@@ -435,7 +435,11 @@ SELECT projects.id AS project_id,
     projects.archived_at,
     projects.lock_version,
     projects.measurement_worker_id,
-    projects.installer_id
+    projects.installer_id,
+    projects.parent_project_id,
+    projects.annex_seq,
+    projects.annex_reason,
+    projects.root_project_id
    FROM core.projects;
 
 create or replace view api.quotation_item_financials
@@ -707,3 +711,39 @@ SELECT r.id AS roll_id,
      JOIN core.fabric_products pr ON pr.id = v.product_id
      LEFT JOIN api.roll_balances b ON b.roll_id = r.id
   WHERE r.retired_at IS NULL AND private.has_role(r.organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role]);
+
+create or replace view api.project_family_finance
+  with (security_invoker = on) as
+with fam as (
+  select p.id as project_id, p.organization_id,
+         coalesce(p.parent_project_id, p.id) as root_id,
+         p.parent_project_id is not null as is_annex
+  from core.projects p where p.archived_at is null
+),
+approved as (
+  select q.project_id, sum(v.total_agorot) as total_agorot
+  from core.quotation_versions v
+  join core.quotations q on q.id = v.quotation_id
+  where v.status = 'approved'
+  group by q.project_id
+),
+-- الدفتر على الجذر بقيدٍ في القاعدة، فجمعُ صفّ الجذر وحده هو حصيلة العائلة
+paid as (
+  select y.project_id, sum(y.amount_agorot) as paid_agorot
+  from core.payments y
+  group by y.project_id
+)
+select f.root_id as project_id,
+       f.organization_id,
+       coalesce(sum(a.total_agorot) filter (where not f.is_annex), 0)::bigint as original_agorot,
+       coalesce(sum(a.total_agorot) filter (where f.is_annex), 0)::bigint     as annex_agorot,
+       coalesce(sum(a.total_agorot), 0)::bigint                              as total_agorot,
+       count(*) filter (where f.is_annex)::integer                           as annex_count,
+       coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0)::bigint as paid_agorot,
+       greatest(coalesce(sum(a.total_agorot), 0)
+                - coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0), 0)::bigint
+                                                                             as due_agorot
+from fam f
+left join approved a on a.project_id = f.project_id
+left join paid pd on pd.project_id = f.project_id
+group by f.root_id, f.organization_id;

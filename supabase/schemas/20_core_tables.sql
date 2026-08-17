@@ -159,6 +159,14 @@ CREATE TABLE core.projects (
     lock_version integer DEFAULT 1 NOT NULL,
     measurement_worker_id uuid,
     installer_id uuid,
+    parent_project_id uuid,
+    annex_seq integer DEFAULT 0 NOT NULL,
+    annex_reason text DEFAULT ''::text NOT NULL,
+    root_project_id uuid GENERATED ALWAYS AS (COALESCE(parent_project_id, id)) STORED,
+    CONSTRAINT projects_annex_not_self CHECK ((parent_project_id IS DISTINCT FROM id)),
+    CONSTRAINT projects_annex_seq_shape CHECK (
+      ((parent_project_id IS NULL AND annex_seq = 0)
+       OR (parent_project_id IS NOT NULL AND annex_seq > 0))),
     CONSTRAINT projects_code_check CHECK ((length(btrim(code)) > 0)),
     CONSTRAINT projects_lock_version_check CHECK ((lock_version > 0))
 );

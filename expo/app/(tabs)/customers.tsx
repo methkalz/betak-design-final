@@ -79,8 +79,10 @@ export default function CustomersScreen() {
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const projects = db.projects.filter((p) => p.customerId === item.id);
-          const value = projects.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
-          const due = projects.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
+          // المال على الجذور: أرقام العائلة تُقرأ من أصلها مرةً واحدة
+          const roots = projects.filter((p) => !p.parentProjectId);
+          const value = roots.reduce((s, p) => s + projectFinance(db, p.id).totalAgorot, 0);
+          const due = roots.reduce((s, p) => s + projectFinance(db, p.id).dueAgorot, 0);
           return (
             /* بطاقة هادئة: هوية على اليمين، رقم واحد على اليسار في عمود
                ثابت، وسطر حالة يظهر عند وجود مستحق فقط. الشارات الأربع

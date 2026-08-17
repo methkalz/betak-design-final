@@ -79,39 +79,55 @@ jobs:
           echo "api url: ${API_URL}"
 
       - name: RLS and write-surface suite
+        if: '!cancelled()'
         run: python3 supabase/tests/run_rls.py 2>&1 | tee logs/rls.log
 
       - name: reserve_fabric suite
+        if: '!cancelled()'
         run: python3 supabase/tests/reserve_fabric.py 2>&1 | tee logs/reserve.log
 
       - name: consume/release/return/damage suite
+        if: '!cancelled()'
         run: python3 supabase/tests/consume_and_release.py 2>&1 | tee logs/consume.log
 
       - name: quotation contracts suite
+        if: '!cancelled()'
         run: python3 supabase/tests/quotation_contracts.py 2>&1 | tee logs/quotation.log
 
       - name: quotation lifecycle RPCs suite
+        if: '!cancelled()'
         run: python3 supabase/tests/quotation_rpcs.py 2>&1 | tee logs/quotation_rpcs.log
 
       - name: golden pricing vectors (SQL side)
+        if: '!cancelled()'
         run: python3 supabase/tests/golden_pricing_vectors.py 2>&1 | tee logs/golden_vectors.log
 
       - name: inventory write RPCs suite (receive + complete window)
+        if: '!cancelled()'
         run: python3 supabase/tests/inventory_write_rpcs.py 2>&1 | tee logs/inventory_write.log
 
       - name: customer + project CRUD RPCs suite
+        if: '!cancelled()'
         run: python3 supabase/tests/crud_rpcs.py 2>&1 | tee logs/crud.log
 
       - name: payments + staff ledger RPCs suite
+        if: '!cancelled()'
         run: python3 supabase/tests/payments_rpcs.py 2>&1 | tee logs/payments.log
 
       - name: discount RPCs suite
+        if: '!cancelled()'
         run: python3 supabase/tests/discount_rpcs.py 2>&1 | tee logs/discount.log
 
+      - name: annex lineage suite (family money + lineage guards)
+        if: '!cancelled()'
+        run: python3 supabase/tests/annex_lineage.py 2>&1 | tee logs/annex.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
+        if: '!cancelled()'
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log
 
       - name: Declarative schema drift check
+        if: '!cancelled()'
         run: python3 supabase/tests/schema_drift.py 2>&1 | tee logs/drift.log
 
       - name: Upload logs on failure

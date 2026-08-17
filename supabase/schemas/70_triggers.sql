@@ -10,8 +10,10 @@ CREATE TRIGGER customers_no_delete BEFORE DELETE ON core.customers FOR EACH ROW 
 CREATE TRIGGER payments_immutable BEFORE DELETE OR UPDATE ON core.payments FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
 CREATE TRIGGER staff_ledger_immutable BEFORE DELETE OR UPDATE ON core.staff_ledger FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
 CREATE TRIGGER projects_guard BEFORE UPDATE ON core.projects FOR EACH ROW EXECUTE FUNCTION private.guard_project_update();
+CREATE TRIGGER projects_annex_insert_guard BEFORE INSERT ON core.projects FOR EACH ROW EXECUTE FUNCTION private.guard_project_insert();
 CREATE TRIGGER projects_no_delete BEFORE DELETE ON core.projects FOR EACH ROW EXECUTE FUNCTION private.block_delete();
 CREATE TRIGGER quotation_items_guard BEFORE INSERT OR DELETE OR UPDATE ON core.quotation_items FOR EACH ROW EXECUTE FUNCTION private.guard_locked_items();
 CREATE TRIGGER quotation_versions_guard BEFORE UPDATE ON core.quotation_versions FOR EACH ROW EXECUTE FUNCTION private.guard_locked_version();
 CREATE TRIGGER stock_movements_immutable BEFORE DELETE OR UPDATE ON core.stock_movements FOR EACH ROW EXECUTE FUNCTION private.block_mutation();
 CREATE TRIGGER stock_movements_reason_scope BEFORE INSERT ON core.stock_movements FOR EACH ROW WHEN ((new.reason_code IS NOT NULL)) EXECUTE FUNCTION private.enforce_reason_scope();
+CREATE TRIGGER payments_target_root BEFORE INSERT ON core.payments FOR EACH ROW EXECUTE FUNCTION private.payments_target_root();

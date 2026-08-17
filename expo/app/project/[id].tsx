@@ -46,6 +46,7 @@ import {
 } from '@/components/ui';
 import { CheckWizard } from '@/components/CheckWizard';
 import { QuotationDecision } from '@/components/QuotationDecision';
+import { AnnexCard } from '@/components/AnnexCard';
 import { SignedImage } from '@/components/SignedImage';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
@@ -63,6 +64,7 @@ import {
 import type { AssignmentKind } from '@/domain/assignment';
 import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
+import { projectFamilyFinance } from '@/domain/annex';
 import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
@@ -226,7 +228,14 @@ export default function ProjectStudioScreen() {
                 <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />
               )}
               {shown === 'production' && <ProductionTab projectId={project.id} />}
-              {shown === 'money' && <MoneyTab projectId={project.id} />}
+              {shown === 'money' && (
+                <>
+                  <AnnexCard projectId={project.id} />
+                  {/* الملحق لا يحمل دفترًا: نموذج دفعةٍ هنا يُرفض على الخادم
+                      دائمًا، فبطاقة الملحق تدلّ على الأصل وهناك يُسجَّل المال */}
+                  {!project.parentProjectId && <MoneyTab projectId={project.id} />}
+                </>
+              )}
               {shown === 'media' && <MediaTab projectId={project.id} />}
             </>
           )}
@@ -356,6 +365,7 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
   const nextStatus = PROJECT_STATUS_ORDER[stageIndex + 1];
   const prevStatus = PROJECT_STATUS_ORDER[stageIndex - 1];
   const finance = projectFinance(db, projectId);
+  const family = projectFamilyFinance(db, projectId);
   const rooms = db.rooms.filter((r) => r.projectId === projectId);
   const windows = db.windows.filter((w) => w.projectId === projectId);
   const showMoney = role === 'admin' || role === 'sales';
@@ -373,8 +383,11 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         {showMoney && (
           <View style={[styles.metric, { backgroundColor: palette.terracottaSoft }]}>
             <AppText variant="numberLarge">{money(finance.dueAgorot)}</AppText>
+            {/* الرصيد رصيد العائلة حين يكون لها ملحق - يُقال صريحًا لئلا
+                يُقرأ رقم الأصل وحده على شاشة ملحقه أو بالعكس */}
             <AppText variant="caption" color={palette.muted}>
               متبقٍ من {money(finance.totalAgorot)}
+              {family.annexCount > 0 ? ' مع الملاحق' : ''}
             </AppText>
           </View>
         )}
@@ -1131,7 +1144,9 @@ function ProductionTab({ projectId }: { projectId: string }) {
 
 function MoneyTab({ projectId }: { projectId: string }) {
   const { db, role, recordPayment, reversePayment, busy } = useStore();
+  // المال على الجذر: الملحق لا يحمل دفترًا، فتُقرأ أرقام العائلة كلها هنا
   const finance = projectFinance(db, projectId);
+  const family = projectFamilyFinance(db, projectId);
   const payments = db.payments.filter((p) => p.projectId === projectId);
   const hasApprovedQuote = useMemo(
     () =>
@@ -1170,8 +1185,14 @@ function MoneyTab({ projectId }: { projectId: string }) {
       <Card>
         <Row justify="space-between">
           <View>
+            {/* العنوان يقول ما يعرضه بالضبط: مسوَّدةً حين لا اعتماد، وعائلةً
+                حين يكون للأصل ملحق - رقمٌ بعنوانٍ كاذب أسوأ من غيابه */}
             <AppText variant="caption" color={palette.muted}>
-              إجمالي العرض المعتمد
+              {hasApprovedQuote
+                ? family.annexCount > 0
+                  ? 'إجمالي المعتمد مع الملاحق'
+                  : 'إجمالي العرض المعتمد'
+                : 'إجمالي المسوَّدة - لم يُعتمد بعد'}
             </AppText>
             <AppText variant="numberLarge">{money(finance.totalAgorot)}</AppText>
           </View>
