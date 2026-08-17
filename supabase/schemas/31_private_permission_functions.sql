@@ -86,7 +86,10 @@ AS $function$
       select 1 from core.projects p
       where p.id = p_project
         and p.organization_id = p_org
-        and p.field_worker_id = (select auth.uid())
+        and (p.field_worker_id = (select auth.uid())
+             -- المركّب يرى مشروعه: إسناد التركيب يكتب installer_id وحده،
+             -- وإغفاله هنا كان يُعمي المركّب عن المشروع فتتعطل رجل التركيب
+             or p.installer_id = (select auth.uid()))
     ) or exists (
       select 1 from core.field_visits v
       where v.project_id = p_project

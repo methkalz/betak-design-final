@@ -35,6 +35,19 @@ begin
   if not private.has_role(v_org, array['admin','sales','field']::core.app_role[]) then
     raise exception 'دورك لا يسمح بإدارة الزبائن.' using errcode = 'BD403';
   end if;
+  -- الميداني يُنشئ زبونًا يلقاه في البيت، لكنه لا يكتب فوق زبونٍ قائم إلا
+  -- إن كان له مشروعٌ يراه: بدون هذا كان يستطيع محو اسم أي زبون في المعرض
+  -- وهاتفه (الحقول تُستبدل كلها لا تُدمج)
+  if p_customer_id is not null
+     and not private.has_role(v_org, array['admin','sales']::core.app_role[])
+     and not exists (
+       select 1 from core.projects p
+       where p.customer_id = p_customer_id
+         and p.organization_id = v_org
+         and private.can_see_project(v_org, p.id))
+  then
+    raise exception 'لا تعدّل زبونًا ليس له مشروع بين يديك.' using errcode = 'BD403';
+  end if;
 
   v_name := pg_catalog.btrim(coalesce(p_full_name, ''));
   if length(v_name) < 3 then
@@ -131,8 +144,9 @@ begin
   if not private.is_org_member(v_org) then
     raise exception 'لست عضوًا في هذه المؤسسة.' using errcode = 'BD403';
   end if;
-  if not private.has_role(v_org, array['admin','sales','field']::core.app_role[]) then
-    raise exception 'دورك لا يسمح بإدارة الزبائن.' using errcode = 'BD403';
+  -- الأرشفة قرار إداري لا ميداني: تُخرج الزبون من كل القوائم
+  if not private.has_role(v_org, array['admin','sales']::core.app_role[]) then
+    raise exception 'أرشفة الزبائن صلاحية الإدارة والمبيعات.' using errcode = 'BD403';
   end if;
 
   v_payload := jsonb_build_object(

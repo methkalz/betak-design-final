@@ -295,6 +295,32 @@ begin
     if v_window_id is null then
       raise exception 'الشباك غير موجود.' using errcode = 'BD404';
     end if;
+    -- ما يُحرّم حذفه يُحرّم تعديل مقاسه: العرض المقفول يسعّر مقاسًا، فلو
+    -- تغيّر بعده لسعّرنا ثلاثة أمتار وقصصنا خمسة - والنسخة المعتمدة لا
+    -- تُصحَّح لأن create_quotation_version ترفض نسخةً بعد الاعتماد
+    if exists (select 1 from core.fabric_usage u where u.window_id = v_window_id) then
+      raise exception 'الشباك مسجَّل الإنجاز - لا يُعدَّل مقاسه بعد بدء الإنتاج.'
+        using errcode = 'BD409';
+    end if;
+    if exists (select 1 from core.quotation_items i
+               join core.quotation_versions v on v.id = i.version_id
+               where i.window_id = v_window_id and v.locked) then
+      raise exception 'الشباك ضمن عرض سعرٍ مُرسَل - لا يُغيَّر مقاسه ولا قماشه بعد الإرسال.'
+        using errcode = 'BD409';
+    end if;
+    -- وتغيير القماش بعد الحجز ييتّم الحجز: complete_window تبحث عن حجزٍ
+    -- بصنف الشباك الحالي فلا تجده، فيتجمّد أمر الإنتاج بلا مخرج
+    if exists (select 1 from core.fabric_reservations r
+               join core.fabric_rolls fr on fr.id = r.roll_id
+               where r.project_id = p_project_id and r.status <> 'released'
+                 and fr.variant_id is distinct from p_fabric_variant_id
+                 and exists (select 1 from core.windows w2
+                             where w2.id = v_window_id
+                               and w2.fabric_variant_id is distinct from p_fabric_variant_id))
+    then
+      raise exception 'القماش محجوز لهذا المشروع - فُكّ الحجز قبل تغيير الصنف.'
+        using errcode = 'BD409';
+    end if;
     update core.windows
        set room_id = p_room_id, name = v_name,
            width_cm = p_width_cm, height_cm = p_height_cm,

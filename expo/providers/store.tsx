@@ -316,8 +316,17 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     return idemKeysRef.current[slot];
   }, []);
   const settleIdemKey = useCallback(
-    (slot: string, error: { code?: string } | null | undefined) => {
-      // بقاء المفتاح لإعادة المحاولة فقط حين لا جواب من الخادم أصلًا
+    (slot: string, error: { code?: string; message?: string } | null | undefined) => {
+      // بقاء المفتاح لإعادة المحاولة فقط حين لا جواب من الخادم أصلًا.
+      //
+      // واستثناءان: جوابان مشفَّران يعنيان عكس «أخفقت المحاولة نظيفةً» -
+      // كلاهما دليلٌ على أن الكتابة الأولى **التزمت**: رفض المفتاح المستعمل
+      // بمدخلات مختلفة، واصطدام قيد التفرد. لو محونا المفتاح عندهما لولّدنا
+      // مفتاحًا جديدًا في المحاولة التالية فتكرّرت العملية فعلًا
+      const m = error?.message ?? '';
+      const provesCommitted =
+        /idempotency/i.test(m) || /duplicate key|23505/i.test(m) || error?.code === '23505';
+      if (provesCommitted) return;
       if (!error || error.code) delete idemKeysRef.current[slot];
     },
     [],
@@ -401,6 +410,22 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     setSource('demo');
     setUserId(null);
   }, []);
+
+  /**
+   * انتهاء الجلسة يجب أن يُرى لا أن يُخفى.
+   *
+   * كان التطبيق يواصل عرض آخر لقطة كأنها طازجة بعد سقوط الرمز: القراءات
+   * تفشل بصمت والكتابات تُرفض بلا تفسير. الآن سقوط الجلسة يُخرج من الوضع
+   * الحي، وبوابة القوقعة تردّ المستخدم إلى الباب فيعرف أنه خرج.
+   */
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_OUT') return;
+      if (sourceRef.current !== 'live') return;
+      void exitLive();
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [exitLive]);
 
   const signOut = useCallback(() => {
     if (source === 'live') {
@@ -2564,6 +2589,14 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       widthCm: number;
       composition: string;
     }): Result<string> => {
+      // لا RPC لمكتبة الأقمشة بعد: الكتابة المحلية في الوضع الحي
+      // تُستبدل عند أول تحديث، فيظن المالك أنه أضاف صنفًا ولم يُضف
+      if (source === 'live')
+        return failWith(
+          'تعديل مكتبة الأقمشة لا يمرّ من التطبيق بعد - يضبطها مزوّد النظام على الخادم.',
+          'validation',
+        ) as never;
+
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
       if (!input.name.trim()) return failWith('اسم القماش مطلوب.', 'validation');
@@ -2594,7 +2627,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, mutate, enqueue, audit],
+    [source, guard, mutate, enqueue, audit],
   );
 
   const saveFabricVariant = useCallback(
@@ -2610,6 +2643,14 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       /** أمتار الصنف لكل متر طولي؛ صفر = اتبع مضاعف الشباك. */
       metersPerRunningMeter?: number;
     }): Result<string> => {
+      // لا RPC لمكتبة الأقمشة بعد: الكتابة المحلية في الوضع الحي
+      // تُستبدل عند أول تحديث، فيظن المالك أنه أضاف صنفًا ولم يُضف
+      if (source === 'live')
+        return failWith(
+          'تعديل مكتبة الأقمشة لا يمرّ من التطبيق بعد - يضبطها مزوّد النظام على الخادم.',
+          'validation',
+        ) as never;
+
       const denied = guard('manage_fabrics');
       if (denied) return denied as Result<string>;
       if (!input.colorName.trim()) return failWith('اسم اللون مطلوب.', 'validation');
@@ -2652,7 +2693,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, db.fabricVariants, mutate, enqueue, audit],
+    [source, guard, db.fabricVariants, mutate, enqueue, audit],
   );
 
   /**

@@ -378,7 +378,25 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
+  -- ترتيب الأقفال: الأبناء أولًا والمشروع آخرًا - عكسُه هنا كان يفتح
+  -- تعانقًا مع advance_stage وschedule_visit اللتين تقفلان الابن ثم المشروع
+  perform 1 from core.tailor_assignments
+   where project_id = p_project_id order by id for update;
+  perform 1 from core.field_visits
+   where project_id = p_project_id order by id for update;
   perform 1 from core.projects where id = p_project_id for update;
+
+  -- إعادة البحث بعد نيل الأقفال: المتزامن الثاني يجد عملية الأول مسجلة
+  -- فيستعيدها بدل أن يكرّر الإسناد ويصطدم بقيد المفتاح
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
 
   if p_kind = 'tailor' then
     update core.projects set tailor_id = p_worker_id where id = p_project_id;

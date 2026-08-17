@@ -75,6 +75,19 @@ begin
       using errcode = 'BD409';
   end if;
 
+  perform 1 from core.projects where id = p_project_id for update;
+
+  -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
   insert into core.payments
     (organization_id, project_id, amount_agorot, kind, method,
      reference, note, due_at, created_by)
@@ -176,6 +189,19 @@ begin
       using errcode = 'BD409';
   end if;
 
+  perform 1 from core.projects where id = p_project_id for update;
+
+  -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
   -- الرزمة كلها في معاملة واحدة: المرجع CHK i/N يقرؤها كشف الدفعات رزمةً
   for v_check in select * from pg_catalog.jsonb_array_elements(p_checks) loop
     v_i := v_i + 1;
@@ -248,6 +274,19 @@ begin
     'payment_id', p_payment_id, 'reason', v_reason);
 
   -- بحث الإعادة قبل حُرّاس الحالة: عكسٌ نجح وضاع جوابه يعود نتيجةً مخزونة
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
+  perform 1 from core.payments where id = p_payment_id for update;
+
+  -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
   if found then
@@ -339,6 +378,19 @@ begin
     'staff_id', p_staff_id, 'amount_agorot', p_amount_agorot,
     'note', coalesce(p_note, ''));
 
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
+  perform 1 from core.profiles where id = p_staff_id for update;
+
+  -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
   if found then

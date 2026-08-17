@@ -68,6 +68,18 @@ begin
   -- زيارة واحدة مفتوحة من كل نوع لكل مشروع - تحت قفل المشروع فلا يمرّ
   -- متزامنان من الفحص معًا
   perform 1 from core.projects where id = p_project_id for update;
+
+  -- إعادة البحث بعد نيل القفل: المتزامن الثاني ينتظر هنا ثم يجد عملية
+  -- الأول مسجلة فيستعيدها بدل أن يكرّر الكتابة أو يصطدم بقيد المفتاح
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
   if exists (select 1 from core.field_visits v
              where v.project_id = p_project_id and v.type = p_type::core.visit_type
                and v.status <> 'completed') then
