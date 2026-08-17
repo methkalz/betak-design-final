@@ -183,20 +183,20 @@ out = sql(f"""insert into core.projects (organization_id,customer_id,code,title,
  values ('{ORG}','{CUST}','BD-OTHER','بيتٌ آخر','measured') returning id;""", quiet=False)
 OTHER = grab(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', out)
 out = as_user(ADMIN, f"""update api.projects set parent_project_id = '{OTHER}'
- where id = '{ANX}';""")
+ where project_id = '{ANX}';""")
 probe = sql(f"""select (parent_project_id = '{PRJ}')::text from core.projects where id = '{ANX}';""",
             quiet=False)
 check('07 نقل نسب الملحق بضربة تحديث → مرفوض والأصل لم يتغيّر',
       'ERROR' in out and 'نسب الملحق' in out and 'true' in probe, out + probe)
 
 out = as_user(ADMIN, f"""update api.projects set parent_project_id = '{PRJ}', annex_seq = 1
- where id = '{OTHER}';""")
+ where project_id = '{OTHER}';""")
 check('08 تحويل مشروعٍ قائم إلى ملحق → مرفوض',
       'ERROR' in out and 'نسب الملحق' in out, out)
 
 # ── ٣) الحارس لم يخنق العمل العادي ──────────────────────────────────────────
 out = as_user(SALES, f"""update api.projects set title = 'بيت الملاحق - محدَّث'
- where id = '{PRJ}';""")
+ where project_id = '{PRJ}';""")
 probe = sql(f"""select title from core.projects where id = '{PRJ}';""", quiet=False)
 check('09 تعديل مشروعٍ عادي يعمل كما كان',
       'ERROR' not in out and 'محدَّث' in probe, out + probe)
@@ -206,23 +206,30 @@ out = as_user(SALES, f"""select api.create_project(
 check('10 إنشاء مشروعٍ عادي يعمل كما كان',
       'ERROR' not in out and '"project_id"' in out, out)
 
-# ── ٤) الرصيد واحد: الدفتر على الجذر ────────────────────────────────────────
-out = as_user(ADMIN, f"""select api.record_payment(
-  '{ANX}'::uuid, 100000, 'deposit', 'cash', '{key(7)}'::uuid)::text;""")
-check('11 دفعة على الملحق → مرفوضة (الرصيد واحد على الأصل)',
-      'ERROR' in out and ('الأصل' in out or 'BD409' in out), out)
+# ── ٤) الشباك يُضاف إلى الملحق ما دام لم يُعتمد ─────────────────────────────
+ANXROOM = grab(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+               sql(f"""select id from core.rooms where project_id = '{ANX}' limit 1;""", quiet=False))
+out = as_user(F1, f"""select api.save_window(
+  '{ANX}'::uuid, '{ANXROOM}'::uuid, 200, 250, '{VAR}'::uuid, '{key(10)}'::uuid)::text;""")
+check('11 الشباك يُضاف إلى الملحق قبل اعتماده - وهذا كلُّ سببه',
+      'ERROR' not in out and '"window_id"' in out, out)
 
-out = as_user(ADMIN, f"""select api.record_payment(
-  '{PRJ}'::uuid, 500000, 'deposit', 'cash', '{key(8)}'::uuid)::text;""")
-check('12 دفعة على الأصل → مقبولة', 'ERROR' not in out and '"payment_id"' in out, out)
+ROOM = grab(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
+            sql(f"""select id from core.rooms where project_id = '{PRJ}' limit 1;""", quiet=False))
+out = as_user(F1, f"""select api.save_window(
+  '{PRJ}'::uuid, '{ROOM}'::uuid, 200, 250, '{VAR}'::uuid, '{key(9)}'::uuid)::text;""")
+check('12 شباك جديد على الأصل المعتمَد → مرفوض، والملحق هو الطريق',
+      'ERROR' in out and 'معتمد' in out, out)
 
-# ── ٥) الأرقام الثلاثة كما يقرؤها المحاسب ───────────────────────────────────
+# ── ٥) الأرقام الثلاثة قبل الاعتماد: مسوَّدة الملحق ليست دَينًا ──────────────
 probe = as_user(ADMIN, f"""select 'A=' || original_agorot || '|X=' || annex_agorot
- || '|T=' || total_agorot || '|D=' || due_agorot || '|N=' || annex_count
+ || '|T=' || total_agorot || '|P=' || paid_agorot || '|D=' || due_agorot
+ || '|N=' || annex_count
  from api.project_family_finance where project_id = '{PRJ}';""")
-check('13 قبل اعتماد الملحق: مسوَّدته ليست دَينًا',
-      'A=840000|X=0|T=840000|D=340000|N=1' in probe, probe)
+check('13 قبل اعتماد الملحق: 8,400 دَينًا ومسوَّدته صفر',
+      'A=840000|X=0|T=840000|P=0|D=840000|N=1' in probe, probe)
 
+# ── ٦) يُعتمد عرض الملحق بـ1,900 - وهنا يبدأ المال ─────────────────────────
 out = sql(f"""
 insert into core.quotations (id,organization_id,project_id,number,status)
 values ('{key(92)}','{ORG}','{ANX}','QT-AN-2','approved');
@@ -235,38 +242,40 @@ values ('{key(93)}','{ORG}','{key(92)}',1,'approved',true,
         now(),now() + interval '30 days');
 update core.quotations set current_version_id = '{key(93)}' where id = '{key(92)}';
 """)
+if 'ERROR' in out:
+    print(out); sys.exit(1)
+
+out = as_user(ADMIN, f"""select api.record_payment(
+  '{ANX}'::uuid, 100000, 'deposit', 'cash', '{key(7)}'::uuid)::text;""")
+check('14 دفعة على الملحق المعتمد → مرفوضة بحارس الدفتر لا بحارس الاعتماد',
+      'ERROR' in out and 'الرصيد واحد' in out, out)
+
+out = as_user(ADMIN, f"""select api.record_payment(
+  '{PRJ}'::uuid, 500000, 'deposit', 'cash', '{key(8)}'::uuid)::text;""")
+check('15 دفعة على الأصل → مقبولة', 'ERROR' not in out and '"payment_id"' in out, out)
+
 probe = as_user(ADMIN, f"""select 'A=' || original_agorot || '|X=' || annex_agorot
- || '|T=' || total_agorot || '|D=' || due_agorot
+ || '|T=' || total_agorot || '|P=' || paid_agorot || '|D=' || due_agorot
  from api.project_family_finance where project_id = '{PRJ}';""")
-check('14 بعد اعتماده: 8,400 + 1,900 والمتبقي 5,300',
-      'A=840000|X=190000|T=1030000|D=530000' in probe, probe)
+check('16 بعد الاعتماد والدفعة: 8,400 + 1,900 − 5,000 = 5,300',
+      'A=840000|X=190000|T=1030000|P=500000|D=530000' in probe, probe)
 
 probe = as_user(ADMIN, f"""select count(*) from api.project_family_finance
  where project_id = '{ANX}';""")
-check('15 العرض على الجذور وحدها: لا صفَّ عائلةٍ للملحق',
+check('17 العرض على الجذور وحدها: لا صفَّ عائلةٍ للملحق',
       re.search(r'^\s*0\s*$', probe, re.M) is not None, probe)
 
-# ── ٦) الرؤية عائلية: من رأى الأصل رأى ملحقه ────────────────────────────────
-probe = as_user(T1, f"""select 'anx=' || count(*) from api.projects where id = '{ANX}';""")
-check('16 خياط الأصل يرى ملحقه (الرؤية على العائلة)', 'anx=1' in probe, probe)
-
-probe = as_user(F1, f"""select 'anx=' || count(*) from api.projects where id = '{ANX}';""")
-check('17 قائس الأصل يرى ملحقه', 'anx=1' in probe, probe)
-
-# ── ٧) شباكٌ لا يُضاف إلى مستندٍ مُتفقٍ عليه ─────────────────────────────────
-ROOM = grab(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
-            sql(f"""select id from core.rooms where project_id = '{PRJ}' limit 1;""", quiet=False))
 out = as_user(F1, f"""select api.save_window(
-  '{PRJ}'::uuid, '{ROOM}'::uuid, 200, 250, '{VAR}'::uuid, '{key(9)}'::uuid)::text;""")
-check('18 شباك جديد على مشروعٍ معتمَد → مرفوض، والملحق هو الطريق',
-      'ERROR' in out and ('معتمد' in out or 'BD409' in out), out)
+  '{ANX}'::uuid, '{ANXROOM}'::uuid, 150, 200, '{VAR}'::uuid, '{key(13)}'::uuid)::text;""")
+check('18 وبعد اعتماد الملحق يُختم هو أيضًا: لا شباك يُضاف إليه',
+      'ERROR' in out and 'معتمد' in out, out)
 
-ANXROOM = grab(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',
-               sql(f"""select id from core.rooms where project_id = '{ANX}' limit 1;""", quiet=False))
-out = as_user(F1, f"""select api.save_window(
-  '{ANX}'::uuid, '{ANXROOM}'::uuid, 200, 250, '{VAR}'::uuid, '{key(10)}'::uuid)::text;""")
-check('19 الشباك نفسه يُضاف إلى الملحق بلا عناء',
-      'ERROR' not in out and '"window_id"' in out, out)
+# ── ٧) الرؤية عائلية: من رأى الأصل رأى ملحقه ────────────────────────────────
+probe = as_user(T1, f"""select 'anx=' || count(*) from api.projects where project_id = '{ANX}';""")
+check('19 خياط الأصل يرى ملحقه (الرؤية على العائلة)', 'anx=1' in probe, probe)
+
+probe = as_user(F1, f"""select 'anx=' || count(*) from api.projects where project_id = '{ANX}';""")
+check('20 قائس الأصل يرى ملحقه', 'anx=1' in probe, probe)
 
 # ── ٨) رحلة تركيبٍ واحدة للبيت ──────────────────────────────────────────────
 out = sql(f"""
@@ -277,13 +286,13 @@ select set_config('app.rpc_context','',false) \g /dev/null""")
 out = as_user(ADMIN, f"""select api.schedule_visit(
   '{ANX}'::uuid, '{F1}'::uuid, 'installation', now() + interval '2 days',
   '{key(11)}'::uuid)::text;""")
-check('20 تركيب الملحق قبل أصله → مرفوض (يُركَّبان في سفرةٍ واحدة)',
+check('21 تركيب الملحق قبل أصله → مرفوض (يُركَّبان في سفرةٍ واحدة)',
       'ERROR' in out and 'السفرة نفسها' in out, out)
 
 out = as_user(ADMIN, f"""select api.schedule_visit(
   '{PRJ}'::uuid, '{F1}'::uuid, 'installation', now() + interval '2 days',
   '{key(12)}'::uuid)::text;""")
-check('21 تركيب الأصل يُجدول عاديًا', 'ERROR' not in out and '"visit_id"' in out, out)
+check('22 تركيب الأصل يُجدول عاديًا', 'ERROR' not in out and '"visit_id"' in out, out)
 
 print('\n=== cleanup ===')
 sql(PURGE)

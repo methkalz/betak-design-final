@@ -215,4 +215,46 @@ alter function api.create_project_annex(uuid, text, uuid) owner to baytak_rpc_ow
 revoke all on function api.create_project_annex(uuid, text, uuid) from public, anon;
 grant execute on function api.create_project_annex(uuid, text, uuid) to authenticated;
 
+-- ‏٤) العرض يجيب عن الرصيد لا عن الإجمالي وحده: كان يعطي أرقام المستندات
+--    ثلاثةً بلا مدفوعٍ ولا متبقٍّ، فيُحسب الرصيد في التطبيق وحده - ومحاسب
+--    المعرض يقرأ القاعدة لا الشاشة. عمودان يُضافان في الذيل (الإحلال يسمح
+--    بالإضافة لا بإعادة الترتيب)، فيصير العرض مصدرَ الرقم والتطبيق مرآته
+create or replace view api.project_family_finance
+  with (security_invoker = on) as
+with fam as (
+  select p.id as project_id, p.organization_id,
+         coalesce(p.parent_project_id, p.id) as root_id,
+         p.parent_project_id is not null as is_annex
+  from core.projects p where p.archived_at is null
+),
+approved as (
+  select q.project_id, sum(v.total_agorot) as total_agorot
+  from core.quotation_versions v
+  join core.quotations q on q.id = v.quotation_id
+  where v.status = 'approved'
+  group by q.project_id
+),
+-- الدفتر على الجذر بقيدٍ في القاعدة، فجمعُ صفّ الجذر وحده هو حصيلة العائلة
+paid as (
+  select y.project_id, sum(y.amount_agorot) as paid_agorot
+  from core.payments y
+  group by y.project_id
+)
+select f.root_id as project_id,
+       f.organization_id,
+       coalesce(sum(a.total_agorot) filter (where not f.is_annex), 0)::bigint as original_agorot,
+       coalesce(sum(a.total_agorot) filter (where f.is_annex), 0)::bigint     as annex_agorot,
+       coalesce(sum(a.total_agorot), 0)::bigint                              as total_agorot,
+       count(*) filter (where f.is_annex)::integer                           as annex_count,
+       coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0)::bigint as paid_agorot,
+       greatest(coalesce(sum(a.total_agorot), 0)
+                - coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0), 0)::bigint
+                                                                             as due_agorot
+from fam f
+left join approved a on a.project_id = f.project_id
+left join paid pd on pd.project_id = f.project_id
+group by f.root_id, f.organization_id;
+
+grant select on api.project_family_finance to authenticated;
+
 notify pgrst, 'reload schema';

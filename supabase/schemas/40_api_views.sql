@@ -726,13 +726,24 @@ approved as (
   join core.quotations q on q.id = v.quotation_id
   where v.status = 'approved'
   group by q.project_id
+),
+-- الدفتر على الجذر بقيدٍ في القاعدة، فجمعُ صفّ الجذر وحده هو حصيلة العائلة
+paid as (
+  select y.project_id, sum(y.amount_agorot) as paid_agorot
+  from core.payments y
+  group by y.project_id
 )
 select f.root_id as project_id,
        f.organization_id,
        coalesce(sum(a.total_agorot) filter (where not f.is_annex), 0)::bigint as original_agorot,
        coalesce(sum(a.total_agorot) filter (where f.is_annex), 0)::bigint     as annex_agorot,
        coalesce(sum(a.total_agorot), 0)::bigint                              as total_agorot,
-       count(*) filter (where f.is_annex)::integer                           as annex_count
+       count(*) filter (where f.is_annex)::integer                           as annex_count,
+       coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0)::bigint as paid_agorot,
+       greatest(coalesce(sum(a.total_agorot), 0)
+                - coalesce(sum(pd.paid_agorot) filter (where not f.is_annex), 0), 0)::bigint
+                                                                             as due_agorot
 from fam f
 left join approved a on a.project_id = f.project_id
+left join paid pd on pd.project_id = f.project_id
 group by f.root_id, f.organization_id;
