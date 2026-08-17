@@ -69,7 +69,8 @@ CREATE TYPE core.notification_kind AS ENUM (
     'sync_failed',
     'low_stock',
     'stock_received',
-    'payment'
+    'payment',
+    'project_annex'
 );
 
 CREATE TYPE core.payment_kind AS ENUM (

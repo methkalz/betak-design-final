@@ -715,10 +715,14 @@ SELECT r.id AS roll_id,
 create or replace view api.project_family_finance
   with (security_invoker = on) as
 with fam as (
+  -- الأصل المؤرشف يطوي عائلته كلها: لو سقط وحده وبقي ملحقه لظهرت عائلةٌ
+  -- شبحٌ دَينُها دَين الملحق ودفعاتها صفر - وقد حُصِّلت على الأصل
   select p.id as project_id, p.organization_id,
          coalesce(p.parent_project_id, p.id) as root_id,
          p.parent_project_id is not null as is_annex
-  from core.projects p where p.archived_at is null
+  from core.projects p
+  join core.projects r on r.id = coalesce(p.parent_project_id, p.id)
+  where p.archived_at is null and r.archived_at is null
 ),
 approved as (
   select q.project_id, sum(v.total_agorot) as total_agorot
@@ -746,4 +750,8 @@ select f.root_id as project_id,
 from fam f
 left join approved a on a.project_id = f.project_id
 left join paid pd on pd.project_id = f.project_id
+-- المال للإدارة والمبيعات كما في كل عرضٍ ماليٍّ هنا: بلا هذا الشرط يقرأ
+-- الخياط صفوفًا بأصفارٍ صامتة (RLS تحجب الصفوف لا الصف) - رقمٌ خاطئٌ
+-- يُسلَّم لمن لا يحق له رقم
+where private.has_role(f.organization_id, array['admin'::core.app_role, 'sales'::core.app_role])
 group by f.root_id, f.organization_id;

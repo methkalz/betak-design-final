@@ -541,7 +541,8 @@ export type NotificationKind =
   | 'sync_failed'
   | 'low_stock'
   | 'stock_received'
-  | 'payment';
+  | 'payment'
+  | 'project_annex';
 
 export interface AppNotification {
   id: UUID;

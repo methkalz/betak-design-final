@@ -396,7 +396,22 @@ begin
          set status_code = 'installed'
        where parent_project_id = v_project
          and organization_id = v_org
+         and archived_at is null
          and status_code = 'ready_for_install';
+
+      -- قفزةُ حالةٍ لا يطلبها أحد صراحةً يجب أن تترك صاحبها في السجل:
+      -- المالك يسأل «من ركّب الملحق ومتى» فيجد الجواب، ولو رُفع ملحقٌ
+      -- لم يُركَّب فعلًا (جهّزه الخياط بين السفرة وإغلاقها) بان الأثر
+      insert into core.audit_logs
+        (organization_id, actor_id, action, entity, entity_id, summary, payload)
+      select v_org, v_uid, 'project.installed_with_parent', 'project', a.id::text,
+             format('%s رُكّب مع أصله في السفرة نفسها', a.code),
+             jsonb_build_object('visit_id', p_visit_id, 'parent_project_id', v_project)
+      from core.projects a
+      where a.parent_project_id = v_project
+        and a.organization_id = v_org
+        and a.status_code = 'installed'
+        and a.archived_at is null;
     end if;
     perform set_config('app.rpc_context', '', true);
   end if;
