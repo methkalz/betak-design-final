@@ -1146,6 +1146,7 @@ function MoneyTab({ projectId }: { projectId: string }) {
   const { db, role, recordPayment, reversePayment, busy } = useStore();
   // المال على الجذر: الملحق لا يحمل دفترًا، فتُقرأ أرقام العائلة كلها هنا
   const finance = projectFinance(db, projectId);
+  const family = projectFamilyFinance(db, projectId);
   const payments = db.payments.filter((p) => p.projectId === projectId);
   const hasApprovedQuote = useMemo(
     () =>
@@ -1184,8 +1185,14 @@ function MoneyTab({ projectId }: { projectId: string }) {
       <Card>
         <Row justify="space-between">
           <View>
+            {/* العنوان يقول ما يعرضه بالضبط: مسوَّدةً حين لا اعتماد، وعائلةً
+                حين يكون للأصل ملحق - رقمٌ بعنوانٍ كاذب أسوأ من غيابه */}
             <AppText variant="caption" color={palette.muted}>
-              إجمالي العرض المعتمد
+              {hasApprovedQuote
+                ? family.annexCount > 0
+                  ? 'إجمالي المعتمد مع الملاحق'
+                  : 'إجمالي العرض المعتمد'
+                : 'إجمالي المسوَّدة - لم يُعتمد بعد'}
             </AppText>
             <AppText variant="numberLarge">{money(finance.totalAgorot)}</AppText>
           </View>
