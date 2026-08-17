@@ -142,10 +142,10 @@ if 'ERROR' in out:
 print('seeded')
 
 # ── ١) الباب الشرعي ─────────────────────────────────────────────────────────
-out = as_user(ADMIN, f"""select api.create_project_annex(
+out = as_user(SALES, f"""select api.create_project_annex(
   '{PRJ}'::uuid, 'الزبون أضاف شباكي المطبخ', '{key(3)}'::uuid)::text;""")
 ANX = grab(r'"annex_project_id"\s*:\s*"([0-9a-f-]+)"', out)
-check('01 الملحق يُفتح من بابه: كود الأصل ثم /1',
+check('01 البائع يفتح الملحق من بابه: كود الأصل ثم /1',
       ANX is not None and '"annex_seq": 1' in out and '/1"' in out, out)
 
 probe = sql(f"""select 'rooms=' || (select count(*) from core.rooms where project_id = '{ANX}')
@@ -155,7 +155,7 @@ probe = sql(f"""select 'rooms=' || (select count(*) from core.rooms where projec
 check('02 غرف الأصل تُنسخ، والجذر محسوب، والطاقم موروث',
       'rooms=1|root=true|team=true' in probe, probe)
 
-out = as_user(ADMIN, f"""select api.create_project_annex(
+out = as_user(SALES, f"""select api.create_project_annex(
   '{PRJ}'::uuid, 'الزبون أضاف شباكي المطبخ', '{key(3)}'::uuid)::text;""")
 probe = sql(f"""select count(*) from core.projects
  where parent_project_id = '{PRJ}';""", quiet=False)
@@ -309,6 +309,33 @@ probe = sql(f"""select 'root=' || (select status_code from core.projects where i
  || '|anx=' || (select status_code from core.projects where id = '{ANX}');""", quiet=False)
 check('24 السفرة الواحدة تُنهي البيت: الأصل وملحقه رُكِّبا معًا',
       'root=installed|anx=installed' in probe, probe)
+
+# ── ٩) ذيل التدقيق: بوابة الدور، الأرشفة، الأثر، نوع الإشعار ───────────────
+probe = as_user(T1, f"""select count(*) as n from api.project_family_finance
+ where project_id = '{PRJ}';""")
+check('25 الخياط لا يقرأ العرض المالي: لا صفَّ لا أصفار',
+      re.search(r'^\s*0\s*$', probe, re.M) is not None, probe)
+
+probe = as_user(SALES, f"""select 'T=' || total_agorot from api.project_family_finance
+ where project_id = '{PRJ}';""")
+check('26 والمبيعات تقرؤه كالإدارة', 'T=1030000' in probe, probe)
+
+probe = sql(f"""select 'audit=' || count(*) from core.audit_logs
+ where action = 'project.installed_with_parent' and entity_id = '{ANX}';""", quiet=False)
+check('27 رفعُ الملحق مع أصله ترك أثره في السجل', 'audit=1' in probe, probe)
+
+probe = sql(f"""select 'kind=' || kind::text || '|to=admin' from core.notifications
+ where organization_id = '{ORG}' and title = 'ملحق جديد'
+   and user_id = '{ADMIN}' limit 1;""", quiet=False)
+check('28 إشعار الملحق بنوعه لا تحت «طلب خصم»', 'kind=project_annex' in probe, probe)
+
+# الأصل المؤرشف يطوي عائلته: لا عائلةَ شبحٍ دَينُها دَين الملحق
+out = sql(f"""update core.projects set archived_at = now() where id = '{PRJ}';""")
+probe = as_user(ADMIN, f"""select count(*) as n from api.project_family_finance
+ where project_id = '{PRJ}';""")
+ok_archived = re.search(r'^\s*0\s*$', probe, re.M) is not None
+sql(f"""update core.projects set archived_at = null where id = '{PRJ}';""")
+check('29 أصلٌ مؤرشف يطوي ملحقه معه - لا عائلةَ شبح', ok_archived, probe)
 
 print('\n=== cleanup ===')
 sql(PURGE)

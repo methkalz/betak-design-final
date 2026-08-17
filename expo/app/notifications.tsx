@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CheckCheck,
   CloudOff,
+  FilePlus2,
   Package,
   Scissors,
   Truck,
@@ -24,6 +25,8 @@ function iconFor(kind: NotificationKind) {
   switch (kind) {
     case 'discount_request':
       return <BadgePercent size={size} color={palette.warning} />;
+    case 'project_annex':
+      return <FilePlus2 size={size} color={palette.olive} />;
     case 'tailor_assignment':
       return <Scissors size={size} color={palette.terracotta} />;
     case 'visit_assigned':

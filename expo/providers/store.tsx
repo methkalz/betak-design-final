@@ -3298,6 +3298,16 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       }
       if (input.checks.some((c) => !(c.amountAgorot > 0)))
         return failWith('كل شيك يجب أن يكون مبلغه أكبر من صفر.', 'validation');
+      // الدفتر على الجذر: رزمة شيكاتٍ على ملحق ترفضها القاعدة، فيرفضها
+      // النموذج التجريبي مثلها - وإلا سجّل مالًا لا يظهر في أي رصيد
+      {
+        const project = db.projects.find((p) => p.id === input.projectId);
+        if (project?.parentProjectId)
+          return failWith(
+            'الدفعات تُسجَّل على المشروع الأصل لا على الملحق - الرصيد واحد.',
+            'conflict',
+          );
+      }
       const approved = db.quotationVersions.some(
         (v) =>
           v.status === 'approved' &&

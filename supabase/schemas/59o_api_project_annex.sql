@@ -129,7 +129,7 @@ begin
 
   -- الأدمن يعلم أن العمل اتّسع
   insert into core.notifications (organization_id, user_id, kind, title, body, deep_link)
-  select v_org, om.user_id, 'discount_request', 'ملحق جديد',
+  select v_org, om.user_id, 'project_annex', 'ملحق جديد',
          format('%s - إضافة على %s. قِس ثم سعّر.', v_code, v_parent.code),
          '/project/' || v_new_id::text
   from core.organization_members om

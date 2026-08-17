@@ -197,4 +197,5 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   low_stock: 'مخزون منخفض',
   stock_received: 'إضافة بضاعة',
   payment: 'دفعة',
+  project_annex: 'ملحق جديد',
 };
