@@ -99,13 +99,15 @@ ALTER TABLE ONLY core.project_statuses
     ADD CONSTRAINT project_statuses_sort_order_key UNIQUE (sort_order);
 ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_organization_id_code_key UNIQUE (organization_id, code);
--- الملحق يُعلَّق على مشروعٍ في المؤسسة نفسها، ولا يُحذف أصلٌ له ملحق
+ALTER TABLE ONLY core.projects
+    ADD CONSTRAINT projects_organization_id_id_key UNIQUE (organization_id, id);
+-- الملحق يُعلَّق على مشروعٍ في المؤسسة نفسها، ولا يُحذف أصلٌ له ملحق.
+-- يأتي **بعد** قيد التفرّد أعلاه لأنه يستند إليه: الإعادة على قاعدةٍ نظيفة
+-- تُنفَّذ بالترتيب، فمرجعٌ قبل مرجوعه يسقط
 ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_annex_parent_fkey
     FOREIGN KEY (organization_id, parent_project_id)
     REFERENCES core.projects (organization_id, id) ON DELETE RESTRICT;
-ALTER TABLE ONLY core.projects
-    ADD CONSTRAINT projects_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.projects
     ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY core.quotation_items
