@@ -108,6 +108,9 @@ jobs:
       - name: discount RPCs suite
         run: python3 supabase/tests/discount_rpcs.py 2>&1 | tee logs/discount.log
 
+      - name: annex lineage suite (family money + lineage guards)
+        run: python3 supabase/tests/annex_lineage.py 2>&1 | tee logs/annex.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log
 

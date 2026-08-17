@@ -10,7 +10,6 @@ import type {
   FabricRoll,
   FabricVariant,
   Project,
-  QuotationVersion,
   UUID,
 } from '@/types/domain';
 
@@ -119,42 +118,10 @@ export function useVariantStockViews(
   }, [rolls, filter]);
 }
 
-export function currentVersion(db: Database, projectId: UUID): QuotationVersion | null {
-  const quotation = db.quotations.find((q) => q.projectId === projectId);
-  if (!quotation) return null;
-  return db.quotationVersions.find((v) => v.id === quotation.currentVersionId) ?? null;
-}
-
-export function approvedVersion(db: Database, projectId: UUID): QuotationVersion | null {
-  const quotation = db.quotations.find((q) => q.projectId === projectId);
-  if (!quotation) return null;
-  const versions = db.quotationVersions
-    .filter((v) => v.quotationId === quotation.id && v.status === 'approved')
-    .sort((a, b) => b.versionNumber - a.versionNumber);
-  return versions[0] ?? null;
-}
-
-export interface ProjectFinance {
-  totalAgorot: number;
-  paidAgorot: number;
-  dueAgorot: number;
-  paidRatio: number;
-}
-
-export function projectFinance(db: Database, projectId: UUID): ProjectFinance {
-  const version = approvedVersion(db, projectId) ?? currentVersion(db, projectId);
-  const totalAgorot = version?.totalAgorot ?? 0;
-  const paidAgorot = db.payments
-    .filter((p) => p.projectId === projectId)
-    .reduce((s, p) => s + p.amountAgorot, 0);
-  const dueAgorot = Math.max(0, totalAgorot - paidAgorot);
-  return {
-    totalAgorot,
-    paidAgorot,
-    dueAgorot,
-    paidRatio: totalAgorot > 0 ? Math.min(1, paidAgorot / totalAgorot) : 0,
-  };
-}
+// نسخة العرض والرصيد صارا في `domain/quotations` و`domain/annex`: منطقٌ صافٍ
+// يُختبر بلا واجهة. تُعاد أسماؤهما هنا لتبقى نقطة الاستيراد واحدة.
+export { approvedVersion, currentVersion } from '@/domain/quotations';
+export { projectBalance as projectFinance, type ProjectBalance as ProjectFinance } from '@/domain/annex';
 
 // الخطة صارت في `domain/fabricPlan` لأن المخزن يحتاجها للحجز التلقائي؛ تُعاد
 // هنا لتبقى نقطة الاستيراد واحدة لمن كان يستوردها من قبل.

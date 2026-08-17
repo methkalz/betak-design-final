@@ -73,28 +73,33 @@ CREATE OR REPLACE FUNCTION private.can_see_project(p_org uuid, p_project uuid)
  STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
+  -- الملحق يتبع أصله في الرؤية: من يرى البيت يرى ما أُضيف إليه
+  with target as (
+    select coalesce(p.parent_project_id, p.id) as root_id
+    from core.projects p where p.id = p_project and p.organization_id = p_org
+  )
   select case private.role_in(p_org)
     when 'admin' then true
     when 'sales' then true
     when 'tailor' then exists (
-      select 1 from core.projects p
-      where p.id = p_project
-        and p.organization_id = p_org
+      select 1 from core.projects p, target t
+      where p.organization_id = p_org
+        and (p.id = t.root_id or p.parent_project_id = t.root_id)
         and p.tailor_id = (select auth.uid())
     )
     when 'field' then exists (
-      select 1 from core.projects p
-      where p.id = p_project
-        and p.organization_id = p_org
+      select 1 from core.projects p, target t
+      where p.organization_id = p_org
+        and (p.id = t.root_id or p.parent_project_id = t.root_id)
         and (p.field_worker_id = (select auth.uid())
-             -- المركّب يرى مشروعه: إسناد التركيب يكتب installer_id وحده،
-             -- وإغفاله هنا كان يُعمي المركّب عن المشروع فتتعطل رجل التركيب
              or p.installer_id = (select auth.uid()))
     ) or exists (
-      select 1 from core.field_visits v
-      where v.project_id = p_project
-        and v.organization_id = p_org
+      select 1 from core.field_visits v, target t
+      where v.organization_id = p_org
         and v.assignee_id = (select auth.uid())
+        and (v.project_id = t.root_id
+             or v.project_id in (select p2.id from core.projects p2
+                                 where p2.parent_project_id = t.root_id))
     )
     else false
   end;

@@ -54,6 +54,16 @@ begin
       old.status_code, new.status_code using errcode = '42501';
   end if;
 
+  -- النسب يُكتب مرةً واحدة حين يُفتح الملحق عبر RPC. api.projects عرضٌ قابل
+  -- للتحديث، ولو تُرك العمود حرًّا لأمكن بضربة PATCH واحدة أن يُعلَّق مشروعٌ
+  -- مدفوعٌ على آخر: ينتقل دفتره إلى جذرٍ غريب، وتتبدّل صلاحية رؤيته، ويصير
+  -- الرصيد الذي يراه الزبون رصيدَ عائلةٍ لم يتفق عليها
+  if (new.parent_project_id is distinct from old.parent_project_id
+      or new.annex_seq is distinct from old.annex_seq)
+     and not private.in_rpc() then
+    raise exception 'نسب الملحق لا يُغيَّر بعد فتحه.' using errcode = '42501';
+  end if;
+
   -- قفل تفاؤلي: كل تحديث يرفع النسخة، وأي كتابة بنسخة قديمة تُرفض
   if new.lock_version is not distinct from old.lock_version then
     new.lock_version := old.lock_version + 1;
@@ -118,6 +128,22 @@ begin
              where p.id = new.project_id and p.parent_project_id is not null) then
     raise exception 'الدفعات تُسجَّل على المشروع الأصل لا على الملحق - الرصيد واحد.'
       using errcode = 'BD409';
+  end if;
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION private.guard_project_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  -- ملحقٌ يُولَد من العرض العام يتخطى كل ما يحرسه api.create_project_annex:
+  -- اشتراط عرضٍ معتمد على الأصل، ومنع ملحقٍ على ملحق، ومنع ثانٍ والأول
+  -- مفتوح، ونسخ الغرف. فباب الإنشاء واحد
+  if new.parent_project_id is not null and not private.in_rpc() then
+    raise exception 'الملحق يُفتح عبر api.create_project_annex حصرًا.'
+      using errcode = '42501';
   end if;
   return new;
 end $function$;

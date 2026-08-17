@@ -18,6 +18,7 @@ import {
 import { palette, radius, spacing } from '@/constants/theme';
 import { PAYMENT_KIND_LABELS, PAYMENT_METHOD_LABELS } from '@/domain/labels';
 import { can } from '@/domain/permissions';
+import { rootProjects } from '@/domain/annex';
 import { projectFinance } from '@/hooks/selectors';
 import { formatDate, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -36,7 +37,7 @@ export default function PaymentsScreen() {
    */
   const rows = useMemo(
     () =>
-      db.projects
+      rootProjects(db)
         .map((p) => ({ project: p, finance: projectFinance(db, p.id) }))
         .filter((r) => r.finance.totalAgorot > 0)
         .sort((a, b) => b.finance.dueAgorot - a.finance.dueAgorot),

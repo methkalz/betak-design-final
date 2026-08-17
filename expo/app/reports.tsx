@@ -20,6 +20,7 @@ import { palette, radius, spacing } from '@/constants/theme';
 import { PROJECT_STATUS_LABELS } from '@/domain/labels';
 import { can } from '@/domain/permissions';
 import { customersProfitReport, monthlyReport } from '@/domain/reports';
+import { rootProjects } from '@/domain/annex';
 import { approvedVersion, projectFinance, useRollViews } from '@/hooks/selectors';
 import { meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -380,7 +381,7 @@ export default function ReportsScreen() {
 
       <Card>
         <SectionHeader title="أعلى المشاريع قيمة" />
-        {db.projects
+        {rootProjects(db)
           .map((p) => ({ p, f: projectFinance(db, p.id) }))
           .filter((x) => x.f.totalAgorot > 0)
           .sort((a, b) => b.f.totalAgorot - a.f.totalAgorot)

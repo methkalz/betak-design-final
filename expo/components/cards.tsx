@@ -12,6 +12,7 @@ import {
   projectStatusColor,
   statusProgress,
 } from '@/domain/labels';
+import { projectOwnApprovedAgorot } from '@/domain/annex';
 import { projectFinance } from '@/hooks/selectors';
 import { formatDate, formatTime, isSameDay, money } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -45,7 +46,11 @@ export function ProjectRow({ projectId }: { projectId: string }) {
   const project = db.projects.find((p) => p.id === projectId);
   if (!project) return null;
   const customer = db.customers.find((c) => c.id === project.customerId);
+  // الملحق صفٌّ مستقل في القائمة لكن لا رصيد له: يُعرض ما وقّعه الزبون عليه
+  // وحده، فرصيد العائلة يُقرأ على الأصل ولا يُكرَّر تحته
+  const isAnnex = !!project.parentProjectId;
   const finance = projectFinance(db, project.id);
+  const ownAgorot = projectOwnApprovedAgorot(db, project.id);
   const c = projectStatusColor(project.status);
   const showMoney = role === 'admin' || role === 'sales';
 
@@ -86,7 +91,12 @@ export function ProjectRow({ projectId }: { projectId: string }) {
             {db.windows.filter((w) => w.projectId === project.id).length} شباك •{' '}
             {db.rooms.filter((r) => r.projectId === project.id).length} غرفة
           </AppText>
-          {showMoney && finance.totalAgorot > 0 && (
+          {showMoney && isAnnex && ownAgorot > 0 && (
+            <AppText variant="caption" color={palette.olive}>
+              ملحق {money(ownAgorot)}
+            </AppText>
+          )}
+          {showMoney && !isAnnex && finance.totalAgorot > 0 && (
             <Row gap={4}>
               <AppText variant="caption" color={palette.charcoal}>
                 {money(finance.paidAgorot)}

@@ -1,9 +1,71 @@
 -- ════════════════════════════════════════════════════════════════════
--- api.create_project_annex
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
+-- نسب الملحق يُحرَس: بابٌ واحد لفتحه، ولا نقل له بعد فتحه
+--
+-- ‏api.projects عرضٌ قابل للإدخال والتحديث ممنوحٌ لـauthenticated، وحارسه
+-- كان يراقب الحالة والقفل التفاؤلي وحدهما. فبعد إضافة عمود النسب صار
+-- ممكنًا - نظريًا اليوم وعمليًا غدًا - أن يُعلَّق مشروعٌ مدفوعٌ على آخر
+-- بضربة PATCH: ينتقل دفتر دفعاته إلى جذرٍ غريب، وتتبدّل صلاحية رؤيته،
+-- ويصير الرصيد الذي يراه الزبون رصيدَ عائلةٍ لم يتفق عليها.
+--
+-- ‏١) التحديث: parent_project_id وannex_seq لا يُمسّان خارج RPC.
+-- ‏٢) الإدخال: ملحقٌ لا يُولَد إلا من api.create_project_annex - فهي وحدها
+--    تشترط عرضًا معتمدًا على الأصل، وتمنع ملحقًا على ملحق، وتمنع ثانيًا
+--    والأول مفتوح، وتنسخ الغرف.
+-- ‏٣) ولذلك تفتح الدالة سياق RPC حول إدخالها: بابها هو الباب الشرعي.
 -- ════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION private.guard_project_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  if new.status_code is distinct from old.status_code and not private.in_rpc() then
+    raise exception 'تغيير حالة المشروع يتم عبر RPC حصرًا (الحالية %، المطلوبة %)',
+      old.status_code, new.status_code using errcode = '42501';
+  end if;
+
+  -- النسب يُكتب مرةً واحدة حين يُفتح الملحق عبر RPC. api.projects عرضٌ قابل
+  -- للتحديث، ولو تُرك العمود حرًّا لأمكن بضربة PATCH واحدة أن يُعلَّق مشروعٌ
+  -- مدفوعٌ على آخر: ينتقل دفتره إلى جذرٍ غريب، وتتبدّل صلاحية رؤيته، ويصير
+  -- الرصيد الذي يراه الزبون رصيدَ عائلةٍ لم يتفق عليها
+  if (new.parent_project_id is distinct from old.parent_project_id
+      or new.annex_seq is distinct from old.annex_seq)
+     and not private.in_rpc() then
+    raise exception 'نسب الملحق لا يُغيَّر بعد فتحه.' using errcode = '42501';
+  end if;
+
+  -- قفل تفاؤلي: كل تحديث يرفع النسخة، وأي كتابة بنسخة قديمة تُرفض
+  if new.lock_version is not distinct from old.lock_version then
+    new.lock_version := old.lock_version + 1;
+  elsif new.lock_version <> old.lock_version + 1 then
+    raise exception 'تعارض تعديل: المشروع عُدّل من جهة أخرى. أعد التحميل.'
+      using errcode = '40001';
+  end if;
+
+  new.updated_at := now();
+  return new;
+end $function$;
+
+CREATE OR REPLACE FUNCTION private.guard_project_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+begin
+  -- ملحقٌ يُولَد من العرض العام يتخطى كل ما يحرسه api.create_project_annex:
+  -- اشتراط عرضٍ معتمد على الأصل، ومنع ملحقٍ على ملحق، ومنع ثانٍ والأول
+  -- مفتوح، ونسخ الغرف. فباب الإنشاء واحد
+  if new.parent_project_id is not null and not private.in_rpc() then
+    raise exception 'الملحق يُفتح عبر api.create_project_annex حصرًا.'
+      using errcode = '42501';
+  end if;
+  return new;
+end $function$;
+
+drop trigger if exists projects_annex_insert_guard on core.projects;
+create trigger projects_annex_insert_guard before insert on core.projects
+  for each row execute function private.guard_project_insert();
 
 CREATE OR REPLACE FUNCTION api.create_project_annex(p_parent_project_id uuid, p_reason text, p_idempotency_key uuid)
  RETURNS jsonb
@@ -148,3 +210,9 @@ begin
 
   return v_result;
 end $function$;
+
+alter function api.create_project_annex(uuid, text, uuid) owner to baytak_rpc_owner;
+revoke all on function api.create_project_annex(uuid, text, uuid) from public, anon;
+grant execute on function api.create_project_annex(uuid, text, uuid) to authenticated;
+
+notify pgrst, 'reload schema';

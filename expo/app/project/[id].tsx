@@ -230,7 +230,9 @@ export default function ProjectStudioScreen() {
               {shown === 'money' && (
                 <>
                   <AnnexCard projectId={project.id} />
-                  <MoneyTab projectId={project.id} />
+                  {/* الملحق لا يحمل دفترًا: نموذج دفعةٍ هنا يُرفض على الخادم
+                      دائمًا، فبطاقة الملحق تدلّ على الأصل وهناك يُسجَّل المال */}
+                  {!project.parentProjectId && <MoneyTab projectId={project.id} />}
                 </>
               )}
               {shown === 'media' && <MediaTab projectId={project.id} />}

@@ -7,7 +7,14 @@
 import { expect, test } from 'bun:test';
 
 import type { Database } from '@/data/seed';
-import { projectAnnexes, projectFamilyFinance, rootProjectId } from '@/domain/annex';
+import {
+  projectAnnexes,
+  projectBalance,
+  projectFamilyFinance,
+  projectOwnApprovedAgorot,
+  rootProjectId,
+  rootProjects,
+} from '@/domain/annex';
 
 function makeDb(over: Partial<Database>): Database {
   return {
@@ -89,4 +96,56 @@ test('مشروع بلا ملاحق: الإجمالي هو الأصل ولا مل
   expect(f.totalAgorot).toBe(840000);
   expect(f.annexCount).toBe(0);
   expect(f.dueAgorot).toBe(340000);
+});
+
+/* ── ما اصطاده التدقيق: الرصيد كان يُقرأ على المستند لا على العائلة ────────
+   أصلٌ 8,400 ₪ وملحقٌ معتمد 1,900 ₪، وقد سدّد الزبون 10,300 ₪ كاملةً على
+   الأصل - لأن الدفع على الملحق ممنوع في القاعدة. الخطأ القديم: شاشة الأصل
+   تقرأ إجماليها وحده (8,400) فتُظهر «سُدّد بالكامل» بل وتُضمر فائضًا، وصفُّ
+   الملحق يبقى في تبويب الديون بـ1,900 لا يمحوها دفعٌ أبدًا. */
+
+const settled = () => {
+  const db = family('approved');
+  db.payments = [
+    { id: 'p1', projectId: 'root', amountAgorot: 500000 },
+    { id: 'p2', projectId: 'root', amountAgorot: 530000 },
+  ] as never;
+  return db;
+};
+
+test('العائلة المسدَّدة: لا دَين على الأصل ولا على الملحق', () => {
+  const db = settled();
+  const onRoot = projectBalance(db, 'root');
+  expect(onRoot.totalAgorot).toBe(1030000);
+  expect(onRoot.paidAgorot).toBe(1030000);
+  expect(onRoot.dueAgorot).toBe(0);
+  expect(onRoot.paidRatio).toBe(1);
+  // الرصيد واحد من أي طرفٍ قُرئ - لا رقمان متناقضان على شاشة
+  expect(projectBalance(db, 'anx')).toEqual(onRoot);
+});
+
+test('الملحق المعتمد غير المسدَّد يرفع دَين الأصل ولا يصير صفًّا ثانيًا', () => {
+  const db = family('approved'); // دُفع 5,000 من 10,300
+  expect(projectBalance(db, 'root').dueAgorot).toBe(530000);
+  expect(rootProjects(db).map((p) => p.id)).toEqual(['root']);
+});
+
+test('مسوَّدة الملحق ليست دَينًا، ومسوَّدة الأصل توقّعٌ يُعرض', () => {
+  const draftAnnex = projectBalance(family('draft'), 'root');
+  expect(draftAnnex.totalAgorot).toBe(840000);
+  expect(draftAnnex.dueAgorot).toBe(340000);
+
+  const db = family(null);
+  db.quotationVersions = [
+    { id: 'v1', quotationId: 'q1', status: 'draft', totalAgorot: 700000 },
+  ] as never;
+  db.quotations = [{ id: 'q1', projectId: 'root', currentVersionId: 'v1' }] as never;
+  expect(projectBalance(db, 'root').totalAgorot).toBe(700000);
+});
+
+test('قيمة الملحق وحده تُقرأ لصفّه في القائمة', () => {
+  const db = family('approved');
+  expect(projectOwnApprovedAgorot(db, 'anx')).toBe(190000);
+  expect(projectOwnApprovedAgorot(db, 'root')).toBe(840000);
+  expect(projectOwnApprovedAgorot(family('draft'), 'anx')).toBe(0);
 });
