@@ -386,6 +386,18 @@ begin
   if v_new_status is distinct from v_prj_status then
     perform set_config('app.rpc_context', 'on', true);
     update core.projects set status_code = v_new_status where id = v_project;
+
+    -- السفرة الواحدة تُنهي البيت كله: جدولة تركيبٍ للملحق ممنوعة ما دام أصله
+    -- لم يُركَّب - فهما يُركَّبان معًا. ولو رُفع الأصل وحده لبقي الملحق عند
+    -- «جاهز للتركيب» أبدًا، لا زيارةٌ تُفتح له ولا حالةٌ تتقدّم به: عُلِّقت
+    -- شبابيك الزبون وبقي مستنده مفتوحًا في وجه المالك
+    if v_visit.type = 'installation' then
+      update core.projects
+         set status_code = 'installed'
+       where parent_project_id = v_project
+         and organization_id = v_org
+         and status_code = 'ready_for_install';
+    end if;
     perform set_config('app.rpc_context', '', true);
   end if;
 

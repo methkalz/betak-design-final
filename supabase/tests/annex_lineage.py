@@ -293,6 +293,22 @@ out = as_user(ADMIN, f"""select api.schedule_visit(
   '{PRJ}'::uuid, '{F1}'::uuid, 'installation', now() + interval '2 days',
   '{key(12)}'::uuid)::text;""")
 check('22 تركيب الأصل يُجدول عاديًا', 'ERROR' not in out and '"visit_id"' in out, out)
+VISIT = grab(r'"visit_id"\s*:\s*"([0-9a-f-]+)"', out)
+
+# السفرة تُمشى إلى آخرها: تبدأ، تُملأ قائمة التحقق، ويوقّع الزبون، ثم تُنهى
+out = as_user(F1, f"""select api.start_visit('{VISIT}'::uuid, '{key(14)}'::uuid)::text;""")
+ok_start = 'ERROR' not in out
+out = as_user(F1, f"""select api.update_visit('{VISIT}'::uuid, '{key(15)}'::uuid,
+  null, null, true, true, true, true, true)::text;""")
+ok_upd = 'ERROR' not in out
+out = as_user(F1, f"""select api.complete_visit('{VISIT}'::uuid, '{key(16)}'::uuid)::text;""")
+check('23 إنهاء تركيب الأصل يمرّ (بدء + قائمة تحقق + توقيع)',
+      ok_start and ok_upd and 'ERROR' not in out, out)
+
+probe = sql(f"""select 'root=' || (select status_code from core.projects where id = '{PRJ}')
+ || '|anx=' || (select status_code from core.projects where id = '{ANX}');""", quiet=False)
+check('24 السفرة الواحدة تُنهي البيت: الأصل وملحقه رُكِّبا معًا',
+      'root=installed|anx=installed' in probe, probe)
 
 print('\n=== cleanup ===')
 sql(PURGE)

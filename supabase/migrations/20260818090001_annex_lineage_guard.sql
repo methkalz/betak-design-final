@@ -257,4 +257,127 @@ group by f.root_id, f.organization_id;
 
 grant select on api.project_family_finance to authenticated;
 
+-- ‏٥) السفرة الواحدة تُنهي البيت كله. جدولة تركيبٍ للملحق ممنوعة ما دام أصله
+--    لم يُركَّب، فإكمال زيارة الأصل يرفع ملاحقه الجاهزة معه. ولولا ذلك بقي
+--    الملحق عند «جاهز للتركيب» أبدًا: لا زيارةٌ تُفتح له ولا حالةٌ تتقدّم به
+CREATE OR REPLACE FUNCTION api.complete_visit(p_visit_id uuid, p_idempotency_key uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid; v_org uuid; v_project uuid;
+  v_visit core.field_visits%rowtype; v_prj_status text; v_new_status text;
+  v_payload jsonb; v_prior core.client_operations%rowtype; v_result jsonb;
+begin
+  v_uid := private.current_uid();
+  if v_uid is null then
+    raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
+  end if;
+  if p_idempotency_key is null then
+    raise exception 'idempotency_key إلزامي.' using errcode = 'BD400';
+  end if;
+
+  select * into v_visit from core.field_visits v where v.id = p_visit_id;
+  if v_visit.id is null then
+    raise exception 'الزيارة غير موجودة.' using errcode = 'BD404';
+  end if;
+  v_org := v_visit.organization_id; v_project := v_visit.project_id;
+
+  if not private.is_org_member(v_org) then
+    raise exception 'لست عضوًا في هذه المؤسسة.' using errcode = 'BD403';
+  end if;
+  if not private.has_role(v_org, array['admin','field']::core.app_role[]) then
+    raise exception 'دورك لا يسمح بإكمال الزيارات.' using errcode = 'BD403';
+  end if;
+  if not private.can_see_project(v_org, v_project) then
+    raise exception 'هذا المشروع خارج نطاق عملك.' using errcode = 'BD403';
+  end if;
+
+  v_payload := jsonb_build_object(
+    'op', 'complete_visit', 'user_id', v_uid, 'visit_id', p_visit_id);
+
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
+  -- حُرّاس الحالة والإثبات بعد بحث الإعادة (جواب ضائع = نتيجة مخزونة)
+  if v_visit.status = 'completed' then
+    raise exception 'الزيارة مكتملة بالفعل.' using errcode = 'BD409';
+  end if;
+  -- إثبات الإنجاز: القياس بشباكٍ مسجَّل على الأقل، والتركيب بقائمة التحقق
+  -- كاملةً وتوقيع الزبون (الصور اختيارية بقرار المالك)
+  if v_visit.type = 'measurement' then
+    if not exists (select 1 from core.windows w where w.project_id = v_project) then
+      raise exception 'لا يمكن إكمال زيارة القياس بدون تسجيل شباك واحد على الأقل.'
+        using errcode = 'BD422';
+    end if;
+  else
+    if not (v_visit.check_track and v_visit.check_curtain
+            and v_visit.check_height and v_visit.check_cleanliness) then
+      raise exception 'أكمل قائمة التحقق قبل إنهاء التركيب.' using errcode = 'BD422';
+    end if;
+    if not v_visit.customer_signed_off then
+      raise exception 'يلزم تأكيد الزبون قبل إنهاء التركيب.' using errcode = 'BD422';
+    end if;
+  end if;
+
+  update core.field_visits
+     set status = 'completed', completed_at = now()
+   where id = p_visit_id;
+
+  select p.status_code into v_prj_status
+  from core.projects p where p.id = v_project for update;
+  v_new_status := v_prj_status;
+  if v_visit.type = 'measurement' and v_prj_status = 'awaiting_measurement' then
+    v_new_status := 'measured';
+  elsif v_visit.type = 'installation' then
+    v_new_status := 'installed';
+  end if;
+  if v_new_status is distinct from v_prj_status then
+    perform set_config('app.rpc_context', 'on', true);
+    update core.projects set status_code = v_new_status where id = v_project;
+
+    -- السفرة الواحدة تُنهي البيت كله: جدولة تركيبٍ للملحق ممنوعة ما دام أصله
+    -- لم يُركَّب - فهما يُركَّبان معًا. ولو رُفع الأصل وحده لبقي الملحق عند
+    -- «جاهز للتركيب» أبدًا، لا زيارةٌ تُفتح له ولا حالةٌ تتقدّم به: عُلِّقت
+    -- شبابيك الزبون وبقي مستنده مفتوحًا في وجه المالك
+    if v_visit.type = 'installation' then
+      update core.projects
+         set status_code = 'installed'
+       where parent_project_id = v_project
+         and organization_id = v_org
+         and status_code = 'ready_for_install';
+    end if;
+    perform set_config('app.rpc_context', '', true);
+  end if;
+
+  insert into core.audit_logs
+    (organization_id, actor_id, action, entity, entity_id, summary, payload)
+  values (v_org, v_uid, 'visit.complete', 'field_visit', p_visit_id::text,
+          'إكمال الزيارة الميدانية', v_payload);
+
+  v_result := jsonb_build_object(
+    'visit_id', p_visit_id, 'project_status', v_new_status, 'was_replayed', false);
+
+  insert into core.client_operations
+    (organization_id, user_id, client_operation_id, idempotency_key,
+     kind, entity_id, state, payload, result, synced_at)
+  values (v_org, v_uid, p_idempotency_key, p_idempotency_key,
+          'complete_visit', p_visit_id::text, 'synced', v_payload, v_result, now());
+
+  return v_result;
+end $function$;
+
+alter function api.complete_visit(uuid, uuid) owner to baytak_rpc_owner;
+revoke all on function api.complete_visit(uuid, uuid) from public, anon;
+grant execute on function api.complete_visit(uuid, uuid) to authenticated;
+
 notify pgrst, 'reload schema';
