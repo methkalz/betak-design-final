@@ -1,9 +1,8 @@
-import { useRouter } from 'expo-router';
-import { Building2, RotateCcw, ShieldCheck } from 'lucide-react-native';
+import { Building2, ShieldCheck } from 'lucide-react-native';
 import React from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
-import { AppText, Button, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
+import { AppText, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import {
   CAPABILITY_LABELS,
@@ -20,8 +19,7 @@ const ROLES: Role[] = ['admin', 'sales', 'field', 'tailor'];
 const CAPS = Object.keys(CAPABILITY_LABELS) as Capability[];
 
 export default function SettingsScreen() {
-  const { db, role, resetDemo, signOut } = useStore();
-  const router = useRouter();
+  const { db, role } = useStore();
 
   return (
     <ScrollScreen>
@@ -134,29 +132,6 @@ export default function SettingsScreen() {
         ))}
       </Card>
 
-      <Card>
-        <SectionHeader title="بيانات العرض التجريبي" subtitle="لإعادة العرض إلى حالته الأصلية" />
-        <Button
-          label="إعادة تعيين بيانات العرض"
-          variant="ghost"
-          full
-          icon={<RotateCcw size={16} color={palette.olive} />}
-          onPress={() =>
-            Alert.alert('إعادة التعيين', 'سيتم استرجاع كل بيانات العرض التجريبي الأصلية.', [
-              { text: 'إلغاء', style: 'cancel' },
-              {
-                text: 'إعادة تعيين',
-                style: 'destructive',
-                onPress: async () => {
-                  await resetDemo();
-                  signOut();
-                  router.replace('/login');
-                },
-              },
-            ])
-          }
-        />
-      </Card>
     </ScrollScreen>
   );
 }

@@ -7,6 +7,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import type { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useState } from 'react';
 
+import { phoneIdentityEmail } from '@/lib/phone';
 import { liveConfigured, supabase } from '@/lib/supabase';
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -32,15 +33,20 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     };
   }, []);
 
-  const signInLive = useCallback(async (email: string, password: string) => {
+  /** الدخول برقم الهاتف: الرقم يُطبَّع ثم يُشتق منه بريد الهوية. */
+  const signInLive = useCallback(async (phone: string, password: string) => {
+    const identity = phoneIdentityEmail(phone);
+    if (!identity) {
+      return { ok: false as const, error: 'رقم الهاتف غير صحيح - مثال: 0526444414' };
+    }
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: identity,
       password,
     });
     if (error) {
       const msg =
         error.message === 'Invalid login credentials'
-          ? 'بريد أو كلمة سر غير صحيحة.'
+          ? 'رقم الهاتف أو كلمة السر غير صحيحة.'
           : error.message;
       return { ok: false as const, error: msg };
     }
