@@ -164,3 +164,12 @@ export function unreadCount(db: Database, userId: UUID | null | undefined): numb
   if (!userId) return 0;
   return db.notifications.filter((n) => n.userId === userId && !n.readAt).length;
 }
+
+// عائلة المشروع صارت في `domain/annex` لأنها منطقٌ صافٍ يحتاجه المتجر
+// والاختبارات معًا؛ تُعاد هنا لتبقى نقطة الاستيراد واحدة لمن كان يستوردها.
+export {
+  projectAnnexes,
+  projectFamilyFinance,
+  rootProjectId,
+  type ProjectFamilyFinance,
+} from '@/domain/annex';

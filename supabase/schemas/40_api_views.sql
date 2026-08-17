@@ -435,7 +435,11 @@ SELECT projects.id AS project_id,
     projects.archived_at,
     projects.lock_version,
     projects.measurement_worker_id,
-    projects.installer_id
+    projects.installer_id,
+    projects.parent_project_id,
+    projects.annex_seq,
+    projects.annex_reason,
+    projects.root_project_id
    FROM core.projects;
 
 create or replace view api.quotation_item_financials

@@ -46,6 +46,7 @@ import {
 } from '@/components/ui';
 import { CheckWizard } from '@/components/CheckWizard';
 import { QuotationDecision } from '@/components/QuotationDecision';
+import { AnnexCard } from '@/components/AnnexCard';
 import { SignedImage } from '@/components/SignedImage';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
@@ -226,7 +227,12 @@ export default function ProjectStudioScreen() {
                 <QuoteTab projectId={project.id} onGoToProduction={() => setTab('production')} />
               )}
               {shown === 'production' && <ProductionTab projectId={project.id} />}
-              {shown === 'money' && <MoneyTab projectId={project.id} />}
+              {shown === 'money' && (
+                <>
+                  <AnnexCard projectId={project.id} />
+                  <MoneyTab projectId={project.id} />
+                </>
+              )}
               {shown === 'media' && <MediaTab projectId={project.id} />}
             </>
           )}
@@ -1131,6 +1137,7 @@ function ProductionTab({ projectId }: { projectId: string }) {
 
 function MoneyTab({ projectId }: { projectId: string }) {
   const { db, role, recordPayment, reversePayment, busy } = useStore();
+  // المال على الجذر: الملحق لا يحمل دفترًا، فتُقرأ أرقام العائلة كلها هنا
   const finance = projectFinance(db, projectId);
   const payments = db.payments.filter((p) => p.projectId === projectId);
   const hasApprovedQuote = useMemo(

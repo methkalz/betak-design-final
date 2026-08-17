@@ -667,6 +667,89 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, audit, notify],
   );
 
+  /**
+   * ملحق على مشروع قائم: إضافة الزبون بعد الاتفاق.
+   *
+   * العرض المعتمد لا يُمسّ (§10)، فالإضافة تصير مستندًا مستقلًا معلَّقًا على
+   * أصله - يحمل شبابيكه وعرضه وأمر إنتاجه، ولا يحمل دفترَ دفعات: الرصيد
+   * واحد على الأصل، وذاك قيدٌ في القاعدة لا عُرفٌ في الشاشة.
+   */
+  const createProjectAnnex = useCallback(
+    async (parentProjectId: UUID, reason: string): Promise<Result<string>> => {
+      const denied = guard('create_quotation');
+      if (denied) return denied as Result<string>;
+
+      if (source === 'live') {
+        const slot = `annex:${parentProjectId}`;
+        setBusy('annex');
+        try {
+          const { data, error } = await supabase.rpc('create_project_annex', {
+            p_parent_project_id: parentProjectId,
+            p_reason: reason.trim(),
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error) as Result<string>;
+          await refreshLive();
+          const id = (data as { annex_project_id?: string } | null)?.annex_project_id;
+          if (!id) return failWith('تعذّر قراءة رقم الملحق من الخادم.', 'validation');
+          return { ok: true, data: id };
+        } finally {
+          setBusy(null);
+        }
+      }
+
+      // مرآة حُرّاس الخادم في الوضع التجريبي، بالكلمات نفسها
+      const parent = db.projects.find((p) => p.id === parentProjectId);
+      if (!parent) return failWith('المشروع غير موجود.', 'validation');
+      if (parent.parentProjectId)
+        return failWith('الملحق يُعلَّق على المشروع الأصل لا على ملحق آخر.', 'validation');
+      const approved = db.quotationVersions.some(
+        (v) =>
+          v.status === 'approved' &&
+          db.quotations.some((q) => q.id === v.quotationId && q.projectId === parentProjectId),
+      );
+      if (!approved)
+        return failWith(
+          'لا ملحق قبل اعتماد الزبون للعرض الأصلي - قبله يُعدَّل العرض نفسه.',
+          'validation',
+        );
+      if (parent.status === 'completed')
+        return failWith('المشروع مُغلق - الإضافة إليه مشروعٌ جديد لا ملحق.', 'validation');
+      if (db.projects.some((p) => p.parentProjectId === parentProjectId && p.status !== 'completed'))
+        return failWith('للمشروع ملحق مفتوح - أنهِه قبل فتح ملحق جديد.', 'validation');
+
+      const seq =
+        db.projects
+          .filter((p) => p.parentProjectId === parentProjectId)
+          .reduce((m, p) => Math.max(m, p.annexSeq ?? 0), 0) + 1;
+      const id = uid('prj');
+      mutate((draft) => {
+        draft.projects.unshift({
+          ...parent,
+          id,
+          code: `${parent.code}/${seq}`,
+          title: `${parent.title} - ملحق ${seq}`,
+          status: 'measured',
+          parentProjectId,
+          annexSeq: seq,
+          annexReason: reason.trim(),
+          notes: '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        // غرف الأصل تُنسخ أسماءً: القائس يختار الغرفة فيقرأها الخياط كما كُتبت
+        for (const r of draft.rooms.filter((r) => r.projectId === parentProjectId)) {
+          draft.rooms.push({ ...r, id: uid('room'), projectId: id });
+        }
+        audit(draft, 'project.annex', 'project', id, `ملحق ${parent.code}/${seq}`);
+      });
+      return { ok: true, data: id };
+    },
+    [source, refreshLive, takeIdemKey, settleIdemKey, guard, db.projects, db.quotations,
+     db.quotationVersions, mutate, audit],
+  );
+
   const updateProject = useCallback(
     async (id: UUID, patch: Partial<Project>): Promise<Result<void>> => {
       if (source === 'live') {
@@ -3586,6 +3669,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProfile,
       setProfileActive,
       createProject,
+      createProjectAnnex,
       updateProject,
       setProjectStatus,
       assignRole,
@@ -3648,6 +3732,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       createProfile,
       setProfileActive,
       createProject,
+      createProjectAnnex,
       updateProject,
       setProjectStatus,
       assignRole,

@@ -93,6 +93,21 @@ begin
           'scheduled', p_scheduled_at)
   returning id into v_visit_id;
 
+  -- رحلة تركيب واحدة للبيت: الملحق لا يفتح زيارته ما دام الأصل لم يُركَّب
+  -- بعد - يُركَّبان معًا في السفرة نفسها. وإن كان الأصل قد رُكِّب فعلًا فالرحلة
+  -- الثانية واقعٌ مادي لا خيار برمجي، فتُفتح ويُحتسب أجر الميداني عليها بحق
+  if p_type = 'installation' then
+    if exists (
+      select 1 from core.projects a
+      join core.projects r on r.id = a.parent_project_id
+      where a.id = p_project_id
+        and r.status_code not in ('installed', 'completed'))
+    then
+      raise exception 'التركيب يُجدوَل على المشروع الأصل - الملحق يُركَّب معه في السفرة نفسها.'
+        using errcode = 'BD409';
+    end if;
+  end if;
+
   -- موعد المشروع يتبع زيارته (كما في التطبيق)
   if p_type = 'installation' then
     update core.projects set installation_date = p_scheduled_at where id = p_project_id;

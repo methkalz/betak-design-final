@@ -179,6 +179,9 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       // القياس والتركيب عمودان منفصلان على الخادم مع شريحة الكتابة
       measurementWorkerId: sOrNull(p.measurement_worker_id ?? p.field_worker_id),
       installerId: sOrNull(p.installer_id),
+      parentProjectId: sOrNull(p.parent_project_id),
+      annexSeq: Number(p.annex_seq ?? 0),
+      annexReason: s(p.annex_reason ?? ''),
       tailorId: sOrNull(p.tailor_id),
       measurementDate: sOrNull(p.measurement_date),
       installationDate: sOrNull(p.installation_date),
