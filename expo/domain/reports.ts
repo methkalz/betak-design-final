@@ -8,6 +8,7 @@
  * الكلفة مرتين ويكذب على المالك بربحٍ أنقص من حقيقته.
  */
 import type { Database } from '@/data/seed';
+import { projectFamilyFinance, rootProjects } from '@/domain/annex';
 import { round3 } from '@/domain/pricing';
 import { fieldAccruals, tailorAccruals } from '@/domain/staffLedger';
 import type { UUID } from '@/types/domain';
@@ -157,24 +158,27 @@ export type DebtRow = {
   dueAgorot: number;
 };
 
-/** فصل المسدَّد عن الديون (M10): لكل مشروع معتمد، ما دُفع وما بقي. */
+/**
+ * فصل المسدَّد عن الديون (M10): لكل **عائلة** معتمدة، ما دُفع وما بقي.
+ *
+ * صفٌّ لكل جذر لا لكل مستند: الدفعات تُسجَّل على الجذر بقيدٍ في القاعدة، فصفٌّ
+ * للملحق كان يعني دَينًا بقيمته كاملةً لا يمحوه دفعٌ أبدًا - ويُقابله جذرٌ
+ * يظهر مسدَّدًا وهو ليس كذلك. والملحق مطويٌّ في إجمالي أصله، وتفصيله على
+ * شاشة المشروع.
+ */
 export function debtsSplit(db: Database): { settled: DebtRow[]; outstanding: DebtRow[] } {
   const rows: DebtRow[] = [];
-  for (const p of db.projects) {
-    const q = db.quotations.find((x) => x.projectId === p.id);
-    const v = db.quotationVersions.find((x) => x.quotationId === q?.id && x.status === 'approved');
-    if (!v) continue;
-    const paid = db.payments
-      .filter((x) => x.projectId === p.id)
-      .reduce((s, x) => s + x.amountAgorot, 0);
+  for (const p of rootProjects(db)) {
+    const fam = projectFamilyFinance(db, p.id);
+    if (fam.originalAgorot === 0) continue;
     rows.push({
       projectId: p.id,
       code: p.code,
       title: p.title,
       customerName: db.customers.find((c) => c.id === p.customerId)?.fullName ?? '-',
-      totalAgorot: v.totalAgorot,
-      paidAgorot: paid,
-      dueAgorot: Math.max(0, v.totalAgorot - paid),
+      totalAgorot: fam.totalAgorot,
+      paidAgorot: fam.paidAgorot,
+      dueAgorot: fam.dueAgorot,
     });
   }
   return {

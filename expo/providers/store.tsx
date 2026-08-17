@@ -3191,6 +3191,18 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           setBusy(null);
         }
       }
+      // الدفتر على الجذر: القاعدة ترفض دفعةً على ملحق (محفّز
+      // payments_target_root)، فالنموذج التجريبي يرفضها مثلها - وإلا سجّل
+      // مالًا يتبخّر أولَ اتصالٍ بالخادم
+      {
+        const project = db.projects.find((p) => p.id === input.projectId);
+        if (project?.parentProjectId) {
+          return failWith(
+            'الدفعات تُسجَّل على المشروع الأصل لا على الملحق - الرصيد واحد.',
+            'conflict',
+          );
+        }
+      }
       // لا دفعة بلا عرض معتمد: بدونه لا مبلغ متفق عليه تُقاس عليه الدفعة،
       // فتظهر مستحقات وأرصدة لا أصل لها. القاعدة تُفرض في المحرك أيضًا حين
       // تُبنى دالة record_payment (انظر DECISIONS §11).

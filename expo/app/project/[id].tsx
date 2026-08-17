@@ -64,6 +64,7 @@ import {
 import type { AssignmentKind } from '@/domain/assignment';
 import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
+import { projectFamilyFinance } from '@/domain/annex';
 import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
@@ -364,6 +365,7 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
   const nextStatus = PROJECT_STATUS_ORDER[stageIndex + 1];
   const prevStatus = PROJECT_STATUS_ORDER[stageIndex - 1];
   const finance = projectFinance(db, projectId);
+  const family = projectFamilyFinance(db, projectId);
   const rooms = db.rooms.filter((r) => r.projectId === projectId);
   const windows = db.windows.filter((w) => w.projectId === projectId);
   const showMoney = role === 'admin' || role === 'sales';
@@ -381,8 +383,11 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         {showMoney && (
           <View style={[styles.metric, { backgroundColor: palette.terracottaSoft }]}>
             <AppText variant="numberLarge">{money(finance.dueAgorot)}</AppText>
+            {/* الرصيد رصيد العائلة حين يكون لها ملحق - يُقال صريحًا لئلا
+                يُقرأ رقم الأصل وحده على شاشة ملحقه أو بالعكس */}
             <AppText variant="caption" color={palette.muted}>
               متبقٍ من {money(finance.totalAgorot)}
+              {family.annexCount > 0 ? ' مع الملاحق' : ''}
             </AppText>
           </View>
         )}
