@@ -36,6 +36,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppHeader } from '@/components/AppHeader';
 import { PendingInstallations } from '@/components/PendingInstallations';
+import { StaffPulseCard } from '@/components/StaffPulseCard';
 import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
 import { CountUpText, Enter, MiniBars, RingStat, StackedBar } from '@/components/dashviz';
 import {
@@ -759,7 +760,16 @@ function AdminDashboard() {
           </Enter>
         )}
 
+        {/* نبض الطاقم: من يحمل ماذا ومن يحتاج دفعة - قبل خط الإنتاج لأن
+            الناس هم من يحرّكونه، وبعد ما يستدعي فعلًا فوريًا من المالك */}
         <Enter delay={ENTER.pipeline}>
+          <SectionHeader title="الطاقم اليوم" subtitle="مرتّبون بالأولوية - اضغط للملف" />
+          <Glass inner={{ padding: 0 }}>
+            <StaffPulseCard />
+          </Glass>
+        </Enter>
+
+        <Enter delay={ENTER.pipeline + 40}>
           <SectionHeader title="خط الإنتاج" subtitle="أين تقف مشاريعك الآن" />
           <Glass>
             <PipelineChart />
