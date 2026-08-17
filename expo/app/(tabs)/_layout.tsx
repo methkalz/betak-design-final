@@ -11,15 +11,12 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText } from '@/components/ui';
 import { font, palette } from '@/constants/theme';
 import { useStore } from '@/providers/store';
 
 export default function TabsLayout() {
-  const { role, source, currentUser, hydrated } = useStore();
-  const insets = useSafeAreaInsets();
+  const { role, currentUser, hydrated } = useStore();
 
   // بوابة القوقعة: لا شاشة داخلية بلا جلسة. زر رجوع أندرويد على شاشة
   // الدخول كان يهبط هنا فيُعرض المعرض بدور «ميداني» افتراضي بلا كلمة سر -
@@ -31,19 +28,6 @@ export default function TabsLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      {source === 'live' && (
-        <View
-          style={{
-            paddingTop: insets.top,
-            backgroundColor: palette.oliveDeepest,
-            alignItems: 'center',
-          }}
-        >
-          <AppText variant="caption" color={palette.sage} style={{ paddingVertical: 4 }}>
-            العرض الحي - بياناتك من الخادم مباشرة، والتعديل من التطبيق يصلك في تحديث قريب
-          </AppText>
-        </View>
-      )}
     <Tabs
       initialRouteName="home"
       screenOptions={{
