@@ -278,3 +278,62 @@ export function tailorFabricOverview(db: Database, tailorId: UUID): TailorFabric
     events,
   };
 }
+
+/* ═══════ نبض الطاقم: من يحمل ماذا، ومن يحتاج دفعة اليوم ═══════ */
+
+export type StaffPulse = {
+  profileId: UUID;
+  fullName: string;
+  role: Role;
+  /** مهام مفتوحة بين يديه الآن. */
+  open: number;
+  /** منها ما فات موعده - وهو ما يستحق تدخّل المالك. */
+  overdue: number;
+  /** أقرب موعدٍ قادم بين مهامه المفتوحة (لترتيب من ليس متأخرًا بعد). */
+  nextDueAt: string | null;
+  lastActiveAt: string | null;
+  /** أيام السكون منذ آخر أثر - null إن لم يعمل قط. */
+  idleDays: number | null;
+};
+
+/**
+ * صفٌّ واحد لكل موظف نشِط، مرتّبًا **بالإلحاح لا بالاسم**: المتأخر أولًا،
+ * ثم الأثقل حملًا، ثم الأطول سكونًا. فالمالك يقرأ أول سطرين ويعرف أين
+ * يتدخّل اليوم - وهذا هو الغرض كله؛ القوائم الأبجدية تُخفي المتعثّر في
+ * وسطها.
+ *
+ * الأدمن نفسه خارج القائمة: هو القارئ لا المُراقَب، ووجوده يزحم الشاشة
+ * بصفٍّ لا فعل فيه.
+ */
+export function staffPulse(db: Database, now: number, viewerId: UUID | null): StaffPulse[] {
+  return db.profiles
+    .filter((p) => p.isActive && p.id !== viewerId && p.role !== 'admin')
+    .map((p) => {
+      const d = staffDossier(db, p.id, now);
+      const overdue = d.open.filter((t) => t.overdue).length;
+      const due = d.open
+        .map((t) => t.dueAt)
+        .filter((x): x is string => !!x)
+        .sort();
+      const idleDays = d.lastActiveAt
+        ? Math.floor((now - new Date(d.lastActiveAt).getTime()) / DAY)
+        : null;
+      return {
+        profileId: p.id,
+        fullName: p.fullName,
+        role: p.role,
+        open: d.open.length,
+        overdue,
+        nextDueAt: due[0] ?? null,
+        lastActiveAt: d.lastActiveAt,
+        idleDays,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.overdue - a.overdue ||
+        b.open - a.open ||
+        (b.idleDays ?? 9999) - (a.idleDays ?? 9999) ||
+        a.fullName.localeCompare(b.fullName),
+    );
+}

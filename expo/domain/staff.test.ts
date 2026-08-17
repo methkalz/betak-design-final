@@ -5,7 +5,7 @@
  */
 import { test, expect } from 'bun:test';
 
-import { staffDossier } from './staff';
+import { staffDossier, staffPulse } from './staff';
 import type { Database } from '@/data/seed';
 
 // 15 آذار 2026 الساعة العاشرة - كل التواريخ أدناه تُقاس منه
@@ -118,4 +118,62 @@ test('المبيعات تُقاس بالعروض لا بمواعيد لا تمل
   expect(metric(d, 'عروض هذا الشهر')?.value).toBe('2');
   expect(metric(d, 'نسبة الاعتماد')?.value).toBe('33%');
   expect(metric(d, 'التزام بالموعد')).toBeUndefined();
+});
+
+/* ═══════ نبض الطاقم: الترتيب هو الميزة، فهو ما يُختبر ═══════ */
+
+const pulseDb = () =>
+  makeDb({
+    profiles: [
+      { id: 'a1', role: 'admin', fullName: 'الأدمن', isActive: true },
+      { id: 'f1', role: 'field', fullName: 'ميداني متأخر', isActive: true },
+      { id: 'f2', role: 'field', fullName: 'ميداني مشغول', isActive: true },
+      { id: 't1', role: 'tailor', fullName: 'خياط ساكن', isActive: true },
+      { id: 'x1', role: 'field', fullName: 'معطَّل', isActive: false },
+    ] as never,
+    projects: [{ id: 'p1', title: 'بيت أ' }] as never,
+    fieldVisits: [
+      // f1: واحدة فات موعدها
+      { id: 'v1', projectId: 'p1', assigneeId: 'f1', type: 'measurement', status: 'scheduled', scheduledAt: '2026-03-10T09:00:00.000Z', completedAt: null, customerSignedOff: false },
+      // f2: ثلاث قادمة، لا متأخر فيها
+      { id: 'v2', projectId: 'p1', assigneeId: 'f2', type: 'measurement', status: 'scheduled', scheduledAt: '2026-03-18T09:00:00.000Z', completedAt: null, customerSignedOff: false },
+      { id: 'v3', projectId: 'p1', assigneeId: 'f2', type: 'installation', status: 'scheduled', scheduledAt: '2026-03-19T09:00:00.000Z', completedAt: null, customerSignedOff: false },
+      { id: 'v4', projectId: 'p1', assigneeId: 'f2', type: 'installation', status: 'scheduled', scheduledAt: '2026-03-20T09:00:00.000Z', completedAt: null, customerSignedOff: false },
+    ] as never,
+    auditLogs: [
+      { id: 'l1', actorId: 'f2', createdAt: '2026-03-15T08:00:00.000Z' },
+      { id: 'l2', actorId: 't1', createdAt: '2026-03-05T08:00:00.000Z' },
+    ] as never,
+  });
+
+test('نبض الطاقم: المتأخر أولًا ثم الأثقل حملًا ثم الأطول سكونًا', () => {
+  const rows = staffPulse(pulseDb(), NOW, 'a1');
+  expect(rows.map((r) => r.profileId)).toEqual(['f1', 'f2', 't1']);
+  expect(rows[0].overdue).toBe(1);
+  expect(rows[1].open).toBe(3);
+  expect(rows[1].overdue).toBe(0);
+});
+
+test('نبض الطاقم: المعطَّل والأدمن والقارئ نفسه خارج القائمة', () => {
+  const ids = staffPulse(pulseDb(), NOW, 'a1').map((r) => r.profileId);
+  expect(ids).not.toContain('x1'); // معطَّل
+  expect(ids).not.toContain('a1'); // القارئ (وهو أدمن)
+  // ولو قرأها غير الأدمن، يبقى الأدمن خارجها ويخرج القارئ نفسه
+  expect(staffPulse(pulseDb(), NOW, 'f2').map((r) => r.profileId)).toEqual(['f1', 't1']);
+});
+
+test('نبض الطاقم: السكون يُقاس بالأيام، ومن لا أثر له يُميَّز عمن عمل اليوم', () => {
+  const rows = staffPulse(pulseDb(), NOW, 'a1');
+  const busy = rows.find((r) => r.profileId === 'f2')!;
+  const quiet = rows.find((r) => r.profileId === 't1')!;
+  const never = rows.find((r) => r.profileId === 'f1')!;
+  expect(busy.idleDays).toBe(0);
+  expect(quiet.idleDays).toBe(10);
+  expect(never.idleDays).toBeNull();
+  expect(never.lastActiveAt).toBeNull();
+});
+
+test('نبض الطاقم: أقرب موعد قادم يُلتقط لمن ليس متأخرًا', () => {
+  const busy = staffPulse(pulseDb(), NOW, 'a1').find((r) => r.profileId === 'f2')!;
+  expect(busy.nextDueAt).toBe('2026-03-18T09:00:00.000Z');
 });
