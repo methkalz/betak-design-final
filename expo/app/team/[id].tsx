@@ -43,6 +43,7 @@ export default function StaffDossierScreen() {
   const { db, role, setProfileActive } = useStore();
   const router = useRouter();
   const [confirm, setConfirm] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const profile = db.profiles.find((p) => p.id === id);
   const dossier = useMemo(
@@ -229,6 +230,10 @@ export default function StaffDossierScreen() {
         </Card>
       )}
 
+      {!!statusError && (
+        <Banner tone="danger" title="تعذر تغيير حالة الحساب" body={statusError} />
+      )}
+
       <ConfirmSheet
         visible={confirm}
         icon={<UserX size={24} color={profile.isActive ? palette.danger : palette.success} />}
@@ -240,8 +245,11 @@ export default function StaffDossierScreen() {
         }
         confirmLabel={profile.isActive ? 'نعم، عطّل' : 'نعم، فعّل'}
         onConfirm={() => {
-          setProfileActive(profile.id, !profile.isActive);
+          // النتيجة تُقرأ: المتجر يرفض التعطيل في الوضع الحي بصدق، وابتلاعُ
+          // الرفض كان يُغلق اللوحة كأن الحساب عُطّل وهو ما زال يدخل
+          const res = setProfileActive(profile.id, !profile.isActive);
           setConfirm(false);
+          if (!res.ok) setStatusError(res.error);
         }}
         onCancel={() => setConfirm(false)}
       />

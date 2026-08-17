@@ -61,6 +61,18 @@ begin
   -- وبرسالتين صادقتين: المفتوح يُدار، والمقفل لا يتكرر - تبديل الخياط
   -- عبر إسناد الأدوار لا بأمر جديد
   perform 1 from core.projects where id = p_project_id for update;
+
+  -- إعادة البحث بعد نيل القفل: المتزامن الثاني ينتظر هنا ثم يجد عملية
+  -- الأول مسجلة فيستعيدها بدل أن يكرّر الكتابة أو يصطدم بقيد المفتاح
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
   if exists (select 1 from core.tailor_assignments a
              where a.project_id = p_project_id and a.stage <> 'ready') then
     raise exception 'يوجد أمر إنتاج مفتوح لهذا المشروع - تبديل خياطه عبر إسناد الأدوار.'
@@ -169,6 +181,18 @@ begin
   where a.id = p_assignment_id for update;
   select p.* into v_prj from core.projects p where p.id = v_project for update;
 
+  -- إعادة البحث بعد نيل القفل: المتزامن الثاني ينتظر هنا ثم يجد عملية
+  -- الأول مسجلة فيستعيدها بدل أن يكرّر الكتابة أو يصطدم بقيد المفتاح
+  select * into v_prior from core.client_operations o
+  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
+  if found then
+    if v_prior.payload is distinct from v_payload then
+      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
+        using errcode = 'BD400';
+    end if;
+    return v_prior.result || jsonb_build_object('was_replayed', true);
+  end if;
+
   -- خطوة واحدة في الاتجاهين لا قفزًا: القفز يترك مراحل بلا توقيت في
   -- السجل. والرجوع خطوة مسموح لأن الضغطة الخاطئة تقع.
   v_from := pg_catalog.array_position(v_stages, v_current::text);
@@ -192,7 +216,9 @@ begin
   update core.tailor_assignments
      set stage = p_stage::core.tailor_stage,
          started_at = coalesce(started_at, now()),
-         completed_at = case when p_stage = 'ready' then now() else completed_at end,
+         -- التراجع خطوةً يمحو الإتمام: تركُه يجعل أمرًا عاد إلى الكيّ
+         -- يبدو منجزًا في كل تقرير يقرأ completed_at
+         completed_at = case when p_stage = 'ready' then now() else null end,
          stage_history = stage_history
            || jsonb_build_object('stage', p_stage, 'at', now())
    where id = p_assignment_id;
@@ -218,7 +244,9 @@ begin
            '/project/' || v_project::text
     from core.organization_members om
     where om.organization_id = v_org and om.role = 'admin' and om.is_active;
-  elsif v_prj.status_code = 'fabric_allocated' then
+  elsif v_prj.status_code in ('fabric_allocated', 'ready_for_install') then
+    -- ومن 'ready_for_install' يعود كذلك: التراجع عن «جاهز» كان يترك
+    -- المشروع معلنًا جاهزيته بينما الأمر عاد إلى الخياطة
     perform set_config('app.rpc_context', 'on', true);
     update core.projects set status_code = 'with_tailor' where id = v_project;
     perform set_config('app.rpc_context', '', true);

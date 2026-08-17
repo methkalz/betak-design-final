@@ -162,7 +162,7 @@ export default function MoreScreen() {
             <View style={{ flex: 1 }}>
               <AppText variant="label">وضع العمل دون اتصال</AppText>
               <AppText variant="caption" color={palette.muted}>
-                القياسات والصور تُحفظ محليًا؛ المخزون والدفعات تحتاج اتصالًا.
+                كل تسجيل يحتاج اتصالًا - لا شيء يُحفظ على الجهاز لرفعه لاحقًا.
               </AppText>
             </View>
           </Row>

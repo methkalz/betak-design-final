@@ -95,3 +95,32 @@ test('height above 500cm gets no automatic price (requiresAdminPricing)', () => 
   expect(p.runningMeters).toBe(2.0);
   expect(p.fabricMeters).toBe(6.0);
 });
+
+/**
+ * قاعدة الإسقاط: تقريبٌ إلى الأغورة الأقرب **ثم** بترٌ إلى الشيكل - كما
+ * تفعل حاسبة المالك حرفًا. البتر المباشر في خطوة واحدة يُنقص شيكلًا كلما
+ * وقع الحاصل تحت الشيكل بكسر أغورة.
+ *
+ * المتجهات الثمانية لا تفرّق بين الطريقتين (أسعار المالك كلها مضاعفات ألف
+ * أغورة فحاصلها صحيح دائمًا) - ولهذا نجا العيب في محرّك SQL حتى المراجعة.
+ * هذه الحالة تفرّق، فتحرس القاعدة في الجانبين.
+ */
+test('الإسقاط خطوتان لا واحدة: 99.52 أغورة تصعد إلى الشيكل ولا تسقط منه', () => {
+  const line = lineArithmetic({
+    widthCm: 99.2,
+    quantity: 2,
+    fullness: 2.2,
+    hasLining: true,
+    unitPriceAgorot: 29000,
+    tailorCostAgorot: 7000,
+    fabricCostAgorot: 1400,
+    liningCostAgorot: 900,
+    trackCostAgorot: 1000,
+    deliveryCostAgorot: 1000,
+    measureInstallCostAgorot: 1500,
+    liningMetersPerRunningMeter: 3,
+  });
+  // التكلفة الخام 32,299.52 أغورة: التقريب يرفعها إلى 32,300 فتبتر إلى 323 ₪
+  // والبتر المباشر كان يعطي 322 ₪ - شيكل يضيع من تكلفة كل بند كهذا
+  expect(line.internalCostAgorot).toBe(32300);
+});

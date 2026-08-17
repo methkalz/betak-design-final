@@ -112,7 +112,7 @@ export default function VisitScreen() {
     }
     const res = await completeVisit(visit.id);
     if (!res.ok) return setError(res.error);
-    Alert.alert('تم إكمال الزيارة', 'تم حفظ كل البيانات على الجهاز وستتم مزامنتها تلقائيًا.', [
+    Alert.alert('تم إكمال الزيارة', 'حُفظت الزيارة على خادم المعرض.', [
       { text: 'تمام', onPress: () => goBack() },
     ]);
   };
@@ -172,7 +172,7 @@ export default function VisitScreen() {
         <Banner
           tone="warning"
           title="أنت تعمل دون اتصال"
-          body="كل ما تسجله الآن يُحفظ على الجهاز ويُرفع تلقائيًا عند عودة الشبكة."
+          body="لا يمكن الحفظ بلا اتصال - انتظر عودة الشبكة قبل أن تسجّل، وإلا ضاع ما تكتبه."
         />
       )}
 

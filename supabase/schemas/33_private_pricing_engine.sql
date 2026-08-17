@@ -155,9 +155,16 @@ begin
     band                 := v_band;
     unit_price_agorot    := v_unit;
     -- ★ إسقاط الأغوروت: شيكل صحيح لكل بند، ومبالغ الستارة (ماتور وجهاز
-    -- تحكم) صحيحة أصلًا فتُضاف بعد الإسقاط - مرآة lineArithmetic حرفًا
-    line_total_agorot    := (pg_catalog.floor(v_unit * v_rm / 100) * 100)::bigint + v_pw_price;
-    internal_cost_agorot := (pg_catalog.floor(v_cost_per_rm * v_rm / 100) * 100)::bigint + v_pw_cost;
+    -- تحكم) صحيحة أصلًا فتُضاف بعد الإسقاط - مرآة lineArithmetic حرفًا.
+    --
+    -- خطوتان لا واحدة: تقريبٌ إلى الأغورة الأقرب ثم بترٌ إلى الشيكل - كما
+    -- تفعل حاسبة المالك (tools/price-calculator/app.js) والتطبيق. البتر
+    -- المباشر كان يُنقص شيكلًا كلما وقع الحاصل تحت الشيكل بكسر أغورة،
+    -- فيرى الزبون رقمًا في المعاينة ويحمل العرض المخزَّن رقمًا أقلّ.
+    line_total_agorot    := (pg_catalog.floor(pg_catalog.round(v_unit * v_rm) / 100) * 100)::bigint
+                            + v_pw_price;
+    internal_cost_agorot := (pg_catalog.floor(pg_catalog.round(v_cost_per_rm * v_rm) / 100) * 100)::bigint
+                            + v_pw_cost;
     fabric_meters        := v_fm;
     lining_meters        := v_lm;
     sort_order           := v_sort;
