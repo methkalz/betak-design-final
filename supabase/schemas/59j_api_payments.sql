@@ -284,7 +284,10 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  perform 1 from core.payments where id = p_payment_id for update;
+  -- الدفتر جامد فلا UPDATE عليه ولا FOR UPDATE: قفل استشاري على معرّف
+  -- الدفعة يصفّف عكسَين متزامنين بلا أن يطلب صلاحيةً لا يملكها المالك
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('baytak:reverse_payment:' || p_payment_id::text, 0));
 
   -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
   select * into v_prior from core.client_operations o
@@ -388,7 +391,8 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  perform 1 from core.profiles where id = p_staff_id for update;
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('baytak:staff_payout:' || p_staff_id::text, 0));
 
   -- إعادة البحث بعد القفل: المتزامن الثاني ينتظر هنا فيجد عملية الأول
   select * into v_prior from core.client_operations o
