@@ -380,4 +380,24 @@ alter function api.complete_visit(uuid, uuid) owner to baytak_rpc_owner;
 revoke all on function api.complete_visit(uuid, uuid) from public, anon;
 grant execute on function api.complete_visit(uuid, uuid) to authenticated;
 
+-- ‏٦) توحيد نصّ حارس الدفتر مع مخططه التصريحي: الترحيل الأول كتبه بلا تعليقه
+--    فاختلفت بصمتا القاعدتين - والتعليق ليس زينةً هنا، هو الذي يقول لماذا
+--    كان محفّزًا لا قيدًا
+CREATE OR REPLACE FUNCTION private.payments_target_root()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  -- رصيدٌ واحد يراه الزبون: دفترٌ على الملحق ليس ممنوعًا بالاتفاق بل غير
+  -- قابل للتخزين. محفّز لا قيد FK لأن الشرط يقرأ جدولًا آخر
+  if exists (select 1 from core.projects p
+             where p.id = new.project_id and p.parent_project_id is not null) then
+    raise exception 'الدفعات تُسجَّل على المشروع الأصل لا على الملحق - الرصيد واحد.'
+      using errcode = 'BD409';
+  end if;
+  return new;
+end $function$;
+
 notify pgrst, 'reload schema';
