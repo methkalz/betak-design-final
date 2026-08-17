@@ -9,6 +9,7 @@ import { AppText, Card, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
 import { projectFinance } from '@/hooks/selectors';
 import { money, phone } from '@/lib/format';
+import { digitsOnly } from '@/lib/phone';
 import { useStore } from '@/providers/store';
 
 export default function CustomersScreen() {
@@ -19,9 +20,19 @@ export default function CustomersScreen() {
 
   const list = useMemo(() => {
     const q = query.trim();
+    // البحث بالرقم يقارن الأرقام وحدها: المخزَّن قد يكون 972… والمستخدم
+    // يكتب 052 أو 052-644 - ولو قارنّا النصّين لخرجت القائمة فارغة فأنشأ
+    // الأدمن زبونًا مكرّرًا
+    const qd = digitsOnly(q);
     return db.customers
       .filter((c) => !c.archivedAt)
-      .filter((c) => !q || c.fullName.includes(q) || c.phone.includes(q) || c.city.includes(q));
+      .filter(
+        (c) =>
+          !q ||
+          c.fullName.includes(q) ||
+          c.city.includes(q) ||
+          (qd.length > 0 && digitsOnly(c.phone).includes(qd.replace(/^0/, ''))),
+      );
   }, [db.customers, query]);
 
   return (

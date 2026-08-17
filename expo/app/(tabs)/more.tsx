@@ -104,7 +104,7 @@ export default function MoreScreen() {
     },
     {
       label: 'الإعدادات والصلاحيات',
-      hint: 'المعرض، الأدوار، العرض التجريبي',
+      hint: 'المعرض، الأدوار والصلاحيات',
       icon: <Settings size={20} color={palette.olive} />,
       href: '/settings',
       show: true,

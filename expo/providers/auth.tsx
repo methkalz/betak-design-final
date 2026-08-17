@@ -7,6 +7,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import type { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useState } from 'react';
 
+import { phoneIdentityEmail } from '@/lib/phone';
 import { liveConfigured, supabase } from '@/lib/supabase';
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -32,17 +33,27 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     };
   }, []);
 
-  const signInLive = useCallback(async (email: string, password: string) => {
+  /** الدخول برقم الهاتف: الرقم يُطبَّع ثم يُشتق منه بريد الهوية. */
+  const signInLive = useCallback(async (phone: string, password: string) => {
+    const identity = phoneIdentityEmail(phone);
+    if (!identity) {
+      return { ok: false as const, error: 'رقم الهاتف غير صحيح - مثال: 0526444414' };
+    }
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: identity,
       password,
     });
     if (error) {
-      const msg =
-        error.message === 'Invalid login credentials'
-          ? 'بريد أو كلمة سر غير صحيحة.'
-          : error.message;
-      return { ok: false as const, error: msg };
+      // رسالة واحدة لكل إخفاق في المطابقة: تمرير نصّ الخادم كما هو يفرّق
+      // بين «حساب غير موجود» و«كلمة سر خاطئة» فيصير الباب كشّافًا لمن
+      // يجرّب الأرقام. ما لا علاقة له بالمطابقة (شبكة، انقطاع) يمرّ كما هو
+      const m = error.message ?? '';
+      const isCredentialish =
+        /invalid login credentials|invalid grant|email not confirmed|user not found|not found|password/i.test(m);
+      return {
+        ok: false as const,
+        error: isCredentialish ? 'رقم الهاتف أو كلمة السر غير صحيحة.' : m,
+      };
     }
     return { ok: true as const };
   }, []);

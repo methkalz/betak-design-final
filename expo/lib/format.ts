@@ -2,6 +2,8 @@
  * Formatting helpers. All money is handled in agorot (1 ILS = 100 agorot).
  */
 
+import { displayPhone } from './phone';
+
 const AR = 'ar-EG';
 
 /**
@@ -21,7 +23,9 @@ const isolate = (s: string): string => `⁦${s}⁩`;
  */
 export function phone(value: string | null | undefined): string {
   if (!value) return '-';
-  return isolate(value);
+  // المخزَّن قد يكون بالصيغة القانونية (972…) والمعرض يقرأ 052 ويتصل بها -
+  // فالعرض يُرجعه إلى صيغته المحلية، وما لا يُطبَّع يبقى كما كُتب
+  return isolate(displayPhone(value));
 }
 
 export function agorotToShekel(agorot: number): number {

@@ -28,7 +28,7 @@ const PREVIEW: Capability[] = [
 ];
 
 export default function NewStaffScreen() {
-  const { createProfile } = useStore();
+  const { createProfile, source } = useStore();
   const router = useRouter();
 
   const [role, setRole] = useState<Role>('field');
@@ -36,7 +36,6 @@ export default function NewStaffScreen() {
   const [phone, setPhone] = useState('');
   const [title, setTitle] = useState('');
   const [titleEdited, setTitleEdited] = useState(false);
-  const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export default function NewStaffScreen() {
 
   const submit = () => {
     setError(null);
-    const res = createProfile({ fullName, phone, role, title, pin });
+    const res = createProfile({ fullName, phone, role, title, pin: '0000' });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/team/[id]', params: { id: res.data } });
   };
@@ -103,27 +102,30 @@ export default function NewStaffScreen() {
               setTitle(t);
             }}
           />
-          <Field
-            label="رمز الدخول"
-            value={pin}
-            onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 4))}
-            keyboardType="numeric"
-            placeholder="أربعة أرقام"
-          />
           <AppText variant="caption" color={palette.muted}>
-            سلّم الرمز للموظف شفهيًا، وبإمكانه تغييره من حسابه لاحقًا.
+            الدخول برقم الهاتف وكلمة سرٍّ يضبطها مزوّد النظام ثم تُسلَّم للموظف.
           </AppText>
         </View>
       </Card>
 
+      {source === 'live' && (
+        <Banner
+          tone="warning"
+          title="إنشاء الحسابات لا يمرّ من التطبيق بعد"
+          body="حساب الدخول يحتاج صلاحية إدارية على الخادم. أرسل الاسم والدور والرقم لمزوّد النظام، ويصل الحساب وكلمة سره الأولية لتسلّمها للموظف."
+        />
+      )}
+
       {!!error && <Banner tone="danger" title="تعذر إنشاء الحساب" body={error} />}
 
-      <Button
-        label="إنشاء الحساب"
-        full
-        icon={<UserPlus size={18} color={palette.ivory} />}
-        onPress={submit}
-      />
+      {source !== 'live' && (
+        <Button
+          label="إنشاء الحساب"
+          full
+          icon={<UserPlus size={18} color={palette.ivory} />}
+          onPress={submit}
+        />
+      )}
     </ScrollScreen>
   );
 }
