@@ -126,7 +126,11 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         if (rawDb) {
           setDb(reviveDb(rawDb));
         }
-        if (rawSession) setUserId(JSON.parse(rawSession) as string);
+        // الجلسة المحلية لم تعد تُفتح بها البيوت: بابها (الدخول التجريبي
+        // برمز أربعة أرقام) أُلغي، فبقاؤها في التخزين كان يُدخل صاحب جهازٍ
+        // قديم إلى المعرض بلا كلمة سر - ويحجب استعادة الجلسة الحية فوق ذلك.
+        // تُمحى مرةً واحدة، والجلسة الحقيقية تأتي من Supabase وحدها.
+        if (rawSession) await AsyncStorage.removeItem(SESSION_KEY).catch(() => {});
       } catch (e) {
         console.log('[store] hydrate failed, falling back to seed', e);
       } finally {
@@ -382,15 +386,20 @@ export const [StoreProvider, useStore] = createContextHook(() => {
   }, [source, refreshLive]);
 
   const exitLive = useCallback(async () => {
-    sourceRef.current = 'demo';
-    setSource('demo');
-    setUserId(null);
+    // اللقطة أولًا ثم المصدر: قلبُ المصدر قبل استبدال البيانات يفتح لحظةً
+    // يسقط فيها حارس «الحي لا يُحفظ محليًا»، فيكتب المؤثّر لقطةَ الخادم
+    // في مخزنٍ محلي غير مشفَّر. الثلاثة تُضبط في نبضة واحدة
+    let next: Database;
     try {
       const rawDb = await AsyncStorage.getItem(DB_KEY);
-      setDb(rawDb ? reviveDb(rawDb) : buildSeed());
+      next = rawDb ? reviveDb(rawDb) : buildSeed();
     } catch {
-      setDb(buildSeed());
+      next = buildSeed();
     }
+    sourceRef.current = 'demo';
+    setDb(next);
+    setSource('demo');
+    setUserId(null);
   }, []);
 
   const signOut = useCallback(() => {
@@ -831,6 +840,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     (input: { fullName: string; phone: string; role: Role; title: string; pin: string }): Result<string> => {
       const denied = guard('manage_users');
       if (denied) return denied as Result<string>;
+      // إنشاء حساب دخول يحتاج واجهة Auth الإدارية لا SQL، فلا RPC له بعد.
+      // ولا يُسمح بسجلٍّ محليٍّ يوهم أن للموظف حسابًا: يُقال الحق ويُدَل الدرب
+      if (source === 'live')
+        return failWith(
+          'إنشاء حسابات الموظفين لا يمرّ من التطبيق بعد - يُنشئه مزوّد النظام، ثم تُسلَّم كلمة السر للموظف.',
+          'validation',
+        ) as Result<string>;
       if (!input.fullName.trim()) return failWith('اسم الموظف مطلوب.', 'validation');
       if (!/^0\d{1,2}-?\d{7}$/.test(input.phone.replace(/\s/g, '')))
         return failWith('رقم الهاتف غير صحيح.', 'validation');
@@ -854,7 +870,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [guard, db.profiles, mutate, enqueue, audit],
+    [source, guard, db.profiles, mutate, enqueue, audit],
   );
 
   /**
@@ -865,6 +881,13 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     (profileId: UUID, active: boolean): Result<void> => {
       const denied = guard('manage_users');
       if (denied) return denied;
+      // التعطيل لا يسري إلا على الخادم، ولا RPC له بعد. سجلٌّ محلي
+      // يُظهر الموظف معطَّلًا وهو ما زال يدخل بجلسته = خطر لا تجميل
+      if (source === 'live')
+        return failWith(
+          'تعطيل الحساب لا يمرّ من التطبيق بعد - يُعطّله مزوّد النظام على الخادم فورًا.',
+          'validation',
+        );
       if (profileId === userId && !active)
         return failWith('لا يمكنك تعطيل حسابك أنت.', 'validation');
       mutate((draft) => {
@@ -881,7 +904,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [guard, userId, mutate, audit],
+    [source, guard, userId, mutate, audit],
   );
 
   const addRoom = useCallback(

@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import {
   CalendarCheck,
   Home,
@@ -18,8 +18,13 @@ import { font, palette } from '@/constants/theme';
 import { useStore } from '@/providers/store';
 
 export default function TabsLayout() {
-  const { role, source } = useStore();
+  const { role, source, currentUser, hydrated } = useStore();
   const insets = useSafeAreaInsets();
+
+  // بوابة القوقعة: لا شاشة داخلية بلا جلسة. زر رجوع أندرويد على شاشة
+  // الدخول كان يهبط هنا فيُعرض المعرض بدور «ميداني» افتراضي بلا كلمة سر -
+  // والباب الذي أُغلق في الواجهة لا يُترك مفتوحًا من الخلف.
+  if (hydrated && !currentUser) return <Redirect href="/login" />;
   const isAdmin = role === 'admin' || role === 'sales';
   const isField = role === 'field';
   const isTailor = role === 'tailor';

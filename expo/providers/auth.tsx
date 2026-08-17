@@ -44,11 +44,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       password,
     });
     if (error) {
-      const msg =
-        error.message === 'Invalid login credentials'
-          ? 'رقم الهاتف أو كلمة السر غير صحيحة.'
-          : error.message;
-      return { ok: false as const, error: msg };
+      // رسالة واحدة لكل إخفاق في المطابقة: تمرير نصّ الخادم كما هو يفرّق
+      // بين «حساب غير موجود» و«كلمة سر خاطئة» فيصير الباب كشّافًا لمن
+      // يجرّب الأرقام. ما لا علاقة له بالمطابقة (شبكة، انقطاع) يمرّ كما هو
+      const m = error.message ?? '';
+      const isCredentialish =
+        /invalid login credentials|invalid grant|email not confirmed|user not found|not found|password/i.test(m);
+      return {
+        ok: false as const,
+        error: isCredentialish ? 'رقم الهاتف أو كلمة السر غير صحيحة.' : m,
+      };
     }
     return { ok: true as const };
   }, []);

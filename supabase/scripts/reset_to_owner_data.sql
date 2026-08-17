@@ -17,7 +17,28 @@
 --     < supabase/scripts/reset_to_owner_data.sql
 -- ════════════════════════════════════════════════════════════════════
 
+-- ⚠️ سكربت **هدّام**: يمحو كل الزبائن والمشاريع والحركات وحسابات الدخول.
+-- يُشغَّل مرةً واحدة عند التسليم (cutover) لا بعده. أخذ نسخةً احتياطية أولًا:
+--   docker exec <db> pg_dump -U postgres --data-only --schema=core --schema=auth > backup.sql
+-- الحارس أدناه يرفض التشغيل إن وُجد عملٌ حقيقي (دفعة أو أمر إنتاج أو عرض
+-- مُرسَل)، فلا يمحو يومَ عملٍ بضغطة سهو. للتجاوز عن قصد يُسبَق التشغيل بـ:
+--   set baytak.force = '1';
+
 begin;
+
+do $guard$
+declare v_real integer;
+begin
+  select (select count(*) from core.payments)
+       + (select count(*) from core.tailor_assignments)
+       + (select count(*) from core.quotation_versions where sent_at is not null)
+    into v_real;
+  if v_real > 0 and coalesce(current_setting('baytak.force', true), '') <> '1' then
+    raise exception
+      'رفض المحو: القاعدة تحمل عملًا حقيقيًا (% سجلًا). للتجاوز عن قصد شغّل: set baytak.force = ''1'';',
+      v_real;
+  end if;
+end $guard$;
 
 -- ── هوية المعرض ────────────────────────────────────────────────────────
 update core.organizations
@@ -48,6 +69,7 @@ delete from core.rooms;
 delete from core.projects;
 delete from core.customers;
 delete from core.document_sequences;
+delete from core.user_devices;
 delete from core.organization_members;
 delete from core.profiles;
 delete from auth.identities;
@@ -61,18 +83,19 @@ set local session_replication_role = origin;
 with org as (select organization_id as id from core.business_settings limit 1),
      staff(uid, full_name, phone, role, pass) as (values
   ('11110000-0000-4000-8000-000000000001'::uuid, 'حمادة زيدان',
-   '972549068709', 'admin',  :p_admin),
+   '054-9068709', 'admin',  :p_admin),
   ('11110000-0000-4000-8000-000000000002'::uuid, 'أبو داني',
-   '972532743339', 'tailor', :p_tailor),
+   '053-2743339', 'tailor', :p_tailor),
   ('11110000-0000-4000-8000-000000000003'::uuid, 'قياس وتركيب',
-   '972509270077', 'field',  :p_field))
+   '050-9270077', 'field',  :p_field))
 -- عمود auth.users.phone يُترك فارغًا عمدًا: الهوية بريدٌ مشتق، وملء
 -- عمود الهاتف يجرّ خدمة الهوية إلى مسار تحقّقٍ بالرسائل لا نريده
 insert into auth.users
   (id, instance_id, aud, role, email, encrypted_password,
    email_confirmed_at, created_at, updated_at, raw_user_meta_data)
 select s.uid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-       s.phone || '@baytak.local',
+       -- الهوية من الأرقام المجرّدة: 054-9068709 ← 972549068709@baytak.local
+       '972' || pg_catalog.ltrim(pg_catalog.translate(s.phone, '-', ''), '0') || '@baytak.local',
        extensions.crypt(s.pass, extensions.gen_salt('bf')),
        now(), now(), now(),
        jsonb_build_object('full_name', s.full_name, 'phone', s.phone)
@@ -105,12 +128,14 @@ where u.email like '%@baytak.local'
   and not exists (select 1 from auth.identities i
                   where i.user_id = u.id and i.provider = 'email');
 
-insert into core.profiles (id, full_name, phone)
-select s.uid, s.name, s.phone from (values
-  ('11110000-0000-4000-8000-000000000001'::uuid, 'حمادة زيدان', '972549068709'),
-  ('11110000-0000-4000-8000-000000000002'::uuid, 'أبو داني', '972532743339'),
-  ('11110000-0000-4000-8000-000000000003'::uuid, 'قياس وتركيب', '972509270077')
-) as s(uid, name, phone);
+-- المسمّى الوظيفي ليس تزيينًا: شاشتا الطاقم والإعدادات تطبعانه قبل الرقم،
+-- وفراغه يُخرج نقطةً معلّقة بلا شيء قبلها
+insert into core.profiles (id, full_name, phone, title)
+select s.uid, s.name, s.phone, s.title from (values
+  ('11110000-0000-4000-8000-000000000001'::uuid, 'حمادة زيدان', '054-9068709', 'إدارة المعرض'),
+  ('11110000-0000-4000-8000-000000000002'::uuid, 'أبو داني', '053-2743339', 'خيّاط'),
+  ('11110000-0000-4000-8000-000000000003'::uuid, 'قياس وتركيب', '050-9270077', 'قياس وتركيب')
+) as s(uid, name, phone, title);
 
 insert into core.organization_members (organization_id, user_id, role, is_active)
 select o.id, s.uid, s.role::core.app_role, true
@@ -124,8 +149,8 @@ from (values
 insert into core.customers (organization_id, full_name, phone)
 select o.id, c.name, c.phone
 from (values
-  ('مثقال زيدان', '972526444414'),
-  ('رواد زيدان',  '972544614364')
+  ('مثقال زيدان', '052-6444414'),
+  ('رواد زيدان',  '054-4614364')
 ) as c(name, phone), (select organization_id as id from core.business_settings limit 1) o;
 
 -- ── المخزون الابتدائي: 500 متر من كل صنف حيّ ───────────────────────────
