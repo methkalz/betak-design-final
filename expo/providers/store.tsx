@@ -1019,6 +1019,20 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     }): Promise<Result<string>> => {
       const denied = guard('enter_measurements');
       if (denied) return denied as Result<string>;
+      // مرآة حارس الخادم: لا شباك جديد في مشروعٍ اعتمده الزبون - يُسعَّر
+      // أبدًا ولا يظهر في أي عرض، وقد كان يدخل الإنتاج والتركيب بصمت
+      if (!input.id) {
+        const approved = db.quotationVersions.some(
+          (v) =>
+            v.status === 'approved' &&
+            db.quotations.some((q) => q.id === v.quotationId && q.projectId === input.projectId),
+        );
+        if (approved)
+          return failWith(
+            'العرض معتمد من الزبون - لا يُضاف شباك إلى مشروعٍ متفقٍ عليه. افتح مشروعًا للإضافة.',
+            'validation',
+          ) as never;
+      }
       if (!(input.widthCm > 0) || !(input.heightCm > 0))
         return failWith('العرض والارتفاع يجب أن يكونا أكبر من صفر.', 'validation');
       if (input.heightCm > 500)
@@ -1100,7 +1114,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return { ok: true, data: id };
     },
-    [source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue, audit, userId],
+    [db.quotationVersions, db.quotations, source, refreshLive, takeIdemKey, settleIdemKey, guard, mutate, enqueue, audit, userId],
   );
 
   const deleteWindow = useCallback(
