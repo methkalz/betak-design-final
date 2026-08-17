@@ -122,7 +122,9 @@ if not (CUST and PRJ):
     print(out); sys.exit(1)
 
 out = sql(f"""
+select set_config('app.rpc_context','on',false) \g /dev/null
 update core.projects set status_code = 'measured' where id = '{PRJ}';
+select set_config('app.rpc_context','',false) \g /dev/null
 insert into core.rooms (organization_id,project_id,name) values ('{ORG}','{PRJ}','صالون');
 insert into core.quotations (id,organization_id,project_id,number,status)
 values ('{key(90)}','{ORG}','{PRJ}','QT-AN-1','approved');
@@ -168,7 +170,7 @@ check('04 ملحقٌ ثانٍ والأول مفتوح → مرفوض',
 out = as_user(ADMIN, f"""select api.create_project_annex(
   '{ANX}'::uuid, 'ملحق على ملحق', '{key(5)}'::uuid)::text;""")
 check('05 ملحقٌ على ملحق → مرفوض بحارس العمق',
-      'ERROR' in out and 'ملحق' in out, out)
+      'ERROR' in out and 'ملحق آخر' in out, out)
 
 # ── ٢) الأبواب الخلفية: العرض العام لا يكتب نسبًا ────────────────────────────
 out = as_user(ADMIN, f"""insert into api.projects
@@ -267,13 +269,16 @@ check('19 الشباك نفسه يُضاف إلى الملحق بلا عناء',
       'ERROR' not in out and '"window_id"' in out, out)
 
 # ── ٨) رحلة تركيبٍ واحدة للبيت ──────────────────────────────────────────────
-out = sql(f"""update core.projects set status_code = 'ready_for_install'
- where id in ('{PRJ}','{ANX}');""")
+out = sql(f"""
+select set_config('app.rpc_context','on',false) \g /dev/null
+update core.projects set status_code = 'ready_for_install'
+ where id in ('{PRJ}','{ANX}');
+select set_config('app.rpc_context','',false) \g /dev/null""")
 out = as_user(ADMIN, f"""select api.schedule_visit(
   '{ANX}'::uuid, '{F1}'::uuid, 'installation', now() + interval '2 days',
   '{key(11)}'::uuid)::text;""")
 check('20 تركيب الملحق قبل أصله → مرفوض (يُركَّبان في سفرةٍ واحدة)',
-      'ERROR' in out and ('السفرة' in out or 'الأصل' in out or 'BD409' in out), out)
+      'ERROR' in out and 'السفرة نفسها' in out, out)
 
 out = as_user(ADMIN, f"""select api.schedule_visit(
   '{PRJ}'::uuid, '{F1}'::uuid, 'installation', now() + interval '2 days',
