@@ -23,6 +23,7 @@ ORG = 'eeee9999-0000-4000-8000-000000000001'
 ADMIN = 'eeee9999-0000-4000-8000-0000000000a1'
 SALES = 'eeee9999-0000-4000-8000-0000000000a2'
 T1 = 'eeee9999-0000-4000-8000-0000000000a3'
+F1 = 'eeee9999-0000-4000-8000-0000000000a4'
 
 UUID_RE = r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
 
@@ -74,8 +75,8 @@ delete from core.customers            where organization_id = '{ORG}';
 delete from core.organization_members where organization_id = '{ORG}';
 delete from core.business_settings    where organization_id = '{ORG}';
 delete from core.organizations        where id = '{ORG}';
-delete from core.profiles             where id in ('{ADMIN}','{SALES}','{T1}');
-delete from auth.users                where id in ('{ADMIN}','{SALES}','{T1}');
+delete from core.profiles             where id in ('{ADMIN}','{SALES}','{T1}','{F1}');
+delete from auth.users                where id in ('{ADMIN}','{SALES}','{T1}','{F1}');
 set session_replication_role = origin;
 """
 
@@ -83,7 +84,7 @@ print('=== seeding ===')
 users = ",\n ".join(
     f"('{u}','00000000-0000-0000-0000-000000000000','authenticated','authenticated',"
     f"'chk{i}@t.local','x',now(),now(),now())"
-    for i, u in enumerate([ADMIN, SALES, T1]))
+    for i, u in enumerate([ADMIN, SALES, T1, F1]))
 out = sql(PURGE + f"""
 insert into core.organizations (id,name) values ('{ORG}','معرض الشيكات');
 insert into core.business_settings (organization_id) values ('{ORG}');
@@ -91,10 +92,11 @@ insert into auth.users (id,instance_id,aud,role,email,encrypted_password,
                         email_confirmed_at,created_at,updated_at) values
  {users};
 insert into core.profiles (id,full_name) values
- ('{ADMIN}','أدمن الشيكات'), ('{SALES}','بائع الشيكات'), ('{T1}','خياط الشيكات');
+ ('{ADMIN}','أدمن الشيكات'), ('{SALES}','بائع الشيكات'),
+ ('{T1}','خياط الشيكات'), ('{F1}','قائس الشيكات');
 insert into core.organization_members (organization_id,user_id,role,is_active) values
  ('{ORG}','{ADMIN}','admin',true), ('{ORG}','{SALES}','sales',true),
- ('{ORG}','{T1}','tailor',true);
+ ('{ORG}','{T1}','tailor',true), ('{ORG}','{F1}','field',true);
 """)
 if 'ERROR' in out:
     print(out); sys.exit(1)
@@ -103,7 +105,7 @@ out = as_user(SALES, f"""select api.save_customer(
   'زبون الشيكات', '052-6444414', '{key(1)}'::uuid)::text;""")
 CUST = grab(r'"customer_id"\s*:\s*"([0-9a-f-]+)"', out)
 out = as_user(SALES, f"""select api.create_project(
-  '{CUST}'::uuid, 'بيت الشيكات', '{T1}'::uuid, null, '{key(2)}'::uuid)::text;""")
+  '{CUST}'::uuid, 'بيت الشيكات', '{T1}'::uuid, '{F1}'::uuid, '{key(2)}'::uuid)::text;""")
 PRJ = grab(r'"project_id"\s*:\s*"([0-9a-f-]+)"', out)
 if not (CUST and PRJ):
     print(out); sys.exit(1)
