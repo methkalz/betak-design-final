@@ -13,13 +13,14 @@ SELECT attachments.id AS attachment_id,
     attachments.room_id,
     attachments.window_id,
     attachments.visit_id,
-    attachments.payment_id,
     attachments.kind,
     attachments.storage_path,
     attachments.caption,
     attachments.byte_size,
     attachments.created_by,
-    attachments.created_at
+    attachments.created_at,
+    -- الإحلال يُلحق في الذيل ولا يُدرج في الوسط: عمودٌ جديد يأتي آخرًا
+    attachments.payment_id
    FROM core.attachments;
 
 create or replace view api.audit_logs
