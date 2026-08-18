@@ -36,7 +36,14 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يستخدم التطبيق صورك لإرفاق صور القياس والتركيب وصور الشيكات بمشاريعها.",
+          "cameraPermission": "يستخدم التطبيق الكاميرا لتصوير القياسات والتركيب وصور الشيكات."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

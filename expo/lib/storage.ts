@@ -18,6 +18,24 @@ const CONTENT_TYPES: Record<string, string> = {
   pdf: 'application/pdf',
 };
 
+/**
+ * مسار المرفق في الدلو.
+ *
+ * صور الشيكات على مقطعٍ ثالث `checks/` تنطق منه سياسة المخزن: حجبُ الصف
+ * وحده لا يحجب الملف - من يرى المشروع كان يسرد المجلد ويوقّع رابطًا لأي
+ * ملفٍ فيه. المقطعان الأول والثاني يبقيان كما هما فلا تتأذى صور العمل.
+ */
+export function attachmentPath(
+  orgId: string,
+  projectId: string,
+  id: string,
+  uri: string,
+  kind: string,
+): string {
+  const folder = kind === 'check' ? `${orgId}/${projectId}/checks` : `${orgId}/${projectId}`;
+  return `${folder}/${id}.${attachmentExt(uri)}`;
+}
+
 export function attachmentExt(uri: string): string {
   const raw = (uri.split('?')[0].split('.').pop() ?? '').toLowerCase();
   return /^[a-z0-9]{2,5}$/.test(raw) && CONTENT_TYPES[raw] ? raw : 'jpg';
