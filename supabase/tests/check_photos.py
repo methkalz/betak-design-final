@@ -211,6 +211,40 @@ check('11 إعادة المفتاح: was_replayed، والمعرّفات نفس�
       '"was_replayed": true' in out and CHK1 in out
       and re.search(r'^\s*2\s*$', probe, re.M) is not None, out + probe)
 
+# ── ٦) البايتات لا الصفوف: سياسة المخزن تنطق من المسار ──────────────────────
+# الصف محجوب والملف مكشوف كان نصفَ حراسة: من يرى المشروع كان يسرد المجلد
+# ويوقّع رابطًا لأي ملفٍ فيه - وصورة الشيك فيها حساب الزبون وتوقيعه
+sql(f"""
+insert into storage.objects (bucket_id, name, owner, metadata)
+values ('attachments', '{ORG}/{PRJ}/checks/c1.webp', '{SALES}', '{{}}'::jsonb),
+       ('attachments', '{ORG}/{PRJ}/w1.webp', '{SALES}', '{{}}'::jsonb)
+on conflict do nothing;
+""")
+
+probe = as_user(ADMIN, f"""select 'n=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJ}/checks/c1.webp';""")
+check('12 الأدمن يقرأ بايتات صورة الشيك', 'n=1' in probe, probe)
+
+probe = as_user(T1, f"""select 'n=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJ}/checks/c1.webp';""")
+check('13 الخياط لا يسرد بايتات صورة الشيك ولو رأى المشروع', 'n=0' in probe, probe)
+
+probe = as_user(T1, f"""select 'n=' || count(*) from storage.objects
+ where bucket_id = 'attachments' and name = '{ORG}/{PRJ}/w1.webp';""")
+check('14 وصور العمل تبقى مقروءةً له', 'n=1' in probe, probe)
+
+out = as_user(T1, f"""insert into storage.objects (bucket_id, name, owner, metadata)
+ values ('attachments', '{ORG}/{PRJ}/checks/c2.webp', '{T1}', '{{}}'::jsonb);""")
+check('15 والخياط لا يكتب على مسار الشيكات',
+      'ERROR' in out or 'policy' in out, out)
+
+out = as_user(SALES, f"""insert into storage.objects (bucket_id, name, owner, metadata)
+ values ('attachments', '{ORG}/{PRJ}/checks/c3.webp', '{SALES}', '{{}}'::jsonb);""")
+check('16 والبائع يكتب عليه', 'ERROR' not in out, out)
+
+sql(f"""delete from storage.objects where bucket_id = 'attachments'
+ and name like '{ORG}/%';""")
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

@@ -22,7 +22,7 @@ import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
-import { attachmentExt, uploadAttachmentFile } from '@/lib/storage';
+import { attachmentPath, uploadAttachmentFile } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
@@ -1241,7 +1241,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         // البايتات أولًا ثم الصف: صفٌّ بلا ملف كذبةٌ في الدفتر، وملفٌ بلا
         // صف يتيمٌ غير مرئي - هذا الترتيب يجعل فشل المنتصف يتيمًا لا كذبة
         const liveId = uuidv4();
-        const path = `${db.organization.id}/${input.projectId}/${liveId}.${attachmentExt(input.uri)}`;
+        const path = attachmentPath(db.organization.id, input.projectId, liveId, input.uri, input.kind);
         setBusy('attach');
         try {
           const up = await uploadAttachmentFile(path, input.uri);
@@ -3327,7 +3327,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             }
             for (const uri of uris) {
               const liveId = uuidv4();
-              const path = `${db.organization.id}/${input.projectId}/${liveId}.${attachmentExt(uri)}`;
+              const path = attachmentPath(db.organization.id, input.projectId, liveId, uri, 'check');
               const up = await uploadAttachmentFile(path, uri);
               if (!up.ok) {
                 failures += 1;
