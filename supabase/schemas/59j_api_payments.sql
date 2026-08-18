@@ -125,6 +125,7 @@ declare
   v_count integer; v_total bigint := 0; v_i integer := 0;
   v_check jsonb; v_amount bigint; v_due timestamptz;
   v_payload jsonb; v_prior core.client_operations%rowtype; v_result jsonb;
+  v_payment_id uuid; v_payment_ids jsonb := '[]'::jsonb;
 begin
   v_uid := private.current_uid();
   if v_uid is null then
@@ -202,7 +203,8 @@ begin
     return v_prior.result || jsonb_build_object('was_replayed', true);
   end if;
 
-  -- الرزمة كلها في معاملة واحدة: المرجع CHK i/N يقرؤها كشف الدفعات رزمةً
+  -- الرزمة كلها في معاملة واحدة: المرجع CHK i/N يقرؤها كشف الدفعات رزمةً.
+  -- والمعرّفات تُعاد بترتيبها لأن صورة الشيك تُعلَّق على شيكها لا على الرزمة
   for v_check in select * from pg_catalog.jsonb_array_elements(p_checks) loop
     v_i := v_i + 1;
     insert into core.payments
@@ -213,7 +215,9 @@ begin
        'milestone', 'check',
        format('CHK %s/%s', v_i, v_count),
        pg_catalog.btrim(coalesce(p_note, '')),
-       (v_check->>'due_at')::timestamptz, v_uid);
+       (v_check->>'due_at')::timestamptz, v_uid)
+    returning id into v_payment_id;
+    v_payment_ids := v_payment_ids || pg_catalog.to_jsonb(v_payment_id);
   end loop;
 
   insert into core.audit_logs
@@ -223,7 +227,8 @@ begin
                  v_count, v_total / 100, v_code), v_payload);
 
   v_result := jsonb_build_object(
-    'count', v_count, 'total_agorot', v_total, 'was_replayed', false);
+    'count', v_count, 'total_agorot', v_total,
+    'payment_ids', v_payment_ids, 'was_replayed', false);
 
   insert into core.client_operations
     (organization_id, user_id, client_operation_id, idempotency_key,

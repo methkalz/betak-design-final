@@ -17,7 +17,8 @@ CREATE TYPE core.attachment_kind AS ENUM (
     'before_install',
     'after_install',
     'fabric',
-    'document'
+    'document',
+    'check'
 );
 
 CREATE TYPE core.curtain_model AS ENUM (

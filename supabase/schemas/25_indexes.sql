@@ -53,3 +53,7 @@ CREATE INDEX windows_room_idx ON core.windows USING btree (organization_id, room
 CREATE INDEX projects_root_idx ON core.projects (organization_id, root_project_id);
 CREATE INDEX projects_parent_idx ON core.projects (organization_id, parent_project_id)
   WHERE parent_project_id IS NOT NULL;
+
+-- صور الشيك تُقرأ من دفعتها: فهرسٌ جزئي لأن أكثر المرفقات بلا دفعة
+CREATE INDEX attachments_payment_idx ON core.attachments (organization_id, payment_id)
+  WHERE payment_id IS NOT NULL;

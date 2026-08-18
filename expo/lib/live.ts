@@ -476,6 +476,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       roomId: sOrNull(a.room_id),
       windowId: sOrNull(a.window_id),
       visitId: sOrNull(a.visit_id),
+      paymentId: sOrNull(a.payment_id),
       kind: s(a.kind) as Attachment['kind'],
       // مسار التخزين لا رابط عرض - رابط التنزيل الموقّع يأتي مع شريحة المرفقات
       uri: s(a.storage_path),

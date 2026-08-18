@@ -122,6 +122,10 @@ jobs:
         if: '!cancelled()'
         run: python3 supabase/tests/annex_lineage.py 2>&1 | tee logs/annex.log
 
+      - name: check photos suite (per-cheque photos + money-only visibility)
+        if: '!cancelled()'
+        run: python3 supabase/tests/check_photos.py 2>&1 | tee logs/checkphotos.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         if: '!cancelled()'
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log

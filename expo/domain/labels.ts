@@ -176,6 +176,7 @@ export const ATTACHMENT_KIND_LABELS: Record<AttachmentKind, string> = {
   after_install: 'بعد التركيب',
   fabric: 'عينة قماش',
   document: 'مستند',
+  check: 'صورة شيك',
 };
 
 export const SYNC_LABELS: Record<SyncState, string> = {

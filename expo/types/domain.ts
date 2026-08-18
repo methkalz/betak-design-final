@@ -499,7 +499,8 @@ export type AttachmentKind =
   | 'before_install'
   | 'after_install'
   | 'fabric'
-  | 'document';
+  | 'document'
+  | 'check';
 
 export interface Attachment {
   id: UUID;
@@ -508,6 +509,8 @@ export interface Attachment {
   roomId: UUID | null;
   windowId: UUID | null;
   visitId: UUID | null;
+  /** صورة الشيك تتبع شيكها لا رزمته - فيراها من يفتح ذلك الشيك بعينه. */
+  paymentId: UUID | null;
   kind: AttachmentKind;
   uri: string;
   caption: string;

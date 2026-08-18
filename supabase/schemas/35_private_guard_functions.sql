@@ -147,3 +147,22 @@ begin
   end if;
   return new;
 end $function$;
+
+CREATE OR REPLACE FUNCTION private.guard_attachment_payment()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  -- صورةٌ تُعلَّق على دفعةٍ يجب أن تكون دفعةَ مشروعها: بدون هذا يستطيع من
+  -- يرى مشروعًا أن يُلحق صورةً بدفعةِ مشروعٍ آخر، فتُقرأ من هناك
+  if new.payment_id is not null and not exists (
+       select 1 from core.payments y
+        where y.id = new.payment_id
+          and y.organization_id = new.organization_id
+          and y.project_id = new.project_id) then
+    raise exception 'الصورة تُعلَّق على دفعةٍ من المشروع نفسه.' using errcode = 'BD422';
+  end if;
+  return new;
+end $function$;

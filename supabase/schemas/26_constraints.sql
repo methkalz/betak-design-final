@@ -83,6 +83,11 @@ ALTER TABLE ONLY core.payments
     ADD CONSTRAINT payments_organization_id_id_key UNIQUE (organization_id, id);
 ALTER TABLE ONLY core.payments
     ADD CONSTRAINT payments_organization_id_reversed_payment_id_key UNIQUE (organization_id, reversed_payment_id);
+-- صورة الشيك تُعلَّق على دفعةٍ في المؤسسة نفسها، ولا تُحذف دفعةٌ لها صورة
+ALTER TABLE ONLY core.attachments
+    ADD CONSTRAINT attachments_organization_id_payment_id_fkey
+    FOREIGN KEY (organization_id, payment_id)
+    REFERENCES core.payments(organization_id, id) ON DELETE RESTRICT;
 ALTER TABLE ONLY core.payments
     ADD CONSTRAINT payments_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY core.pricing_rules
