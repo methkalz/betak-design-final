@@ -170,7 +170,9 @@ export default function InventoryScreen() {
                     <AppText
                       variant="numberLarge"
                       color={availTone}
-                      style={{ fontSize: 33, lineHeight: 40 }}
+                      // صندوق السطر لا يقلّ عن 1.4× حجم الخط كما في كل أنماط التطبيق:
+                      // أقصرُ منه يقصّ أعلى المحرف في أندرويد
+                      style={{ fontSize: 33, lineHeight: 46 }}
                     >
                       {meters(item.availableM, false)}
                     </AppText>

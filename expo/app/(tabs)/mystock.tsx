@@ -159,7 +159,8 @@ export default function MyStockScreen() {
                   <AppText
                     variant="numberLarge"
                     color={tone}
-                    style={{ fontSize: 33, lineHeight: 40 }}
+                    // صندوق السطر لا يقلّ عن 1.4× حجم الخط - أقصرُ منه يقصّ أعلى المحرف
+                    style={{ fontSize: 33, lineHeight: 46 }}
                   >
                     {meters(item.availableM, false)}
                   </AppText>

@@ -61,7 +61,7 @@ export default function ConsumptionScreen() {
         <SectionHeader title="هذا الشهر" subtitle="من سجلات إنهاء الشبابيك" />
         <Row gap={spacing.xl}>
           <View style={{ flex: 1 }}>
-            <AppText variant="numberLarge" style={{ fontSize: 33, lineHeight: 44 }}>
+            <AppText variant="numberLarge" style={{ fontSize: 33, lineHeight: 46 }}>
               {meters(current?.actualM ?? 0, false)}
             </AppText>
             <AppText variant="caption" color={palette.muted}>
@@ -72,7 +72,7 @@ export default function ConsumptionScreen() {
             <AppText
               variant="numberLarge"
               color={palette.muted}
-              style={{ fontSize: 33, lineHeight: 44 }}
+              style={{ fontSize: 33, lineHeight: 46 }}
             >
               {meters(current?.plannedM ?? 0, false)}
             </AppText>

@@ -1,8 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { memo, useCallback, useEffect } from 'react';
+import { X } from 'lucide-react-native';
 import {
   ActivityIndicator,
+  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -705,6 +707,60 @@ export function Banner({
       </View>
       {action}
     </View>
+  );
+}
+
+/**
+ * ورقة سفلية عامة - غلافٌ واحد لكل ما يُفتح من أسفل الشاشة.
+ *
+ * كان الغلاف نفسه مكتوبًا مرتين (ConfirmSheet وDateTimeSheet) بأنماطٍ
+ * متطابقة، فأي تعديلٍ على الحركة أو الحواف يلزمه موضعان. الجسم يُمرَّر
+ * محتوًى حرًّا ويُلفّ بـScrollView محدود الارتفاع: ورقةٌ تطول حتى تحجب
+ * الشاشة تصير حوارًا قاطعًا، وهو ما تتجنّبه هذه الممارسة أصلًا.
+ */
+export function Sheet({
+  visible,
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const maxHeight = Math.round(Dimensions.get('window').height * 0.62);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose} />
+      <View style={styles.sheetWrap} pointerEvents="box-none">
+        <Animated.View entering={SlideInDown.duration(320)} style={styles.sheet}>
+          <View style={styles.sheetGrip} />
+          <Row justify="space-between" align="flex-start">
+            <View style={{ flex: 1, gap: 2 }}>
+              <AppText variant="heading">{title}</AppText>
+              {!!subtitle && (
+                <AppText variant="caption" color={palette.muted}>
+                  {subtitle}
+                </AppText>
+              )}
+            </View>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="إغلاق">
+              <X size={20} color={palette.muted} />
+            </Pressable>
+          </Row>
+          <ScrollView
+            style={{ maxHeight }}
+            contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.sm }}
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 

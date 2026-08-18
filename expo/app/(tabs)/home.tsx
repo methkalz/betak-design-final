@@ -36,6 +36,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppHeader } from '@/components/AppHeader';
 import { PendingInstallations } from '@/components/PendingInstallations';
+import { DashboardSheets, type DashboardSheetKey } from '@/components/DashboardSheets';
 import { StaffPulseCard } from '@/components/StaffPulseCard';
 import { ProjectRow, TailorCard, VisitCard } from '@/components/cards';
 import { CountUpText, Enter, MiniBars, RingStat, StackedBar } from '@/components/dashviz';
@@ -235,13 +236,25 @@ function Glass({
   children,
   style,
   inner,
+  onPress,
 }: {
   children: React.ReactNode;
   style?: object;
   inner?: object;
+  /** بلاطةٌ تُضغط تفتح تفصيلها - وبلا onPress تبقى كما كانت بلا أثر لمس. */
+  onPress?: () => void;
 }) {
+  const Wrap = onPress ? Pressable : View;
   return (
-    <View style={[styles.glassWrap, style]}>
+    <Wrap
+      style={({ pressed }: { pressed?: boolean }) => [
+        styles.glassWrap,
+        style,
+        pressed ? { opacity: 0.72 } : null,
+      ]}
+      onPress={onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+    >
       <BlurView
         intensity={36}
         tint="light"
@@ -259,7 +272,7 @@ function Glass({
       />
       <View style={styles.heroChipSheen} />
       <View style={[styles.glassInner, inner]}>{children}</View>
-    </View>
+    </Wrap>
   );
 }
 
@@ -269,15 +282,18 @@ function GlassTile({
   value,
   unit,
   label,
+  onPress,
 }: {
   color: string;
   icon: React.ReactNode;
   value: string;
   unit?: string;
   label: string;
+  /** الرقم يقول «كم»، والضغط يفتح «أيّها ولماذا». */
+  onPress?: () => void;
 }) {
   return (
-    <Glass style={{ flex: 1 }} inner={styles.glassTileInner}>
+    <Glass style={{ flex: 1 }} inner={styles.glassTileInner} onPress={onPress}>
       <View style={[styles.glassTileIcon, { backgroundColor: color }]}>{icon}</View>
       <Row gap={4} align="baseline">
         <AppText variant="number">{value}</AppText>
@@ -323,6 +339,9 @@ function AdminDashboard() {
 
   // أرقام المالك من مصادر موثوقة في الوضعين (العروض لا الدفعات —
   // الدفعات تصل في شريحة لاحقة): اعتمادات الشهر، وما ينتظر رد الزبون.
+  // ورقةٌ واحدة مفتوحة في كل لحظة - خمسة أرقام وخمسة أجوبة
+  const [sheet, setSheet] = useState<DashboardSheetKey | null>(null);
+
   const stats = useMemo(() => {
     const monthStart = new Date();
     monthStart.setDate(1);
@@ -640,6 +659,7 @@ function AdminDashboard() {
             icon={<LayoutGrid size={15} color={palette.white} />}
             value={`${stats.activeCount}`}
             label="مشاريع نشطة"
+            onPress={() => setSheet('projects')}
           />
           <GlassTile
             color={palette.terracotta}
@@ -647,6 +667,7 @@ function AdminDashboard() {
             value={`${Math.round(stats.reservedM * 10) / 10}`}
             unit="متر"
             label="قماش محجوز"
+            onPress={() => setSheet('fabric')}
           />
           <GlassTile
             color={lowStock.length > 0 ? palette.danger : palette.info}
@@ -659,6 +680,7 @@ function AdminDashboard() {
             }
             value={`${lowStock.length}`}
             label="أصناف تحت الحد"
+            onPress={() => setSheet('stock')}
           />
         </Row>
         </Enter>
@@ -666,7 +688,11 @@ function AdminDashboard() {
         {/* كسر الروتين: حلقة الهامش + اتجاه 6 أشهر */}
         <Enter delay={ENTER.charts}>
           <Row gap={spacing.md} align="stretch">
-            <Glass style={{ flex: 1 }} inner={{ padding: spacing.md, alignItems: 'center', justifyContent: 'center' }}>
+            <Glass
+              style={{ flex: 1 }}
+              inner={{ padding: spacing.md, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setSheet('margin')}
+            >
               <RingStat
                 percent={stats.marginAvg}
                 color={stats.marginAvg >= db.settings.minMarginPercent ? palette.olive : palette.danger}
@@ -674,7 +700,11 @@ function AdminDashboard() {
                 delay={ENTER.charts}
               />
             </Glass>
-            <Glass style={{ flex: 1.5 }} inner={{ padding: spacing.md, justifyContent: 'flex-end', gap: spacing.sm }}>
+            <Glass
+              style={{ flex: 1.5 }}
+              inner={{ padding: spacing.md, justifyContent: 'flex-end', gap: spacing.sm }}
+              onPress={() => setSheet('sales')}
+            >
               <AppText variant="caption" color={palette.muted}>
                 مبيعات آخر 6 أشهر
               </AppText>
@@ -798,6 +828,9 @@ function AdminDashboard() {
         </Enter>
       </View>
     </ScrollView>
+
+    {/* الأوراق الخمس: تُركَّب مرةً خارج التمرير فلا يقفز المحتوى تحتها */}
+    <DashboardSheets open={sheet} onClose={() => setSheet(null)} stock={variantStock} />
     </View>
   );
 }
