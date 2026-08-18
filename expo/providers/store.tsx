@@ -1230,6 +1230,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       roomId?: UUID | null;
       windowId?: UUID | null;
       visitId?: UUID | null;
+      paymentId?: UUID | null;
       kind: AttachmentKind;
       uri: string;
       caption?: string;
@@ -1252,6 +1253,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             room_id: input.roomId ?? null,
             window_id: input.windowId ?? null,
             visit_id: input.visitId ?? null,
+            payment_id: input.paymentId ?? null,
             kind: input.kind,
             storage_path: path,
             caption: input.caption ?? '',
@@ -1275,6 +1277,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           roomId: input.roomId ?? null,
           windowId: input.windowId ?? null,
           visitId: input.visitId ?? null,
+          paymentId: input.paymentId ?? null,
           kind: input.kind,
           uri: input.uri,
           caption: input.caption ?? '',
@@ -3260,42 +3263,28 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * ينتظر من يرتكبه. التسلسل مرجع واحد CHK i/N فيُقرأ في كشف الدفعات أنها
    * رزمة، وقاعدة «لا دفعة قبل عرض معتمد» تسري عليها كما تسري على النقد.
    */
+  /**
+   * رزمة الشيكات: المال أولًا ثم الصور.
+   *
+   * قرار المالك (18.8.2026): الشيك المؤجَّل مالٌ محصَّل يوم تسلّمه. وصورته
+   * توثيقٌ اختياري - واحدةٌ أو أكثر لكل شيك، من الكاميرا أو المعرض.
+   *
+   * الترتيب مقصود: الرزمة تُسجَّل في معاملةٍ واحدة على الخادم، ثم تُرفع
+   * الصور. فشلُ صورةٍ لا يُسقط مالًا سُجّل - يُعاد عددُ ما تعذّر رفعه لتقوله
+   * الشاشة صراحةً، وتبقى إضافتها متاحةً لاحقًا من كشف الدفعات.
+   */
   const recordCheckSeries = useCallback(
     async (input: {
       projectId: UUID;
-      checks: { amountAgorot: number; dueAt: string }[];
+      checks: { amountAgorot: number; dueAt: string; photoUris?: string[] }[];
       note: string;
-      photoUri?: string | null;
-    }): Promise<Result<void>> => {
+    }): Promise<Result<number>> => {
       const denied = guard('record_payment');
-      if (denied) return denied;
+      if (denied) return denied as Result<number>;
       const offline = requireOnline();
-      if (offline) return offline;
-      if (input.checks.length === 0) return failWith('أدخل شيكًا واحدًا على الأقل.', 'validation');
-
-      if (source === 'live') {
-        // الرزمة كلها معاملة خادمية واحدة - صورة الرزمة تلحق مع شريحة
-        // المرفقات (لا رفع تخزين بعد)
-        const slot = `chk:${input.projectId}:${input.checks.length}:${input.checks[0]?.dueAt ?? ''}`;
-        setBusy('payment');
-        try {
-          const { error } = await supabase.rpc('record_check_series', {
-            p_project_id: input.projectId,
-            p_checks: input.checks.map((c) => ({
-              amount_agorot: c.amountAgorot,
-              due_at: c.dueAt,
-            })),
-            p_idempotency_key: takeIdemKey(slot),
-            p_note: input.note,
-          });
-          settleIdemKey(slot, error);
-          if (error) return liveFail(error);
-          await refreshLive();
-          return okVoid;
-        } finally {
-          setBusy(null);
-        }
-      }
+      if (offline) return offline as Result<number>;
+      if (input.checks.length === 0)
+        return failWith('أدخل شيكًا واحدًا على الأقل.', 'validation');
       if (input.checks.some((c) => !(c.amountAgorot > 0)))
         return failWith('كل شيك يجب أن يكون مبلغه أكبر من صفر.', 'validation');
       // الدفتر على الجذر: رزمة شيكاتٍ على ملحق ترفضها القاعدة، فيرفضها
@@ -3308,6 +3297,63 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             'conflict',
           );
       }
+
+      if (source === 'live') {
+        const slot = `chk:${input.projectId}:${input.checks.length}:${input.checks[0]?.dueAt ?? ''}`;
+        setBusy('payment');
+        try {
+          const { data, error } = await supabase.rpc('record_check_series', {
+            p_project_id: input.projectId,
+            p_checks: input.checks.map((c) => ({
+              amount_agorot: c.amountAgorot,
+              due_at: c.dueAt,
+            })),
+            p_idempotency_key: takeIdemKey(slot),
+            p_note: input.note,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error) as Result<number>;
+
+          // المعرّفات بترتيب الشيكات كما أُرسلت - فصورة الشيك الثالث تُعلَّق
+          // على الشيك الثالث لا على الرزمة
+          const ids: string[] = Array.isArray(data?.payment_ids) ? data.payment_ids : [];
+          let failures = 0;
+          for (let i = 0; i < input.checks.length; i += 1) {
+            const paymentId = ids[i];
+            const uris = input.checks[i].photoUris ?? [];
+            if (!paymentId || uris.length === 0) {
+              failures += uris.length && !paymentId ? uris.length : 0;
+              continue;
+            }
+            for (const uri of uris) {
+              const liveId = uuidv4();
+              const path = `${db.organization.id}/${input.projectId}/${liveId}.${attachmentExt(uri)}`;
+              const up = await uploadAttachmentFile(path, uri);
+              if (!up.ok) {
+                failures += 1;
+                continue;
+              }
+              const ins = await supabase.from('attachments').insert({
+                attachment_id: liveId,
+                organization_id: db.organization.id,
+                project_id: input.projectId,
+                payment_id: paymentId,
+                kind: 'check',
+                storage_path: path,
+                caption: `صورة ${input.checks.length > 1 ? `الشيك ${i + 1}` : 'الشيك'}`,
+                byte_size: up.byteSize,
+                created_by: userId,
+              });
+              if (ins.error) failures += 1;
+            }
+          }
+          await refreshLive();
+          return { ok: true, data: failures };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       const approved = db.quotationVersions.some(
         (v) =>
           v.status === 'approved' &&
@@ -3333,14 +3379,33 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             kind: 'milestone',
             method: 'check',
             dueAt: c.dueAt,
-            // الصورة على الشيك الأول: هي صورة الرزمة الموقَّعة لا كل ورقة
-            photoUri: i === 0 ? (input.photoUri ?? null) : null,
+            photoUri: c.photoUris?.[0] ?? null,
             reference: `CHK ${i + 1}/${total}`,
             note: input.note.trim(),
             reversedPaymentId: null,
             createdBy: userId ?? 'system',
             createdAt: new Date().toISOString(),
           });
+          // مرآة الخادم: كل صورةٍ صفٌّ مرفقٍ معلَّقٌ على شيكها
+          for (const uri of c.photoUris ?? []) {
+            const attId = uid('att');
+            draft.attachments.unshift({
+              id: attId,
+              organizationId: draft.organization.id,
+              projectId: input.projectId,
+              roomId: null,
+              windowId: null,
+              visitId: null,
+              paymentId: id,
+              kind: 'check',
+              uri,
+              caption: `صورة ${total > 1 ? `الشيك ${i + 1}` : 'الشيك'}`,
+              createdBy: userId ?? 'system',
+              createdAt: new Date().toISOString(),
+              uploaded: false,
+            });
+            enqueue(draft, 'attachment.upload', 'رفع صورة شيك', attId);
+          }
         });
         const project = draft.projects.find((p) => p.id === input.projectId);
         const sum = input.checks.reduce((s, c) => s + c.amountAgorot, 0);
@@ -3352,9 +3417,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           `تسجيل ${total} شيكات بمجموع ${Math.round(sum / 100)}₪ على ${project?.code ?? ''}`,
         );
       });
-      return okVoid;
+      return { ok: true, data: 0 };
     },
-    [refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, db.quotationVersions, db.quotations, mutate, audit, userId],
+    [refreshLive, takeIdemKey, settleIdemKey, guard, source, requireOnline, db.projects, db.organization.id, db.quotationVersions, db.quotations, mutate, audit, enqueue, userId],
   );
 
   /**

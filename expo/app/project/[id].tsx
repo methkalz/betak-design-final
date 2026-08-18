@@ -47,6 +47,7 @@ import {
 import { CheckWizard } from '@/components/CheckWizard';
 import { QuotationDecision } from '@/components/QuotationDecision';
 import { AnnexCard } from '@/components/AnnexCard';
+import { CheckPhotos } from '@/components/CheckPhotos';
 import { SignedImage } from '@/components/SignedImage';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
@@ -1301,6 +1302,7 @@ function MoneyTab({ projectId }: { projectId: string }) {
                   : `${formatDate(p.createdAt)} • `}
                 {p.note || 'بدون ملاحظة'}
               </AppText>
+              <CheckPhotos payment={p} />
             </View>
             {p.kind !== 'reversal' && role === 'admin' && (
               <Button

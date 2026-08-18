@@ -12,6 +12,7 @@ CREATE TABLE core.attachments (
     room_id uuid,
     window_id uuid,
     visit_id uuid,
+    payment_id uuid,
     kind core.attachment_kind NOT NULL,
     storage_path text NOT NULL,
     caption text DEFAULT ''::text NOT NULL,

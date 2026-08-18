@@ -90,7 +90,7 @@ ALTER TABLE core.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.quotation_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.quotation_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE core.quotations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "read attachments of visible projects" ON core.attachments FOR SELECT TO authenticated USING (private.can_see_project(organization_id, project_id));
+CREATE POLICY "read attachments of visible projects" ON core.attachments FOR SELECT TO authenticated USING ((private.can_see_project(organization_id, project_id) AND ((kind <> 'check'::core.attachment_kind) OR private.has_role(organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role]))));
 CREATE POLICY "read own or managed visits" ON core.field_visits FOR SELECT TO authenticated USING (((assignee_id = ( SELECT auth.uid() AS uid)) OR private.has_role(organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role])));
 CREATE POLICY "read rooms of visible projects" ON core.rooms FOR SELECT TO authenticated USING (private.can_see_project(organization_id, project_id));
 CREATE POLICY "read visible projects" ON core.projects FOR SELECT TO authenticated USING (private.can_see_project(organization_id, id));
@@ -114,7 +114,7 @@ CREATE POLICY "tailor advances own assignment" ON core.tailor_assignments FOR UP
 CREATE POLICY "tailor reads own usage" ON core.fabric_usage FOR SELECT TO authenticated USING ((private.has_role(organization_id, ARRAY['tailor'::core.app_role]) AND private.can_see_project(organization_id, project_id)));
 CREATE POLICY "tailor reads reservations of own projects" ON core.fabric_reservations FOR SELECT TO authenticated USING ((private.has_role(organization_id, ARRAY['tailor'::core.app_role]) AND private.can_see_project(organization_id, project_id)));
 ALTER TABLE core.tailor_assignments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "upload to visible projects" ON core.attachments FOR INSERT TO authenticated WITH CHECK (((created_by = ( SELECT auth.uid() AS uid)) AND private.can_see_project(organization_id, project_id)));
+CREATE POLICY "upload to visible projects" ON core.attachments FOR INSERT TO authenticated WITH CHECK (((created_by = ( SELECT auth.uid() AS uid)) AND private.can_see_project(organization_id, project_id) AND ((kind <> 'check'::core.attachment_kind) OR private.has_role(organization_id, ARRAY['admin'::core.app_role, 'sales'::core.app_role]))));
 CREATE POLICY "user manages own devices" ON core.user_devices TO authenticated USING (((user_id = ( SELECT auth.uid() AS uid)) AND private.is_org_member(organization_id))) WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND private.is_org_member(organization_id)));
 CREATE POLICY "user marks own notifications read" ON core.notifications FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
 CREATE POLICY "user reads own notifications" ON core.notifications FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));

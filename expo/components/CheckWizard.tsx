@@ -5,12 +5,14 @@
  * والبقية شهريًا بقاعدة القصّ (31.1 ← 28.2 ← 31.3، لا فيضان للشهر التالي).
  * كل سطر يبقى قابلًا للتعديل يدويًا: الجدولة اقتراح ذكي لا قيد.
  *
- * صورة الشيكات اختيارية، تُضغط قبل الحفظ (webp حيث يتاح، وإلا jpeg مضغوط -
- * iOS لا يشفّر webp) فتصغر للأرشفة وتسهل معاينتها لاحقًا.
+ * صور الشيكات اختيارية وتتبع **كل شيك على حدة** لا الرزمة: الزبون يسلّم ستة
+ * شيكات، فصورةُ الثالث توثّق الثالث. تُلتقط بالكاميرا أو تُختار من المعرض،
+ * وواحدةٌ أو أكثر لكل شيك، وتُضغط قبل الرفع (webp حيث يتاح، وإلا jpeg -
+ * iOS لا يشفّر webp) فتصغر للأرشفة وتبقى أرقامها مقروءة.
  */
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, CheckCheck, X } from 'lucide-react-native';
+import { Camera, CheckCheck, Images, X } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
@@ -35,9 +37,11 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
   const [firstDue, setFirstDue] = useState(inDays(30));
   const [overrides, setOverrides] = useState<Record<number, { dueAt?: string; amount?: string }>>({});
   const [editingDate, setEditingDate] = useState<number | null>(null);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Record<number, string[]>>({});
+  const [menuFor, setMenuFor] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [warn, setWarn] = useState<string | null>(null);
 
   const n = Math.max(1, Math.min(36, parseInt(count || '0', 10) || 0));
   const baseAmount = Math.round(parseFloat(amount || '0'));
@@ -53,31 +57,46 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
 
   const total = rows.reduce((s, r) => s + (r.amountShekel || 0), 0);
 
-  const pickPhoto = async () => {
-    setError(null);
-    const res = await ImagePicker.launchImageLibraryAsync({ quality: 1 });
-    if (res.canceled || !res.assets[0]) return;
-    try {
-      // ضغط فعلي: عرض أقصى 1400 يكفي لقراءة أرقام الشيك، والحجم يهبط أضعافًا
-      const out = await ImageManipulator.manipulateAsync(
-        res.assets[0].uri,
-        [{ resize: { width: 1400 } }],
-        { compress: 0.55, format: ImageManipulator.SaveFormat.WEBP },
-      );
-      setPhotoUri(out.uri);
-    } catch {
+  /** عرض أقصى 1400 يكفي لقراءة أرقام الشيك، والحجم يهبط أضعافًا. */
+  const compress = async (uri: string): Promise<string | null> => {
+    for (const format of [ImageManipulator.SaveFormat.WEBP, ImageManipulator.SaveFormat.JPEG]) {
       try {
         const out = await ImageManipulator.manipulateAsync(
-          res.assets[0].uri,
+          uri,
           [{ resize: { width: 1400 } }],
-          { compress: 0.55, format: ImageManipulator.SaveFormat.JPEG },
+          { compress: 0.55, format },
         );
-        setPhotoUri(out.uri);
+        return out.uri;
       } catch {
-        setError('تعذر ضغط الصورة - أعد المحاولة.');
+        // iOS لا يشفّر webp - يُعاد بـjpeg
       }
     }
+    return null;
   };
+
+  const addPhoto = async (row: number, from: 'camera' | 'library') => {
+    setError(null);
+    setMenuFor(null);
+    if (from === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) return setError('لا إذن للكاميرا - افتح إعدادات التطبيق وامنحه الإذن.');
+    }
+    const res =
+      from === 'camera'
+        ? await ImagePicker.launchCameraAsync({ quality: 1 })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 1, allowsMultipleSelection: true });
+    if (res.canceled || res.assets.length === 0) return;
+    const out: string[] = [];
+    for (const asset of res.assets) {
+      const small = await compress(asset.uri);
+      if (small) out.push(small);
+    }
+    if (out.length === 0) return setError('تعذر تجهيز الصورة - أعد المحاولة.');
+    setPhotos((prev) => ({ ...prev, [row]: [...(prev[row] ?? []), ...out] }));
+  };
+
+  const dropPhoto = (row: number, uri: string) =>
+    setPhotos((prev) => ({ ...prev, [row]: (prev[row] ?? []).filter((u) => u !== uri) }));
 
   const submit = async () => {
     setError(null);
@@ -85,11 +104,20 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
       return setError('كل شيك يجب أن يكون مبلغه أكبر من صفر - بالشيكل الصحيح.');
     const res = await recordCheckSeries({
       projectId,
-      checks: rows.map((r) => ({ amountAgorot: r.amountShekel * 100, dueAt: r.dueAt })),
+      checks: rows.map((r, i) => ({
+        amountAgorot: r.amountShekel * 100,
+        dueAt: r.dueAt,
+        photoUris: photos[i] ?? [],
+      })),
       note,
-      photoUri,
     });
     if (!res.ok) return setError(res.error);
+    // المال سُجّل. تعذُّر رفع صورةٍ لا يُلغيه - يُقال صراحةً ويبقى الطريق مفتوحًا
+    if (res.data > 0) {
+      return setWarn(
+        `سُجّلت الشيكات، وتعذّر رفع ${res.data} صورة. أضفها لاحقًا من كشف الدفعات.`,
+      );
+    }
     onDone();
   };
 
@@ -129,30 +157,79 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
         <>
           <Divider />
           {rows.map((r, i) => (
-            <Row key={i} justify="space-between" gap={spacing.md} style={{ paddingVertical: 6 }}>
-              <AppText variant="caption" color={palette.muted}>
-                شيك {i + 1}/{n}
-              </AppText>
-              <Pressable onPress={() => setEditingDate(i)} style={styles.rowDate}>
-                <AppText variant="caption" color={palette.oliveDark}>
-                  {formatDate(r.dueAt)}
+            <View key={i}>
+              <Row justify="space-between" gap={spacing.sm} style={{ paddingVertical: 6 }}>
+                <AppText variant="caption" color={palette.muted}>
+                  شيك {i + 1}/{n}
                 </AppText>
-              </Pressable>
-              <View style={{ width: 110 }}>
-                <Field
-                  label=""
-                  value={String(r.amountShekel || '')}
-                  onChangeText={(t) =>
-                    setOverrides((prev) => ({
-                      ...prev,
-                      [i]: { ...prev[i], amount: t.replace(/\D/g, '') },
-                    }))
-                  }
-                  keyboardType="numeric"
-                  suffix="₪"
-                />
-              </View>
-            </Row>
+                <Pressable onPress={() => setEditingDate(i)} style={styles.rowDate}>
+                  <AppText variant="caption" color={palette.oliveDark}>
+                    {formatDate(r.dueAt)}
+                  </AppText>
+                </Pressable>
+                <View style={{ width: 96 }}>
+                  <Field
+                    label=""
+                    value={String(r.amountShekel || '')}
+                    onChangeText={(t) =>
+                      setOverrides((prev) => ({
+                        ...prev,
+                        [i]: { ...prev[i], amount: t.replace(/\D/g, '') },
+                      }))
+                    }
+                    keyboardType="numeric"
+                    suffix="₪"
+                  />
+                </View>
+                {/* الصورة اختيارية: زرٌّ صامت ما لم تُضف صورة، وعدّادٌ بعدها */}
+                <Pressable
+                  onPress={() => setMenuFor(menuFor === i ? null : i)}
+                  hitSlop={8}
+                  style={[styles.camBtn, (photos[i]?.length ?? 0) > 0 && styles.camBtnOn]}
+                >
+                  <Camera size={15} color={(photos[i]?.length ?? 0) > 0 ? palette.oliveDark : palette.muted} />
+                  {(photos[i]?.length ?? 0) > 0 && (
+                    <AppText variant="caption" color={palette.oliveDark}>
+                      {photos[i].length}
+                    </AppText>
+                  )}
+                </Pressable>
+              </Row>
+
+              {menuFor === i && (
+                <Row gap={spacing.sm} style={{ paddingBottom: spacing.sm }}>
+                  <Button
+                    label="تصوير"
+                    variant="ghost"
+                    small
+                    icon={<Camera size={14} color={palette.olive} />}
+                    onPress={() => addPhoto(i, 'camera')}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label="من المعرض"
+                    variant="ghost"
+                    small
+                    icon={<Images size={14} color={palette.olive} />}
+                    onPress={() => addPhoto(i, 'library')}
+                    style={{ flex: 1 }}
+                  />
+                </Row>
+              )}
+
+              {(photos[i]?.length ?? 0) > 0 && (
+                <Row gap={spacing.sm} style={{ paddingBottom: spacing.sm, flexWrap: 'wrap' }}>
+                  {photos[i].map((uri) => (
+                    <Pressable key={uri} onPress={() => dropPhoto(i, uri)}>
+                      <Image source={{ uri }} style={styles.thumb} />
+                      <View style={styles.thumbX}>
+                        <X size={11} color={palette.ivory} />
+                      </View>
+                    </Pressable>
+                  ))}
+                </Row>
+              )}
+            </View>
           ))}
           <Row justify="space-between" style={{ marginTop: spacing.sm }}>
             <AppText variant="label">المجموع</AppText>
@@ -162,41 +239,25 @@ export function CheckWizard({ projectId, onDone }: { projectId: string; onDone: 
       )}
 
       <Divider />
-      {photoUri ? (
-        <Row gap={spacing.md} align="center">
-          <Image source={{ uri: photoUri }} style={styles.thumb} />
-          <AppText variant="caption" color={palette.muted} style={{ flex: 1 }}>
-            صورة الرزمة محفوظة على الجهاز - أرشفتها إلى الخادم تصل مع شريحة المرفقات.
-          </AppText>
-          <Pressable onPress={() => setPhotoUri(null)} hitSlop={10}>
-            <X size={18} color={palette.muted} />
-          </Pressable>
-        </Row>
-      ) : (
-        <Button
-          label="إرفاق صورة الشيكات (اختياري)"
-          variant="ghost"
-          small
-          full
-          icon={<Camera size={15} color={palette.olive} />}
-          onPress={pickPhoto}
-        />
-      )}
+      <AppText variant="caption" color={palette.muted}>
+        الصورة اختيارية - صوِّر الشيك أو أضفه من المعرض، وأكثر من صورة إن لزم.
+      </AppText>
 
       <View style={{ marginTop: spacing.sm }}>
         <Field label="ملاحظة" value={note} onChangeText={setNote} placeholder="مثال: دفعة التوقيع" />
       </View>
 
       {!!error && <Banner tone="danger" title="تعذر التسجيل" body={error} />}
+      {!!warn && <Banner tone="warning" title="سُجّلت الشيكات" body={warn} />}
 
       <Button
-        label={`تسجيل ${n} شيكات`}
+        label={warn ? 'تم' : `تسجيل ${n} شيكات`}
         full
         loading={busy === 'payment'}
-        disabled={!(baseAmount > 0)}
+        disabled={!warn && !(baseAmount > 0)}
         icon={<CheckCheck size={17} color={palette.ivory} />}
         style={{ marginTop: spacing.sm }}
-        onPress={submit}
+        onPress={warn ? onDone : submit}
       />
 
       <DateTimeSheet
@@ -244,4 +305,27 @@ const styles = StyleSheet.create({
     backgroundColor: palette.sand,
   },
   thumb: { width: 52, height: 52, borderRadius: radius.sm, backgroundColor: palette.sand },
+  // × على حافة المصغّرة: اللمس على الصورة نفسها يحذفها، والعلامة تقول ذلك
+  thumbX: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: palette.charcoal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  camBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1.4,
+    borderColor: palette.line,
+  },
+  camBtnOn: { borderColor: palette.olive, backgroundColor: palette.sand },
 });
