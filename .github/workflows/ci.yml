@@ -126,6 +126,10 @@ jobs:
         if: '!cancelled()'
         run: python3 supabase/tests/check_photos.py 2>&1 | tee logs/checkphotos.log
 
+      - name: staff accounts suite (auth contract + role-ceiling permissions)
+        if: '!cancelled()'
+        run: python3 supabase/tests/staff_accounts.py 2>&1 | tee logs/staff.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         if: '!cancelled()'
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log

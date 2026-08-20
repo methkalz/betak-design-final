@@ -482,6 +482,7 @@ export function Field({
   editable = true,
   testID,
   autoCapitalize,
+  secureTextEntry,
   onBlur,
 }: {
   label: string;
@@ -498,6 +499,8 @@ export function Field({
   testID?: string;
   /** أرقام الرولات ودفعات الصبغ والرموز المخزنية تُكتب لاتينية كبيرة. */
   autoCapitalize?: 'none' | 'characters' | 'words' | 'sentences';
+  /** كلمات السر تُخفى وهي تُكتب. */
+  secureTextEntry?: boolean;
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -518,6 +521,7 @@ export function Field({
           onChangeText={onChangeText}
           onBlur={onBlur}
           autoCapitalize={autoCapitalize}
+          secureTextEntry={secureTextEntry}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}
           keyboardType={keyboardType ?? 'default'}

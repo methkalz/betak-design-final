@@ -353,7 +353,10 @@ CREATE TABLE core.organization_members (
     user_id uuid NOT NULL,
     role core.app_role NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
-    joined_at timestamp with time zone DEFAULT now() NOT NULL
+    joined_at timestamp with time zone DEFAULT now() NOT NULL,
+    -- إيقافاتٌ تحت سقف الدور فقط: {capability: false}. السماح = غياب المفتاح،
+    -- فالمنح فوق الدور لا يُخزَّن أصلًا - من أراد أكثر يرفع الدور
+    capability_overrides jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 CREATE TABLE core.notifications (

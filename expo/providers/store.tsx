@@ -18,7 +18,7 @@ import {
   TAILOR_STAGE_ORDER,
 } from '@/domain/labels';
 import type { AssignmentKind } from '@/domain/assignment';
-import { can, ROLE_LABELS, type Capability } from '@/domain/permissions';
+import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
@@ -274,6 +274,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         return failWith('هذا الحساب معطَّل - راجع الإدارة.', 'permission');
       if (!can(currentUser.role, capability))
         return failWith('لا تملك صلاحية تنفيذ هذه العملية.', 'permission');
+      // إيقاف الأدمن تحت سقف الدور - يُقرأ من الخادم فيسري على كل الأجهزة
+      if (currentUser.capabilityOverrides?.[capability] === false)
+        return failWith('أوقف الأدمن هذه الصلاحية لحسابك - راجع الإدارة.', 'permission');
       return null;
     },
     [currentUser],
@@ -945,20 +948,44 @@ export const [StoreProvider, useStore] = createContextHook(() => {
    * من ذلك يجعل التخمين مسألة دقائق على جهاز مشترك في المعرض.
    */
   const createProfile = useCallback(
-    (input: { fullName: string; phone: string; role: Role; title: string; pin: string }): Result<string> => {
+    async (input: {
+      fullName: string;
+      phone: string;
+      role: Role;
+      title: string;
+      password: string;
+    }): Promise<Result<string>> => {
       const denied = guard('manage_users');
       if (denied) return denied as Result<string>;
-      // إنشاء حساب دخول يحتاج واجهة Auth الإدارية لا SQL، فلا RPC له بعد.
-      // ولا يُسمح بسجلٍّ محليٍّ يوهم أن للموظف حسابًا: يُقال الحق ويُدَل الدرب
-      if (source === 'live')
-        return failWith(
-          'إنشاء حسابات الموظفين لا يمرّ من التطبيق بعد - يُنشئه مزوّد النظام، ثم تُسلَّم كلمة السر للموظف.',
-          'validation',
-        ) as Result<string>;
       if (!input.fullName.trim()) return failWith('اسم الموظف مطلوب.', 'validation');
+      if (input.password.length < 4)
+        return failWith('كلمة السر أربعة أحرف على الأقل.', 'validation');
+
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline as Result<string>;
+        const slot = `staff:${input.phone.replace(/\D/g, '')}`;
+        setBusy('staff');
+        try {
+          const { data, error } = await supabase.rpc('create_staff', {
+            p_full_name: input.fullName,
+            p_phone: input.phone,
+            p_role: input.role,
+            p_password: input.password,
+            p_idempotency_key: takeIdemKey(slot),
+            p_title: input.title,
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error) as Result<string>;
+          await refreshLive();
+          return { ok: true, data: String(data?.user_id ?? '') };
+        } finally {
+          setBusy(null);
+        }
+      }
+
       if (!/^0\d{1,2}-?\d{7}$/.test(input.phone.replace(/\s/g, '')))
         return failWith('رقم الهاتف غير صحيح.', 'validation');
-      if (!/^\d{4}$/.test(input.pin)) return failWith('الرمز أربعة أرقام.', 'validation');
       if (db.profiles.some((p) => p.phone.replace(/\D/g, '') === input.phone.replace(/\D/g, '')))
         return failWith('يوجد حساب بهذا الرقم بالفعل.', 'conflict');
       const id = uid('usr');
@@ -969,35 +996,50 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           fullName: input.fullName.trim(),
           phone: input.phone.trim(),
           role: input.role,
-          pin: input.pin,
+          pin: input.password,
           title: input.title.trim() || ROLE_LABELS[input.role],
           isActive: true,
+          capabilityOverrides: {},
         });
         enqueue(draft, 'profile.create', `إضافة موظف: ${input.fullName.trim()}`, id);
         audit(draft, 'profile.create', 'profile', id, `إضافة ${ROLE_LABELS[input.role]}: ${input.fullName.trim()}`);
       });
       return { ok: true, data: id };
     },
-    [source, guard, db.profiles, mutate, enqueue, audit],
+    [source, guard, requireOnline, refreshLive, takeIdemKey, settleIdemKey, db.profiles, mutate, enqueue, audit],
   );
 
   /**
    * التعطيل لا الحذف: الموظف الذي غادر مذكورٌ في مشاريع وحركات مخزون لا يجوز
-   * أن تفقد فاعلها. التعطيل يُخرجه من قوائم الإسناد ويُبقي تاريخه سليمًا.
+   * أن تفقد فاعلها. التعطيل يُخرجه من الإسناد ويقفل بابه على الخادم: حظرٌ
+   * في auth ومحوُ جلساته، ويبقى تاريخه سليمًا.
    */
   const setProfileActive = useCallback(
-    (profileId: UUID, active: boolean): Result<void> => {
+    async (profileId: UUID, active: boolean): Promise<Result<void>> => {
       const denied = guard('manage_users');
       if (denied) return denied;
-      // التعطيل لا يسري إلا على الخادم، ولا RPC له بعد. سجلٌّ محلي
-      // يُظهر الموظف معطَّلًا وهو ما زال يدخل بجلسته = خطر لا تجميل
-      if (source === 'live')
-        return failWith(
-          'تعطيل الحساب لا يمرّ من التطبيق بعد - يُعطّله مزوّد النظام على الخادم فورًا.',
-          'validation',
-        );
       if (profileId === userId && !active)
         return failWith('لا يمكنك تعطيل حسابك أنت.', 'validation');
+
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline;
+        const slot = `staff-active:${profileId}:${active}`;
+        setBusy('staff');
+        try {
+          const { error } = await supabase.rpc('set_staff_active', {
+            p_user_id: profileId,
+            p_active: active,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
       mutate((draft) => {
         const p = draft.profiles.find((x) => x.id === profileId);
         if (!p) return;
@@ -1012,7 +1054,127 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, guard, userId, mutate, audit],
+    [source, guard, userId, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
+  );
+
+  /** الدور الجديد سقفٌ جديد - والخادم يمحو إيقافات الدور السابق معه. */
+  const setStaffRole = useCallback(
+    async (profileId: UUID, newRole: Role): Promise<Result<void>> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      if (profileId === userId) return failWith('دورك أنت لا يُغيَّر من هنا.', 'validation');
+
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline;
+        const slot = `staff-role:${profileId}:${newRole}`;
+        setBusy('staff');
+        try {
+          const { error } = await supabase.rpc('set_staff_role', {
+            p_user_id: profileId,
+            p_role: newRole,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+      mutate((draft) => {
+        const p = draft.profiles.find((x) => x.id === profileId);
+        if (!p) return;
+        p.role = newRole;
+        p.capabilityOverrides = {};
+        audit(draft, 'staff.role', 'profile', profileId, `تغيير دور ${p.fullName} إلى ${ROLE_LABELS[newRole]}`);
+      });
+      return okVoid;
+    },
+    [source, guard, userId, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
+  );
+
+  /**
+   * مفاتيح الأدمن تحت سقف الدور: الإطفاء يُخزَّن، والسماح محوُ الإطفاء.
+   * فوق السقف لا مفتاح - يُرفع الدور فتسري القاعدة على الخادم كله.
+   */
+  const setStaffCapability = useCallback(
+    async (profileId: UUID, capability: Capability, allowed: boolean): Promise<Result<void>> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      if (profileId === userId) return failWith('صلاحياتك أنت لا تُعدَّل من هنا.', 'validation');
+
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline;
+        const slot = `staff-cap:${profileId}:${capability}:${allowed}`;
+        setBusy('staff');
+        try {
+          const { error } = await supabase.rpc('set_staff_capability', {
+            p_user_id: profileId,
+            p_capability: capability,
+            p_allowed: allowed,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          await refreshLive();
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+      mutate((draft) => {
+        const p = draft.profiles.find((x) => x.id === profileId);
+        if (!p) return;
+        const next = { ...(p.capabilityOverrides ?? {}) };
+        if (allowed) delete next[capability];
+        else next[capability] = false;
+        p.capabilityOverrides = next;
+        audit(draft, 'staff.capability', 'profile', profileId,
+          `${allowed ? 'إعادة' : 'إيقاف'} صلاحية «${CAPABILITY_LABELS[capability]}» لـ${p.fullName}`);
+      });
+      return okVoid;
+    },
+    [source, guard, userId, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
+  );
+
+  /** كلمة سرٍّ جديدة تقطع الجلسات القديمة - الخادم يمحوها مع التبديل. */
+  const resetStaffPassword = useCallback(
+    async (profileId: UUID, password: string): Promise<Result<void>> => {
+      const denied = guard('manage_users');
+      if (denied) return denied;
+      if (password.length < 4)
+        return failWith('كلمة السر أربعة أحرف على الأقل.', 'validation');
+
+      if (source === 'live') {
+        const offline = requireOnline();
+        if (offline) return offline;
+        const slot = `staff-pw:${profileId}`;
+        setBusy('staff');
+        try {
+          const { error } = await supabase.rpc('reset_staff_password', {
+            p_user_id: profileId,
+            p_password: password,
+            p_idempotency_key: takeIdemKey(slot),
+          });
+          settleIdemKey(slot, error);
+          if (error) return liveFail(error);
+          return okVoid;
+        } finally {
+          setBusy(null);
+        }
+      }
+      mutate((draft) => {
+        const p = draft.profiles.find((x) => x.id === profileId);
+        if (!p) return;
+        p.pin = password;
+        audit(draft, 'staff.password', 'profile', profileId, `تغيير كلمة سر ${p.fullName}`);
+      });
+      return okVoid;
+    },
+    [source, guard, requireOnline, takeIdemKey, settleIdemKey, mutate, audit],
   );
 
   const addRoom = useCallback(
@@ -3755,6 +3917,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       archiveCustomer,
       createProfile,
       setProfileActive,
+      setStaffRole,
+      setStaffCapability,
+      resetStaffPassword,
       createProject,
       createProjectAnnex,
       updateProject,
@@ -3818,6 +3983,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       archiveCustomer,
       createProfile,
       setProfileActive,
+      setStaffRole,
+      setStaffCapability,
+      resetStaffPassword,
       createProject,
       createProjectAnnex,
       updateProject,

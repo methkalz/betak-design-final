@@ -151,6 +151,10 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     pin: '',
     title: s(m.title),
     isActive: Boolean(m.is_active),
+    capabilityOverrides:
+      m.capability_overrides && typeof m.capability_overrides === 'object'
+        ? (m.capability_overrides as Record<string, boolean>)
+        : {},
   }));
 
   const customersMapped: Customer[] = customers.map((c) => ({
