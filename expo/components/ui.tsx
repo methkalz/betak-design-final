@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useCallback, useEffect } from 'react';
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import { X } from 'lucide-react-native';
 import {
   ActivityIndicator,
@@ -909,15 +909,28 @@ export function shade(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-export function ScrollScreen({
-  children,
-  contentStyle,
-}: {
-  children: React.ReactNode;
-  contentStyle?: StyleProp<ViewStyle>;
-}) {
+/** مقبضٌ إمبراطوري للتمرير - يكشفه ScrollScreen لمن يحتاج العودة لأعلى. */
+export type ScrollScreenHandle = { scrollToTop: (animated?: boolean) => void };
+
+/**
+ * غلاف الشاشة القابل للتمرير. يكشف `scrollToTop()` عبر ref لمن يحتاجه
+ * (كمحرّر الشباك بعد «حفظ وإضافة التالي»: النموذج الجديد أعلى الصفحة،
+ * فبلا تمريرٍ يبقى المستخدم أمام أزرار الحفظ لا أمام قياسات الشباك التالي).
+ * المستدعون بلا ref يعملون كما كانوا - المقبض اختياري.
+ */
+export const ScrollScreen = forwardRef<
+  ScrollScreenHandle,
+  { children: React.ReactNode; contentStyle?: StyleProp<ViewStyle> }
+>(function ScrollScreen({ children, contentStyle }, ref) {
+  const inner = useRef<ScrollView>(null);
+  useImperativeHandle(
+    ref,
+    () => ({ scrollToTop: (animated = true) => inner.current?.scrollTo({ y: 0, animated }) }),
+    [],
+  );
   return (
     <ScrollView
+      ref={inner}
       style={{ flex: 1, backgroundColor: palette.ivory }}
       contentContainerStyle={[{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }, contentStyle]}
       showsVerticalScrollIndicator={false}
@@ -926,7 +939,7 @@ export function ScrollScreen({
       {children}
     </ScrollView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

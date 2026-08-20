@@ -1,5 +1,5 @@
 import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import {
@@ -13,6 +13,7 @@ import {
   Row,
   RTL_ROW,
   ScrollScreen,
+  type ScrollScreenHandle,
   SectionHeader,
   SegmentedControl,
   Swatch,
@@ -66,6 +67,7 @@ interface Props {
 export function WindowEditor({ projectId, roomId, existing }: Props) {
   const { db, role, saveWindow, deleteWindow } = useStore();
   const goBack = useGoBack('/projects');
+  const scroller = useRef<ScrollScreenHandle>(null);
 
   const roomCount = db.windows.filter((w) => w.roomId === roomId).length;
   const [name, setName] = useState<string>(existing?.name ?? nextWindowName(roomCount));
@@ -231,10 +233,12 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     setHeight('');
     setNotes('');
     setSavedFlash(`حُفظ «${saved}» - أدخل قياسات التالي.`);
+    // النموذج الجديد أعلى الصفحة، فيُمرَّر إليه بعد الحفظ لا يُترك المستخدم أمام الأزرار
+    scroller.current?.scrollToTop();
   };
 
   return (
-    <ScrollScreen>
+    <ScrollScreen ref={scroller}>
       <Card>
         <AppText variant="heading">القياس</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
