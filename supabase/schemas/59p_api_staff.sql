@@ -346,7 +346,7 @@ begin
   -- الدور يرسم السقف: ما لا يملكه الدور لا يوجد ما يُطفأ منه، ورفعُ
   -- الصلاحية فوق الدور طريقُه رفعُ الدور - فتسري القاعدة على الخادم كله
   if not private.capability_can(v_target_role, p_capability) then
-    raise exception 'دور %s لا يملك هذه الصلاحية أصلًا - لرفعها غيّر الدور.', v_target_role
+    raise exception 'دور % لا يملك هذه الصلاحية أصلًا - لرفعها غيّر الدور.', v_target_role
       using errcode = 'BD422';
   end if;
 
