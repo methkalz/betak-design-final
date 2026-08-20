@@ -391,8 +391,12 @@ begin
   return v_result;
 end $function$;
 
+-- نقل ملكية دالةٍ أُعيد إنشاؤها (أُسقط توقيعها القديم) يحتاج CREATE على المخطط
+grant create on schema api to baytak_rpc_owner;
 alter function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) owner to baytak_rpc_owner;
 revoke all on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) from public, anon;
 grant execute on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) to authenticated;
+
+revoke create on schema api from baytak_rpc_owner;
 
 notify pgrst, 'reload schema';
