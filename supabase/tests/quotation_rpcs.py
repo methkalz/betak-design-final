@@ -475,6 +475,32 @@ out = as_user(SALES, f"""select api.create_quotation_version(
   '{{}}'::jsonb, -100)::text;""")
 check('44 مبلغ خصمٍ سالب BD400', 'BD400' in out or 'سالبًا' in out, out)
 
+# ── المطلق يعبر مسار الموافقة سالمًا (تصليح التدقيق العدائي على PR-E) ─────────
+# خصمٌ مطلق 5000 نسبتُه المشتقّة 8.62٪ (بين حدّ الموظف 5 والأدمن 10 ← يلزم
+# موافقة). النسخة تخزّن المبلغ 5000 بالضبط والنسبة المشتقّة؛ لا يُعاد اشتقاق
+# المبلغ من نسبةٍ مبتورة كما كان يفعل مسار الطلب القديم.
+out = as_user(SALES, f"""select api.create_quotation_version(
+  '{pid('PN')}'::uuid, 0, 'خصم يتطلب موافقة', 'aaaa4444-0000-4000-8000-00000000f008'::uuid, null,
+  '{{}}'::jsonb, 5000)::text;""")
+vabs = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
+probe = sql(f"""select 'disc=' || discount_agorot || '|pct=' || discount_percent
+ from core.quotation_versions where id = '{vabs}';""", quiet=False)
+check('45 المطلق في نطاق الموافقة: النسخة تخزّن 5000 والنسبة المشتقّة 8.62',
+      'disc=5000|pct=8.62' in probe, probe)
+
+# موافقةٌ ببصمةٍ مطابقة على النسبة المخزّنة، ثم إرسال: المبلغ يبقى 5000 بالضبط.
+sql(f"""insert into core.discount_requests
+  (organization_id, quotation_id, version_id, requested_percent, reason,
+   status, requested_by, decided_by, decided_at, content_fingerprint)
+select '{ORG}', v.quotation_id, v.id, v.discount_percent, 'موافقة أدمن',
+       'approved', '{SALES}', '{ADMIN}', now(), private.version_content_fingerprint(v.id)
+from core.quotation_versions v where v.id = '{vabs}';""")
+out = send(SALES, vabs, 'aaaa4444-0000-4000-8000-00000000f009')
+probe = sql(f"""select 'disc=' || discount_agorot || '|status=' || status
+ from core.quotation_versions where id = '{vabs}';""", quiet=False)
+check('46 الإرسال بعد الموافقة يحفظ المطلق دقيقًا (5000، لا يُعاد اشتقاقه)',
+      'ERROR' not in out and 'disc=5000|status=sent' in probe, out + probe)
+
 
 print('\n=== cleanup ===')
 sql(PURGE)

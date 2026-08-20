@@ -35,10 +35,9 @@ import { palette, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
 import {
-  anchorSubtotalAgorot,
   checkDiscountAgorot,
-  computeTotals,
   computeTotalsFromDiscountAgorot,
+  derivedDiscountPercent,
   markupListPriceAgorot,
   round3,
 } from '@/domain/pricing';
@@ -114,10 +113,9 @@ export default function QuotationScreen() {
     activeDiscountAgorot,
     db.settings.vatPercent,
   );
-  const activePct =
-    preview.subtotalAgorot > 0
-      ? Math.round((activeDiscountAgorot / preview.subtotalAgorot) * 100 * 10) / 10
-      : 0;
+  // النسبة المشتقّة من المصدر الموحَّد - تطابق تمامًا ما يشتقّه فاحصُ الصلاحية
+  // (checkDiscountAgorot) والخادمُ من المبلغ، فلا يغلق المسارُ عند الحدّ.
+  const activePct = derivedDiscountPercent(activeDiscountAgorot, preview.subtotalAgorot);
   const totalMeters = version.items.reduce((s, i) => s + i.runningMeters, 0);
   const check = checkDiscountAgorot(version.items, activeDiscountAgorot, db.settings);
   const expired = new Date(version.validUntil).getTime() < Date.now() && version.status === 'sent';
@@ -155,7 +153,15 @@ export default function QuotationScreen() {
         setError('اكتب سبب الخصم لإرسال الطلب للأدمن.');
         return;
       }
-      const rq = await requestDiscount(quotation.id, version.id, activePct, reason);
+      // يُمرَّر المبلغ المطلق (لا النسبة وحدها): فالنسخة التي يعتمدها الأدمن
+      // ثم تُرسَل تحمل الرقم الذي فاوض عليه البائع بالضبط، لا مقرَّبًا بالنسبة.
+      const rq = await requestDiscount(
+        quotation.id,
+        version.id,
+        activeDiscountAgorot,
+        activePct,
+        reason,
+      );
       if (!rq.ok) return setError(rq.error);
       setInfo('تم إرسال طلب الخصم للأدمن. ستصلك النتيجة كإشعار.');
       return;

@@ -438,6 +438,12 @@ export interface DiscountRequest {
   quotationId: UUID;
   versionId: UUID;
   requestedPercent: number;
+  /**
+   * المبلغ المطلق للخصم بالأغورة (العصا الذكية). في الوضع الحيّ يحمله
+   * إصدارُ المسودة نفسه، فلا عمودَ له على صفّ الطلب؛ هنا اختياريّ لمسار
+   * الديمو وحده كي تُعيد الموافقةُ بناء الإجمالي على الرقم بالضبط لا مقرَّبًا.
+   */
+  requestedDiscountAgorot?: number;
   reason: string;
   status: DiscountRequestStatus;
   requestedBy: UUID;
