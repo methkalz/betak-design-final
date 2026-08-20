@@ -61,7 +61,7 @@ def grab(pattern, text):
 PROJECTS = {
     'PA': 'd1', 'PB': 'd2', 'PC': 'd3', 'PD': 'd4', 'PE': 'd5',
     'PF': 'd6', 'PG': 'd7', 'PH': 'd8', 'PI': 'd9', 'PJ': 'da',
-    'PK': 'db', 'PL': 'dc', 'PM': 'dd',
+    'PK': 'db', 'PL': 'dc', 'PM': 'dd', 'PN': 'de',
 }
 def pid(k):  return f'aaaa3333-0000-4000-8000-0000000000{PROJECTS[k]}'
 def rid(k):  return f'aaaa3333-0000-4000-8000-00000000f0{PROJECTS[k]}'
@@ -143,7 +143,8 @@ insert into core.pricing_rules (organization_id,band,category,customer_price_per
     + project_fixture('PG','QR-G') + project_fixture('PH','QR-H') \
     + project_fixture('PI','QR-I') + project_fixture('PJ','QR-J') \
     + project_fixture('PK','QR-K') + project_fixture('PL','QR-L') \
-    + project_fixture('PM','QR-M', with_variant=False)
+    + project_fixture('PM','QR-M', with_variant=False) \
+    + project_fixture('PN','QR-N')
 out = sql(seed)
 if 'ERROR' in out:
     print(out); sys.exit(1)
@@ -393,7 +394,7 @@ check('34 اتساق ذاتي: سعر البند = القاعدة المخزنة
 # PA بندٌ واحد crepe_with_lining، line_total = 58000. زيادة 15% ← المشطوب
 # floorToShekel(round(58000×115/100)) = 66700
 out = as_user(SALES, f"""select api.create_quotation_version(
-  '{pid('PA')}'::uuid, 0, 'ملاحظة الزبون هنا', 'aaaa4444-0000-4000-8000-00000000f001'::uuid, null,
+  '{pid('PN')}'::uuid, 0, 'ملاحظة الزبون هنا', 'aaaa4444-0000-4000-8000-00000000f001'::uuid, null,
   '{{"mode":"percent","targets":{{"crepe_with_lining":15}}}}'::jsonb)::text;""")
 vm = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
 probe = sql(f"""select 'list=' || list_price_agorot || '|line=' || line_total_agorot
@@ -410,7 +411,7 @@ check('36 الزيادة لا تمسّ المجموع/الربح، وmarkup_spec
 
 # مبلغ ثابت 500₪ ← 58000 + 50000 = 108000
 out = as_user(SALES, f"""select api.create_quotation_version(
-  '{pid('PA')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f002'::uuid, null,
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f002'::uuid, null,
   '{{"mode":"amount","targets":{{"crepe_with_lining":500}}}}'::jsonb)::text;""")
 vm2 = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
 probe = sql(f"""select 'list=' || list_price_agorot
@@ -420,7 +421,7 @@ check('37 زيادة مبلغ 500₪: list_price = 58000 + 50000 = 108000',
 
 # «all» يطال كل تصنيف: 10% ← 63800
 out = as_user(SALES, f"""select api.create_quotation_version(
-  '{pid('PA')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f003'::uuid, null,
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f003'::uuid, null,
   '{{"mode":"percent","targets":{{"all":10}}}}'::jsonb)::text;""")
 vm3 = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
 probe = sql(f"""select 'list=' || list_price_agorot
@@ -429,7 +430,7 @@ check('38 «all» 10% يطال التصنيف: list_price = 63800', 'list=63800'
 
 # بلا زيادة ← list_price = 0 (لا مرساة)
 out = as_user(SALES, f"""select api.create_quotation_version(
-  '{pid('PA')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f004'::uuid)::text;""")
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f004'::uuid)::text;""")
 vm4 = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
 probe = sql(f"""select 'list=' || list_price_agorot
  from core.quotation_items where version_id = '{vm4}';""", quiet=False)
