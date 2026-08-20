@@ -6,51 +6,52 @@ import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Banner, Button, Card, Divider, EmptyState, He, Row, ScrollScreen } from '@/components/ui';
-import { HEEBO_HEBREW_B64 } from '@/constants/hebrewFont';
+import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen } from '@/components/ui';
+import { CAIRO_BOLD_B64, CAIRO_REGULAR_B64 } from '@/constants/cairoFont';
+import { HEEBO_BOLD_B64, HEEBO_REGULAR_B64 } from '@/constants/heeboFont';
 import { palette, radius, spacing } from '@/constants/theme';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
+import { BRAND_WORDMARK, QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
 import type { QuotationVersion } from '@/types/domain';
 
-/** Arabic RTL invoice markup rendered by expo-print into a real PDF. */
+/**
+ * وثيقة مقترح السعر HTML - تُطبع PDF عبر expo-print.
+ *
+ * ثنائية اللغة (عربي/عبري): الخط والمصطلحات والاتجاه من `lang`. الخط مضمَّن
+ * base64 (Cairo للعربي كخط التطبيق، Heebo للعبري) فالوثيقة تُطبع في WebView
+ * لا خطوط تطبيقٍ فيه. العنوان علامةٌ طباعية «Betak Design» + المدينة (باللغة)
+ * + هاتف الأدمن. لا شعار صورة.
+ */
 function buildHtml(params: {
   version: QuotationVersion;
-  orgName: string;
   orgPhone: string;
-  orgAddress: string;
   number: string;
   customerName: string;
   customerPhone: string;
   customerCity: string;
   projectTitle: string;
   vatPercent: number;
-  /** מע"מ تظهر في المستند فقط حين اختارها المستخدم في شاشة العرض. */
   showVat: boolean;
+  lang: QuoteLang;
 }): string {
-  const {
-    version,
-    orgName,
-    orgPhone,
-    orgAddress,
-    number,
-    customerName,
-    customerPhone,
-    customerCity,
-    projectTitle,
-    vatPercent,
-    showVat,
-  } = params;
+  const { version, orgPhone, number, customerName, customerPhone, customerCity,
+    projectTitle, vatPercent, showVat, lang } = params;
+  const t = QUOTE_STRINGS[lang];
+  const isHe = lang === 'he';
+  const [REG, BOLD] = isHe ? [HEEBO_REGULAR_B64, HEEBO_BOLD_B64] : [CAIRO_REGULAR_B64, CAIRO_BOLD_B64];
   const totalMeters = Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000;
+  const revExVat = version.totalAgorot - version.vatAgorot;
+
   const rows = version.items
     .map(
       (i, idx) => `
       <tr>
-        <td>${idx + 1}</td>
-        <td>${i.roomName} - ${i.windowName}</td>
-        <td>${i.description}</td>
-        <td>${i.widthCm} × ${i.heightCm} سم</td>
-        <td>${i.runningMeters} م</td>
+        <td class="idx">${idx + 1}</td>
+        <td><b>${i.roomName} - ${i.windowName}</b></td>
+        <td class="muted">${i.description}</td>
+        <td>${i.widthCm} \u00d7 ${i.heightCm} ${t.sizeUnit}</td>
+        <td>${i.runningMeters} ${t.metersUnit}</td>
         <td>${money(i.unitPriceAgorot)}</td>
         <td class="strong">${money(i.lineTotalAgorot)}</td>
       </tr>`,
@@ -58,106 +59,126 @@ function buildHtml(params: {
     .join('');
 
   return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html dir="rtl" lang="${lang}">
 <head>
 <meta charset="utf-8" />
 <style>
-  /* خيبو للعبرية وحدها (מע"מ): نطاق اليونيكود يحصره فيها، والباقي لخط النظام */
-  @font-face {
-    font-family: 'Heebo';
-    font-weight: 400 700;
-    unicode-range: U+0590-05FF, U+0022;
-    src: url(data:font/ttf;base64,${HEEBO_HEBREW_B64}) format('truetype');
-  }
-  * { box-sizing: border-box; }
-  body {
-    font-family: 'Heebo', -apple-system, "Helvetica Neue", "Geeza Pro", "Arial", sans-serif;
-    direction: rtl; text-align: right; color: #1B1F32; margin: 0; padding: 32px;
-    background: #F6F6FB;
-  }
+  @font-face { font-family:'Doc'; font-weight:400; font-display:block;
+    src:url(data:font/woff2;base64,${REG}) format('woff2'); }
+  @font-face { font-family:'Doc'; font-weight:700; font-display:block;
+    src:url(data:font/woff2;base64,${BOLD}) format('woff2'); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Doc', "Helvetica Neue", Arial, sans-serif;
+    direction: rtl; text-align: right; color: #1B1F32; padding: 34px 30px;
+    background: #FFFFFF; -webkit-font-smoothing: antialiased; font-size: 12.5px; }
   .head { display: flex; justify-content: space-between; align-items: flex-start;
-    border-bottom: 3px solid #4F46E5; padding-bottom: 18px; margin-bottom: 22px; }
-  .brand { font-size: 26px; font-weight: 700; color: #4F46E5; }
-  .muted { color: #787E9B; font-size: 12px; line-height: 1.7; }
-  .badge { background: #EEEFFE; color: #4F46E5; padding: 6px 14px; border-radius: 999px;
-    font-size: 12px; display: inline-block; }
-  .grid { display: flex; gap: 16px; margin-bottom: 22px; }
-  .box { flex: 1; background: #fff; border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
-  .box h3 { margin: 0 0 8px; font-size: 13px; color: #787E9B; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; background: #fff;
-    border: 1px solid #EAEAF5; border-radius: 14px; overflow: hidden; }
-  th { background: #4F46E5; color: #F6F6FB; font-size: 12px; padding: 10px 8px; text-align: right; }
-  td { padding: 10px 8px; font-size: 12px; border-bottom: 1px solid #EFEFF8; }
-  .strong { font-weight: 700; }
-  .totals { margin-top: 20px; margin-right: auto; width: 300px; background: #fff;
-    border: 1px solid #EAEAF5; border-radius: 14px; padding: 14px; }
-  .totals div { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
-  .grand { border-top: 2px solid #4F46E5; margin-top: 8px; padding-top: 10px !important;
-    font-size: 17px; font-weight: 700; color: #4F46E5; }
-  .foot { margin-top: 26px; font-size: 11px; color: #787E9B; border-top: 1px solid #EAEAF5; padding-top: 12px; }
+    padding-bottom: 18px; margin-bottom: 22px;
+    border-bottom: 2px solid #4F46E5; }
+  .brand { font-size: 30px; font-weight: 700; color: #211D63; letter-spacing: .4px; line-height: 1.1; }
+  .brand-sub { color: #4F46E5; font-size: 13px; font-weight: 700; margin-top: 5px; }
+  .brand-phone { color: #787E9B; font-size: 12px; margin-top: 2px; direction: ltr; text-align: right; }
+  .badge { background: #4F46E5; color: #fff; padding: 7px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; display: inline-block; }
+  .meta { color: #787E9B; font-size: 11.5px; line-height: 1.9; margin-top: 8px; }
+  .grid { display: flex; gap: 14px; margin-bottom: 20px; }
+  .box { flex: 1; background: #F6F6FB; border: 1px solid #EAEAF5; border-radius: 16px; padding: 14px 16px; }
+  .box h3 { font-size: 11px; color: #787E9B; font-weight: 700; margin-bottom: 7px; letter-spacing: .3px; }
+  .box .big { font-size: 15px; font-weight: 700; color: #211D63; }
+  .box .muted { color: #787E9B; font-size: 11.5px; margin-top: 3px; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 4px;
+    border: 1px solid #EAEAF5; border-radius: 16px; overflow: hidden; }
+  thead th { background: #EEEFFE; color: #3B32C4; font-size: 11px; font-weight: 700;
+    padding: 11px 9px; text-align: right; }
+  td { padding: 11px 9px; font-size: 12px; border-top: 1px solid #EFEFF8; vertical-align: middle; }
+  tbody tr:first-child td { border-top: none; }
+  td.idx { color: #A5B4FC; font-weight: 700; }
+  td.muted { color: #787E9B; }
+  .strong { font-weight: 700; color: #211D63; }
+  .totals { margin-top: 20px; margin-inline-start: auto; width: 320px;
+    background: #F6F6FB; border: 1px solid #EAEAF5; border-radius: 16px; padding: 16px 18px; }
+  .totals .r { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12.5px; color: #4A4F6A; }
+  .totals .save { color: #10B981; font-weight: 700; }
+  .grand { display: flex; justify-content: space-between; align-items: baseline;
+    border-top: 2px solid #4F46E5; margin-top: 10px; padding-top: 12px;
+    font-size: 19px; font-weight: 700; color: #4F46E5; }
+  .foot { margin-top: 26px; font-size: 11px; color: #787E9B; line-height: 1.8;
+    border-top: 1px solid #EAEAF5; padding-top: 14px; }
+  .foot .note { color: #211D63; font-weight: 700; margin-bottom: 6px; }
+  .thanks { color: #4F46E5; font-weight: 700; margin-top: 6px; }
 </style>
 </head>
 <body>
   <div class="head">
     <div>
-      <div class="brand">${orgName}</div>
-      <div class="muted">${orgAddress}<br/>${orgPhone}</div>
+      <div class="brand">${BRAND_WORDMARK}</div>
+      <div class="brand-sub">${t.city}</div>
+      <div class="brand-phone">${orgPhone}</div>
     </div>
     <div style="text-align:left">
-      <div class="badge">عرض سعر ${number}</div>
-      <div class="muted">النسخة ${version.versionNumber}<br/>${formatDate(version.createdAt)}<br/>صالح حتى ${formatDate(version.validUntil)}</div>
+      <div class="badge">${t.quote} ${number}</div>
+      <div class="meta">${t.version} ${version.versionNumber}<br/>${t.issuedOn}: ${formatDate(version.createdAt)}<br/><b>${t.validUntil}: ${formatDate(version.validUntil)}</b></div>
     </div>
   </div>
 
   <div class="grid">
     <div class="box">
-      <h3>الزبون</h3>
-      <div class="strong">${customerName}</div>
-      <div class="muted">${customerPhone} • ${customerCity}</div>
+      <h3>${t.customer}</h3>
+      <div class="big">${customerName}</div>
+      <div class="muted">${customerPhone}${customerCity ? ' \u2022 ' + customerCity : ''}</div>
     </div>
     <div class="box">
-      <h3>المشروع</h3>
-      <div class="strong">${projectTitle}</div>
-      <div class="muted">${version.items.length} بند</div>
+      <h3>${t.project}</h3>
+      <div class="big">${projectTitle}</div>
+      <div class="muted">${t.itemsCount(version.items.length)}</div>
     </div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>#</th><th>الغرفة والشباك</th><th>الوصف</th><th>القياس</th>
-        <th>الأمتار</th><th>سعر المتر</th><th>الإجمالي</th>
+        <th>${t.colIndex}</th><th>${t.colRoom}</th><th>${t.colDesc}</th><th>${t.colSize}</th>
+        <th>${t.colMeters}</th><th>${t.colUnit}</th><th>${t.colTotal}</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
 
   <div class="totals">
-    <div><span>مجموع الأمتار</span><span>${totalMeters} م</span></div>
-    <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
-    <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
+    <div class="r"><span>${t.sumMeters}</span><span>${totalMeters} ${t.metersUnit}</span></div>
+    <div class="r"><span>${t.subtotal}</span><span>${money(version.subtotalAgorot)}</span></div>
+    ${
+      version.discountAgorot > 0
+        ? `<div class="r"><span>${t.discount}</span><span>- ${money(version.discountAgorot)}</span></div>`
+        : ''
+    }
     ${
       showVat
-        ? `${version.discountAgorot > 0 ? `<div><span>المجموع بعد الخصم</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>` : ''}
-    <div><span>מע"מ ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
-    <div class="grand"><span>الإجمالي כולל מע"מ</span><span>${money(version.totalAgorot)}</span></div>`
-        : `<div class="grand"><span>الإجمالي</span><span>${money(version.totalAgorot - version.vatAgorot)}</span></div>`
+        ? `${version.discountAgorot > 0 ? `<div class="r"><span>${t.afterDiscount}</span><span>${money(revExVat)}</span></div>` : ''}
+    <div class="r"><span>${t.vat} ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
+    <div class="grand"><span>${t.grandInclVat}</span><span>${money(version.totalAgorot)}</span></div>`
+        : `<div class="grand"><span>${t.grand}</span><span>${money(revExVat)}</span></div>`
     }
   </div>
 
   <div class="foot">
-    ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
-    الأسعار شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
-    <br/>${orgName} - شكرًا لثقتكم.
+    ${version.note ? `<div class="note">${t.note}: ${version.note}</div>` : ''}
+    ${t.terms}
+    <div class="thanks">${BRAND_WORDMARK} \u2014 ${t.thanks}</div>
   </div>
 </body>
 </html>`;
 }
 
 export default function QuotationPdfScreen() {
-  const { versionId, vat } = useLocalSearchParams<{ versionId: string; vat?: string }>();
-  /** מע"מ لا تُذكر في المستند إلا حين اختار المستخدم כולל מע"מ في العرض. */
+  const { versionId, vat, lang: langParam } = useLocalSearchParams<{
+    versionId: string;
+    vat?: string;
+    lang?: string;
+  }>();
+  /** מע"מ لا تُذكر في المستند إلا حين اختار المستخدم כולل מע"מ في العرض. */
   const showVat = vat === 'incl';
+  const lang: QuoteLang = langParam === 'he' ? 'he' : 'ar';
+  const t = QUOTE_STRINGS[lang];
   const { db } = useStore();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState<'pdf' | 'share' | null>(null);
@@ -176,9 +197,7 @@ export default function QuotationPdfScreen() {
     if (!version || !quotation) return '';
     return buildHtml({
       version,
-      orgName: db.organization.name,
       orgPhone: db.organization.phone,
-      orgAddress: db.organization.address,
       number: quotation.number,
       customerName: customer?.fullName ?? '',
       customerPhone: customer?.phone ?? '',
@@ -186,8 +205,9 @@ export default function QuotationPdfScreen() {
       projectTitle: project?.title ?? '',
       vatPercent: db.settings.vatPercent,
       showVat,
+      lang,
     });
-  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent, showVat]);
+  }, [version, quotation, customer, project, db.organization, db.settings.vatPercent, showVat, lang]);
 
   if (!version || !quotation) {
     return (
@@ -253,11 +273,11 @@ export default function QuotationPdfScreen() {
         <Card style={{ backgroundColor: palette.white }}>
           <Row justify="space-between" align="flex-start">
             <View>
-              <AppText variant="title" color={palette.olive}>
-                {db.organization.name}
+              <AppText variant="title" color={palette.oliveDeepest}>
+                {BRAND_WORDMARK}
               </AppText>
-              <AppText variant="caption" color={palette.muted}>
-                {db.organization.address}
+              <AppText variant="caption" color={palette.olive}>
+                {t.city}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
                 {db.organization.phone}
@@ -270,10 +290,10 @@ export default function QuotationPdfScreen() {
                 </AppText>
               </View>
               <AppText variant="caption" color={palette.muted}>
-                النسخة {version.versionNumber}
+                {t.version} {version.versionNumber}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
-                صالح حتى {formatDate(version.validUntil)}
+                {t.validUntil} {formatDate(version.validUntil)}
               </AppText>
             </View>
           </Row>
@@ -283,7 +303,7 @@ export default function QuotationPdfScreen() {
           <Row gap={spacing.md}>
             <View style={{ flex: 1 }}>
               <AppText variant="caption" color={palette.muted}>
-                الزبون
+                {t.customer}
               </AppText>
               <AppText variant="label">{customer?.fullName}</AppText>
               <AppText variant="caption" color={palette.muted}>
@@ -292,11 +312,11 @@ export default function QuotationPdfScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <AppText variant="caption" color={palette.muted}>
-                المشروع
+                {t.project}
               </AppText>
               <AppText variant="label">{project?.title}</AppText>
               <AppText variant="caption" color={palette.muted}>
-                {version.items.length} بند •{' '}
+                {t.itemsCount(version.items.length)} •{' '}
                 {meters(
                   Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000,
                 )}
@@ -324,13 +344,13 @@ export default function QuotationPdfScreen() {
 
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              المجموع
+              {t.subtotal}
             </AppText>
             <AppText variant="label">{money(version.subtotalAgorot)}</AppText>
           </Row>
           <Row justify="space-between">
             <AppText variant="caption" color={palette.muted}>
-              الخصم ({percent(version.discountPercent)})
+              {t.discount} ({percent(version.discountPercent)})
             </AppText>
             <AppText variant="label" color={palette.terracotta}>
               - {money(version.discountAgorot)}
@@ -341,7 +361,7 @@ export default function QuotationPdfScreen() {
               {version.discountAgorot > 0 && (
                 <Row justify="space-between">
                   <AppText variant="caption" color={palette.muted}>
-                    المجموع بعد الخصم
+                    {t.afterDiscount}
                   </AppText>
                   <AppText variant="label">
                     {money(version.totalAgorot - version.vatAgorot)}
@@ -350,7 +370,7 @@ export default function QuotationPdfScreen() {
               )}
               <Row justify="space-between">
                 <AppText variant="caption" color={palette.muted}>
-                  <He>{'מע"מ'}</He> {db.settings.vatPercent}%
+                  {t.vat} {db.settings.vatPercent}%
                 </AppText>
                 <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
               </Row>
@@ -359,13 +379,7 @@ export default function QuotationPdfScreen() {
           <Divider />
           <Row justify="space-between">
             <AppText variant="heading">
-              {showVat ? (
-                <>
-                  الإجمالي <He>{'כולל מע"מ'}</He>
-                </>
-              ) : (
-                'الإجمالي'
-              )}
+              {showVat ? t.grandInclVat : t.grand}
             </AppText>
             <AppText variant="numberLarge" color={palette.olive}>
               {money(showVat ? version.totalAgorot : version.totalAgorot - version.vatAgorot)}
