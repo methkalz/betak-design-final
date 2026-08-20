@@ -169,6 +169,9 @@ begin
   if v_org is null then
     raise exception 'إدارة الحسابات صلاحية الأدمن وحده.' using errcode = 'BD403';
   end if;
+  if p_active is null then
+    raise exception 'حدّد التفعيل أو التعطيل.' using errcode = 'BD400';
+  end if;
   if p_user_id = v_uid then
     raise exception 'لا يمكنك تعطيل حسابك أنت.' using errcode = 'BD422';
   end if;
@@ -429,10 +432,12 @@ begin
     raise exception 'الموظف غير موجود في معرضك.' using errcode = 'BD404';
   end if;
 
-  -- كلمة السر لا تدخل الحمولة: تُبصَم لا تُدوَّن
+  -- كلمة السر لا تدخل الحمولة ولا بصمتها: md5(كلمة سر) قابل للكسر بجدول
+  -- قوس قزح، وحمولة العملية تُقرأ في السجل والتدقيق. المفتاح وحده يميّز
+  -- الإعادة، والوقت يميّز العمليتين المتطابقتين على المستخدم نفسه
   v_payload := jsonb_build_object(
     'op', 'reset_staff_password', 'user_id', v_uid, 'target', p_user_id,
-    'pw_hash', pg_catalog.md5(p_password));
+    'at', pg_catalog.clock_timestamp());
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;

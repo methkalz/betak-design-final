@@ -220,6 +220,20 @@ probe = sql("""select 'm=' ||
 check('18 مرآة المصفوفة في القاعدة تطابق التطبيق',
       'm=true,false,true,false,true,true' in probe, probe)
 
+# ── ٧) تصويبات ذيل التدقيق ─────────────────────────────────────────────────
+out = as_user(ADMIN, f"""select api.set_staff_active(
+  '{T1}'::uuid, null, '{key(20)}'::uuid)::text;""")
+check('19 NULL في التفعيل → خطأ نظيف لا 23502 خام',
+      'ERROR' in out and ('حدّد' in out or 'BD400' in out) and '23502' not in out, out)
+
+out = as_user(ADMIN, f"""select api.reset_staff_password(
+  '{T1}'::uuid, 'kalima9', '{key(21)}'::uuid)::text;""")
+probe = sql(f"""select 'leak=' || (payload::text ilike '%pw_hash%'
+  or payload::text ilike '%kalima9%')::text
+ from core.client_operations where idempotency_key = '{key(21)}';""", quiet=False)
+check('20 كلمة السر ولا بصمتها لا تدخل حمولة العملية',
+      'ERROR' not in out and 'leak=false' in probe, out + probe)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 print('purged')

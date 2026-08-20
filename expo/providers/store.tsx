@@ -1125,6 +1125,12 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           setBusy(null);
         }
       }
+      // سقف الدور كما يفرضه الخادم: لا يُطفأ ما لا يملكه الدور أصلًا
+      {
+        const target = db.profiles.find((x) => x.id === profileId);
+        if (target && !allowed && !can(target.role, capability))
+          return failWith('هذا الدور لا يملك هذه الصلاحية أصلًا - لرفعها غيّر الدور.', 'conflict');
+      }
       mutate((draft) => {
         const p = draft.profiles.find((x) => x.id === profileId);
         if (!p) return;
@@ -1137,7 +1143,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       });
       return okVoid;
     },
-    [source, guard, userId, requireOnline, refreshLive, takeIdemKey, settleIdemKey, mutate, audit],
+    [source, guard, userId, requireOnline, refreshLive, takeIdemKey, settleIdemKey, db.profiles, mutate, audit],
   );
 
   /** كلمة سرٍّ جديدة تقطع الجلسات القديمة - الخادم يمحوها مع التبديل. */
