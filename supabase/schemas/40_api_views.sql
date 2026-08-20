@@ -636,7 +636,8 @@ SELECT om.organization_id,
     p.title,
     p.avatar_url,
     om.role,
-    om.is_active
+    om.is_active,
+    om.capability_overrides
    FROM core.organization_members om
      JOIN core.profiles p ON p.id = om.user_id;
 

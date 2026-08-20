@@ -25,6 +25,8 @@ export interface Profile {
   pin: string;
   title: string;
   isActive: boolean;
+  /** إيقافاتُ الأدمن تحت سقف الدور: {capability: false}. الغياب = سماح الدور. */
+  capabilityOverrides?: Record<string, boolean>;
 }
 
 export interface Customer {

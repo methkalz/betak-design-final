@@ -104,3 +104,38 @@ AS $function$
     else false
   end;
 $function$;
+
+CREATE OR REPLACE FUNCTION private.capability_known(p_capability text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+  select p_capability in (
+    'view_cost_and_margin', 'edit_pricing_rules', 'manage_customers',
+    'enter_measurements', 'reserve_fabric', 'update_production',
+    'record_payment', 'approve_discount', 'manage_users', 'manage_fabrics',
+    'receive_own_fabric', 'view_reports', 'create_quotation', 'install')
+$function$;
+
+CREATE OR REPLACE FUNCTION private.capability_can(p_role core.app_role, p_capability text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+  -- مرآة حرفية لمصفوفة expo/domain/permissions.ts (yes|limited = true).
+  -- تغييرٌ هناك يستلزم تغييرًا هنا - ومجموعة البوابة تفحص التطابق
+  select case p_role
+    when 'admin' then private.capability_known(p_capability)
+    when 'sales' then p_capability in (
+      'view_cost_and_margin', 'manage_customers', 'enter_measurements',
+      'reserve_fabric', 'record_payment', 'view_reports', 'create_quotation')
+    when 'field' then p_capability in (
+      'manage_customers', 'enter_measurements', 'install')
+    when 'tailor' then p_capability in (
+      'update_production', 'receive_own_fabric')
+    else false
+  end
+$function$;
+

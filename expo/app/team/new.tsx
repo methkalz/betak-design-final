@@ -37,15 +37,16 @@ export default function NewStaffScreen() {
   const [title, setTitle] = useState('');
   const [titleEdited, setTitleEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (titleEdited) return;
     setTitle(ROLE_LABELS[role]);
   }, [role, titleEdited]);
 
-  const submit = () => {
+  const submit = async () => {
     setError(null);
-    const res = createProfile({ fullName, phone, role, title, pin: '0000' });
+    const res = await createProfile({ fullName, phone, role, title, password });
     if (!res.ok) return setError(res.error);
     router.replace({ pathname: '/team/[id]', params: { id: res.data } });
   };
@@ -93,6 +94,14 @@ export default function NewStaffScreen() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             placeholder="054-0000000"
+          />
+          {/* يدخلها الأدمن ويسلّمها شفهيًا - لا بريد ولا رسائل في هذا السياق */}
+          <Field
+            label="كلمة السر الأولى"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="أربعة أحرف على الأقل"
+            secureTextEntry
           />
           <Field
             label="المسمّى الوظيفي"

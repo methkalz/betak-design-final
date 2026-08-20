@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Banknote, CalendarClock, ChevronLeft, Package, PackagePlus, Phone, Scissors, ShieldCheck, UserX } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, Switch, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import {
@@ -29,10 +29,11 @@ import {
   Row,
   ScrollScreen,
   SectionHeader,
+  SegmentedControl,
 } from '@/components/ui';
 import { gradients, palette, radius, spacing } from '@/constants/theme';
 import { availabilityTone } from '@/domain/inventory';
-import { can, ROLE_LABELS } from '@/domain/permissions';
+import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/permissions';
 import { staffDossier, tailorFabricOverview, type StaffMetric } from '@/domain/staff';
 import { fieldAccruals, staffBalance, tailorAccruals } from '@/domain/staffLedger';
 import { formatDate, formatDateTime, meters, money, phone as fmtPhone } from '@/lib/format';
@@ -40,7 +41,7 @@ import { useStore } from '@/providers/store';
 
 export default function StaffDossierScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { db, role, setProfileActive } = useStore();
+  const { db, role, currentUser, setProfileActive, setStaffRole, setStaffCapability, resetStaffPassword } = useStore();
   const router = useRouter();
   const [confirm, setConfirm] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -212,6 +213,17 @@ export default function StaffDossierScreen() {
         ))}
       </Card>
 
+      {isAdmin && profile.id !== currentUser?.id && (
+        <AdminControls
+          profileId={profile.id}
+          profileRole={profile.role}
+          overrides={profile.capabilityOverrides ?? {}}
+          onSetRole={setStaffRole}
+          onSetCapability={setStaffCapability}
+          onResetPassword={resetStaffPassword}
+        />
+      )}
+
       {isAdmin && (
         <Card onPress={() => setConfirm(true)}>
           <Row gap={spacing.md}>
@@ -244,10 +256,8 @@ export default function StaffDossierScreen() {
             : 'سيعود الحساب للعمل ويظهر في قوائم الإسناد من جديد.'
         }
         confirmLabel={profile.isActive ? 'نعم، عطّل' : 'نعم، فعّل'}
-        onConfirm={() => {
-          // النتيجة تُقرأ: المتجر يرفض التعطيل في الوضع الحي بصدق، وابتلاعُ
-          // الرفض كان يُغلق اللوحة كأن الحساب عُطّل وهو ما زال يدخل
-          const res = setProfileActive(profile.id, !profile.isActive);
+        onConfirm={async () => {
+          const res = await setProfileActive(profile.id, !profile.isActive);
           setConfirm(false);
           if (!res.ok) setStatusError(res.error);
         }}
@@ -525,5 +535,119 @@ function MetricTile({ metric }: { metric: StaffMetric }) {
         {metric.label}
       </AppText>
     </View>
+  );
+}
+
+/**
+ * لوحة تحكّم الأدمن: الدور يرسم السقف والمفاتيح تُطفئ ما تحته.
+ *
+ * المفتاح المُعتِم صلاحيةٌ لا يملكها الدور أصلًا - لا يُفتح من هنا بل يُرفع
+ * الدور، فتسري القاعدة على الخادم كله لا على هذه الشاشة وحدها. والإيقاف
+ * يُخزَّن على الخادم فيلحق صاحبه على أي جهاز.
+ */
+function AdminControls({
+  profileId,
+  profileRole,
+  overrides,
+  onSetRole,
+  onSetCapability,
+  onResetPassword,
+}: {
+  profileId: string;
+  profileRole: keyof typeof ROLE_LABELS;
+  overrides: Record<string, boolean>;
+  onSetRole: (id: string, r: keyof typeof ROLE_LABELS) => Promise<{ ok: boolean } & Record<string, unknown>>;
+  onSetCapability: (id: string, c: Capability, allowed: boolean) => Promise<{ ok: boolean } & Record<string, unknown>>;
+  onResetPassword: (id: string, pw: string) => Promise<{ ok: boolean } & Record<string, unknown>>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [pw, setPw] = useState('');
+  const [pendingRole, setPendingRole] = useState<keyof typeof ROLE_LABELS | null>(null);
+
+  const CAPS = Object.keys(CAPABILITY_LABELS) as Capability[];
+
+  const say = (res: { ok: boolean; error?: unknown }, done: string) => {
+    setError(null);
+    setOkMsg(null);
+    if (!res.ok) setError(String(res.error ?? 'تعذر التنفيذ'));
+    else setOkMsg(done);
+  };
+
+  return (
+    <>
+      <Card>
+        <SectionHeader title="الدور" subtitle="السقف الذي تعمل تحته المفاتيح" />
+        <SegmentedControl
+          value={profileRole}
+          onChange={(r) => setPendingRole(r as keyof typeof ROLE_LABELS)}
+          options={(Object.keys(ROLE_LABELS) as (keyof typeof ROLE_LABELS)[]).map((r) => ({
+            value: r,
+            label: ROLE_LABELS[r],
+          }))}
+        />
+      </Card>
+
+      <Card>
+        <SectionHeader
+          title="الصلاحيات"
+          subtitle="المفتاح يُطفئ صلاحيةً يملكها الدور - وما فوق الدور يُرفع الدور له"
+        />
+        <View style={{ gap: 2 }}>
+          {CAPS.map((c) => {
+            const ceiling = can(profileRole, c);
+            const value = ceiling && overrides[c] !== false;
+            return (
+              <Row key={c} justify="space-between" style={{ paddingVertical: 6, opacity: ceiling ? 1 : 0.45 }}>
+                <AppText variant="caption" style={{ flex: 1 }}>
+                  {CAPABILITY_LABELS[c]}
+                </AppText>
+                <Switch
+                  value={value}
+                  disabled={!ceiling}
+                  onValueChange={async (v) => say(await onSetCapability(profileId, c, v), 'حُفظت الصلاحية.')}
+                  trackColor={{ false: palette.sandDeep, true: palette.olive }}
+                  thumbColor={palette.white}
+                />
+              </Row>
+            );
+          })}
+        </View>
+      </Card>
+
+      <Card>
+        <SectionHeader title="كلمة السر" subtitle="تبديلها يقطع جلسات الموظف المفتوحة" />
+        <Row gap={spacing.md} align="flex-end">
+          <View style={{ flex: 1 }}>
+            <Field label="" value={pw} onChangeText={setPw} placeholder="كلمة سر جديدة" secureTextEntry />
+          </View>
+          <Button
+            label="بدّل"
+            small
+            onPress={async () => {
+              const res = await onResetPassword(profileId, pw);
+              say(res, 'بُدّلت كلمة السر - سلّمها للموظف.');
+              if (res.ok) setPw('');
+            }}
+          />
+        </Row>
+      </Card>
+
+      {!!error && <Banner tone="danger" title="تعذر التنفيذ" body={error} />}
+      {!!okMsg && <Banner tone="success" title={okMsg} />}
+
+      <ConfirmSheet
+        visible={pendingRole !== null && pendingRole !== profileRole}
+        icon={<ShieldCheck size={24} color={palette.olive} />}
+        title={`تغيير الدور إلى ${pendingRole ? ROLE_LABELS[pendingRole] : ''}؟`}
+        body="الدور الجديد سقفٌ جديد: إيقافات الدور السابق تُمحى، والصلاحيات تسري على الخادم فورًا."
+        confirmLabel="نعم، غيّر الدور"
+        onConfirm={async () => {
+          if (pendingRole) say(await onSetRole(profileId, pendingRole), 'غُيّر الدور.');
+          setPendingRole(null);
+        }}
+        onCancel={() => setPendingRole(null)}
+      />
+    </>
   );
 }
