@@ -1,9 +1,83 @@
 -- ════════════════════════════════════════════════════════════════════
--- api.create_quotation_version
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
+-- الحيلة التسويقية: سعرٌ مُضخَّم يُعرَض «قبل الخصم» فوق السعر الحقيقي
+--
+-- عرضٌ فقط لا يمسّ ما يدفعه الزبون ولا الربح ولا الصلاحية. المحرّك
+-- `price_project_windows` **دون تغيير** (المتجهات الذهبية تبقى) - الزيادة
+-- تُحسب بعده في الـRPC لكل بند من `markup_spec` (نسبة/مبلغ لكل تصنيف أو الكل).
+--
+-- ‏١) عمود `list_price_agorot` على البنود (السعر المُضخَّم المجمَّد، 0=بلا زيادة).
+-- ‏٢) عمود `markup_spec` على النسخة (مصدرٌ للعرض وإعادة التحرير).
+-- ‏٣) العرضان يكشفان العمودين (في الذيل - الإحلال لا يُدرج في الوسط).
+-- ‏٤) الـRPC يقبل p_markup ويحسب list_price. توقيعٌ جديد (وسيطٌ إضافي)،
+--    فيُسقَط القديم أولًا لئلا يبقى تحميلٌ زائد.
 -- ════════════════════════════════════════════════════════════════════
+
+alter table core.quotation_items
+  add column if not exists list_price_agorot bigint not null default 0;
+alter table core.quotation_items
+  drop constraint if exists quotation_items_list_price_agorot_check;
+alter table core.quotation_items
+  add constraint quotation_items_list_price_agorot_check check (list_price_agorot >= 0);
+
+alter table core.quotation_versions
+  add column if not exists markup_spec jsonb not null default '{}'::jsonb;
+
+create or replace view api.quotation_items
+  with (security_invoker = on) as
+SELECT i.id AS item_id,
+    i.organization_id,
+    i.version_id,
+    i.window_id,
+    i.room_name,
+    i.window_name,
+    i.description,
+    i.width_cm,
+    i.height_cm,
+    i.running_meters,
+    i.quantity,
+    i.category,
+    i.band,
+    i.unit_price_agorot,
+    i.line_total_agorot,
+    i.fabric_meters,
+    i.lining_meters,
+    i.sort_order,
+    i.list_price_agorot
+   FROM core.quotation_items i;
+
+create or replace view api.quotation_versions
+  with (security_invoker = on) as
+SELECT ver.id AS version_id,
+    ver.organization_id,
+    ver.quotation_id,
+    ver.version_number,
+    ver.status,
+    ver.subtotal_agorot,
+    ver.discount_percent,
+    ver.discount_agorot,
+    ver.vat_agorot,
+    ver.total_agorot,
+    ver.valid_until,
+    ver.valid_until < now() AS is_expired,
+    ver.note,
+    ver.created_by,
+    ver.created_at,
+    ver.sent_at,
+    ver.approved_at,
+    ver.locked,
+    ver.rejected_at,
+    ver.superseded_at,
+    ver.sent_by,
+    ver.decision_recorded_by,
+    ver.decision_note,
+        CASE
+            WHEN ver.status = 'sent'::core.quotation_status AND ver.valid_until < now() THEN 'expired'::core.quotation_status
+            ELSE ver.status
+        END AS effective_status,
+    ver.markup_spec
+   FROM core.quotation_versions ver;
+
+drop function if exists api.create_quotation_version(uuid, numeric, text, uuid, integer);
 
 CREATE OR REPLACE FUNCTION api.create_quotation_version(p_project_id uuid, p_discount_percent numeric, p_note text, p_idempotency_key uuid, p_expected_project_version integer DEFAULT NULL::integer, p_markup jsonb DEFAULT '{}'::jsonb)
  RETURNS jsonb
@@ -316,3 +390,9 @@ begin
 
   return v_result;
 end $function$;
+
+alter function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) owner to baytak_rpc_owner;
+revoke all on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) from public, anon;
+grant execute on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb) to authenticated;
+
+notify pgrst, 'reload schema';

@@ -478,7 +478,8 @@ SELECT i.id AS item_id,
     i.line_total_agorot,
     i.fabric_meters,
     i.lining_meters,
-    i.sort_order
+    i.sort_order,
+    i.list_price_agorot
    FROM core.quotation_items i;
 
 create or replace view api.quotation_version_financials
@@ -524,7 +525,8 @@ SELECT ver.id AS version_id,
         CASE
             WHEN ver.status = 'sent'::core.quotation_status AND ver.valid_until < now() THEN 'expired'::core.quotation_status
             ELSE ver.status
-        END AS effective_status
+        END AS effective_status,
+    ver.markup_spec
    FROM core.quotation_versions ver;
 
 create or replace view api.quotations

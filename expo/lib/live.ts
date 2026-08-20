@@ -354,6 +354,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       band: s(i.band) as QuotationItem['band'],
       unitPriceAgorot: n(i.unit_price_agorot),
       lineTotalAgorot: n(i.line_total_agorot),
+      listPriceAgorot: n(i.list_price_agorot),
       internalCostAgorot: fin ? n(fin.internal_cost_agorot) : 0,
       fabricMeters: n(i.fabric_meters),
       liningMeters: n(i.lining_meters),
@@ -383,6 +384,10 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
       marginPercent: fin ? n(fin.margin_percent) : 0,
       validUntil: s(v.valid_until),
       note: s(v.note),
+      markupSpec:
+        v.markup_spec && typeof v.markup_spec === 'object' && (v.markup_spec as { targets?: unknown }).targets
+          ? (v.markup_spec as QuotationVersion['markupSpec'])
+          : { mode: 'percent', targets: {} },
       createdBy: s(v.created_by),
       createdAt: s(v.created_at),
       sentAt: sOrNull(v.sent_at),

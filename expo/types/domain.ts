@@ -362,10 +362,24 @@ export interface QuotationItem {
   band: HeightBand;
   unitPriceAgorot: number;
   lineTotalAgorot: number;
+  /**
+   * السعر المُضخَّم المعروض للزبون قبل «الخصم» (الحيلة التسويقية). صفر = بلا
+   * زيادة. عرضٌ فقط: لا يمسّ ما يدفعه الزبون (`lineTotalAgorot`) ولا الربح.
+   */
+  listPriceAgorot: number;
   /** Internal only — never rendered for field/tailor roles. */
   internalCostAgorot: number;
   fabricMeters: number;
   liningMeters: number;
+}
+
+/**
+ * إعداد الزيادة التسويقية: كيف ضُخِّم السعر المعروض. `mode` نسبة أو مبلغ،
+ * و`targets` خريطة تصنيف→قيمة (والمفتاح `all` يطال كل البنود). فارغة = بلا حيلة.
+ */
+export interface MarkupSpec {
+  mode: 'percent' | 'amount';
+  targets: Record<string, number>;
 }
 
 export interface QuotationVersion {
@@ -383,7 +397,10 @@ export interface QuotationVersion {
   internalCostAgorot: number;
   marginPercent: number;
   validUntil: string;
+  /** ملاحظة الزبون تظهر في الوثيقة - منفصلة عن سبب الخصم. */
   note: string;
+  /** إعداد الزيادة التسويقية على هذه النسخة (مصدرٌ للعرض وإعادة التحرير). */
+  markupSpec: MarkupSpec;
   createdBy: UUID;
   createdAt: string;
   sentAt: string | null;
