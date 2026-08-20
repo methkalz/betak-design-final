@@ -11,6 +11,8 @@ import {
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { type QuoteLang } from '@/domain/quoteStrings';
+
 import {
   AppText,
   Banner,
@@ -24,6 +26,7 @@ import {
   Row,
   ScrollScreen,
   SectionHeader,
+  SegmentedControl,
 } from '@/components/ui';
 import { DiscountSlider } from '@/components/DiscountSlider';
 import { QuotationDecision } from '@/components/QuotationDecision';
@@ -55,6 +58,8 @@ export default function QuotationScreen() {
   // الافتراضي «לא כולל מע"מ»: عليه يُبنى الهامش والتكلفة والخصم، والضريبة
   // تمرّ إلى الدولة. والرقمان معروضان في المجاميع على كل حال.
   const [inclVat, setInclVat] = useState<boolean>(false);
+  // لغة وثيقة المقترح: عربية أو عبرية (زبائن عبريّون). قرارُ عرضٍ لا يُخزَّن.
+  const [docLang, setDocLang] = useState<QuoteLang>('ar');
 
   const quotation = db.quotations.find((q) => q.id === id);
   const versions = useMemo(
@@ -411,6 +416,21 @@ export default function QuotationScreen() {
         />
       )}
 
+      {/* لغة الوثيقة: تُختار قبل التوليد كالضريبة، وتُمرَّر للـPDF */}
+      <Card>
+        <Row justify="space-between" align="center">
+          <AppText variant="label">لغة المقترح</AppText>
+          <SegmentedControl
+            value={docLang}
+            onChange={(v) => setDocLang(v)}
+            options={[
+              { value: 'ar', label: 'العربية' },
+              { value: 'he', label: 'עברית' },
+            ]}
+          />
+        </Row>
+      </Card>
+
       <Button
         label="معاينة ومشاركة PDF"
         variant="secondary"
@@ -419,7 +439,7 @@ export default function QuotationScreen() {
         onPress={() =>
           router.push({
             pathname: '/quotation/pdf',
-            params: { versionId: version.id, vat: inclVat ? 'incl' : 'excl' },
+            params: { versionId: version.id, vat: inclVat ? 'incl' : 'excl', lang: docLang },
           })
         }
       />
