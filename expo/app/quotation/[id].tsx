@@ -11,7 +11,8 @@ import {
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { type QuoteLang } from '@/domain/quoteStrings';
+import { QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
+import type { MarkupSpec } from '@/types/domain';
 
 import {
   AppText,
@@ -33,7 +34,7 @@ import { QuotationDecision } from '@/components/QuotationDecision';
 import { palette, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
-import { checkDiscount, computeTotals, round3 } from '@/domain/pricing';
+import { anchorSubtotalAgorot, checkDiscount, computeTotals, markupListPriceAgorot, round3 } from '@/domain/pricing';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
@@ -60,6 +61,11 @@ export default function QuotationScreen() {
   const [inclVat, setInclVat] = useState<boolean>(false);
   // لغة وثيقة المقترح: عربية أو عبرية (زبائن عبريّون). قرارُ عرضٍ لا يُخزَّن.
   const [docLang, setDocLang] = useState<QuoteLang>('ar');
+  // الزيادة التسويقية: نسبة/مبلغ لكل تصنيفٍ موجود في البنود (عرضٌ فقط).
+  const [markupMode, setMarkupMode] = useState<'percent' | 'amount'>('percent');
+  const [markupByCat, setMarkupByCat] = useState<Record<string, string>>({});
+  // ملاحظة الزبون تظهر في الوثيقة - منفصلة عن سبب الخصم.
+  const [customerNote, setCustomerNote] = useState<string>('');
 
   const quotation = db.quotations.find((q) => q.id === id);
   const versions = useMemo(
@@ -100,6 +106,29 @@ export default function QuotationScreen() {
   const check = checkDiscount(version.items, activeDiscount, db.settings);
   const expired = new Date(version.validUntil).getTime() < Date.now() && version.status === 'sent';
 
+  // التصنيفات الموجودة في البنود - عليها تُوضَع الزيادة (أو «الكل»).
+  const presentCats = useMemo(
+    () => [...new Set(version.items.map((i) => i.category))],
+    [version.items],
+  );
+  const markupSpec = useMemo<MarkupSpec>(() => {
+    const targets: Record<string, number> = {};
+    for (const [cat, v] of Object.entries(markupByCat)) {
+      const num = parseFloat(v);
+      if (num > 0) targets[cat] = num;
+    }
+    return { mode: markupMode, targets };
+  }, [markupMode, markupByCat]);
+  const anchorSubtotal = useMemo(
+    () =>
+      version.items.reduce(
+        (sum, i) => sum + Math.max(markupListPriceAgorot(i.lineTotalAgorot, i.category, markupSpec), i.lineTotalAgorot),
+        0,
+      ),
+    [version.items, markupSpec],
+  );
+  const hasMarkup = anchorSubtotal > preview.subtotalAgorot;
+
   const applyDiscount = async () => {
     setError(null);
     setInfo(null);
@@ -120,7 +149,7 @@ export default function QuotationScreen() {
       setInfo('تم إرسال طلب الخصم للأدمن. ستصلك النتيجة كإشعار.');
       return;
     }
-    const res = await createVersion(quotation.id, activeDiscount, reason);
+    const res = await createVersion(quotation.id, activeDiscount, customerNote, markupSpec);
     if (!res.ok) return setError(res.error);
     setDiscount(null);
     setReason('');
@@ -328,6 +357,64 @@ export default function QuotationScreen() {
             </AppText>
             <AppText variant="label">{percent(preview.marginPercent)}</AppText>
           </Row>
+        </Card>
+      )}
+
+      {can(role, 'create_quotation') && version.status === 'draft' && (
+        <Card>
+          <SectionHeader
+            title="الزيادة التسويقية"
+            subtitle="سعرٌ يُعرَض «قبل الخصم» فوق السعر الحقيقي - عرضٌ فقط لا يمسّ ما يُدفع"
+          />
+          <SegmentedControl
+            value={markupMode}
+            onChange={(m) => setMarkupMode(m)}
+            options={[
+              { value: 'percent', label: 'نسبة %' },
+              { value: 'amount', label: 'مبلغ ₪' },
+            ]}
+          />
+          <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+            {presentCats.map((cat) => (
+              <Row key={cat} justify="space-between" align="center" gap={spacing.md}>
+                <AppText variant="label" style={{ flex: 1 }}>
+                  {QUOTE_STRINGS.ar.category[cat] ?? cat}
+                </AppText>
+                <View style={{ width: 96 }}>
+                  <Field
+                    label=""
+                    value={markupByCat[cat] ?? ''}
+                    onChangeText={(v) =>
+                      setMarkupByCat((prev) => ({ ...prev, [cat]: v.replace(/[^0-9.]/g, '') }))
+                    }
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    suffix={markupMode === 'percent' ? '%' : '₪'}
+                  />
+                </View>
+              </Row>
+            ))}
+          </View>
+          {hasMarkup && (
+            <View style={{ marginTop: spacing.md }}>
+              <SummaryRow label="السعر المعروض قبل الخصم" value={money(anchorSubtotal)} />
+              <SummaryRow label="السعر الفعلي" value={money(preview.subtotalAgorot)} />
+              <SummaryRow label="يظهر للزبون أنه وفّر" value={money(anchorSubtotal - preview.subtotalAgorot)} />
+            </View>
+          )}
+        </Card>
+      )}
+
+      {can(role, 'create_quotation') && version.status === 'draft' && (
+        <Card>
+          <SectionHeader title="ملاحظة للزبون" subtitle="تظهر في وثيقة المقترح" />
+          <Field
+            label=""
+            value={customerNote}
+            onChangeText={setCustomerNote}
+            multiline
+            placeholder="مثال: الأسعار سارية أسبوعين. التنفيذ خلال 3 أسابيع من الاعتماد."
+          />
         </Card>
       )}
 

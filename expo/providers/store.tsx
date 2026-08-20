@@ -19,7 +19,7 @@ import {
 } from '@/domain/labels';
 import type { AssignmentKind } from '@/domain/assignment';
 import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/permissions';
-import { computeTotals, priceWindow, round3 } from '@/domain/pricing';
+import { computeTotals, markupListPriceAgorot, priceWindow, round3 } from '@/domain/pricing';
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
 import { attachmentPath, uploadAttachmentFile } from '@/lib/storage';
@@ -34,6 +34,7 @@ import type {
   FabricProduct,
   FabricVariant,
   FieldVisit,
+  MarkupSpec,
   MovementType,
   NotificationKind,
   PaymentKind,
@@ -1734,6 +1735,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             band: p.band,
             unitPriceAgorot: p.unitPriceAgorot,
             lineTotalAgorot: p.lineTotalAgorot,
+            listPriceAgorot: 0,
             internalCostAgorot: p.internalCostAgorot,
             fabricMeters: p.fabricMeters,
             liningMeters: p.liningMeters,
@@ -1798,6 +1800,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             now.getTime() + draft.settings.quotationValidityDays * 86400000,
           ).toISOString(),
           note: '',
+          markupSpec: { mode: 'percent', targets: {} },
           createdBy: userId ?? 'system',
           createdAt: now.toISOString(),
           sentAt: null,
@@ -1824,7 +1827,12 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   /** Sent versions are immutable — any change forks a brand new version. */
   const createVersion = useCallback(
-    async (quotationId: UUID, discountPercent: number, note: string): Promise<Result<string>> => {
+    async (
+      quotationId: UUID,
+      discountPercent: number,
+      note: string,
+      markup?: MarkupSpec,
+    ): Promise<Result<string>> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
       const quotation = db.quotations.find((q) => q.id === quotationId);
@@ -1833,7 +1841,9 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         return failWith('نسبة الخصم غير صالحة.', 'validation');
 
       if (source === 'live') {
-        const slot = `qv:${quotationId}:${discountPercent}`;
+        // المفتاح يشمل الزيادة: مقترحٌ بزيادةٍ مختلفة نسخةٌ مختلفة
+        const markupKey = markup ? JSON.stringify(markup.targets) : '-';
+        const slot = `qv:${quotationId}:${discountPercent}:${markupKey}`;
         setBusy('create-quote');
         try {
           const { data, error } = await supabase.rpc('create_quotation_version', {
@@ -1841,6 +1851,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             p_discount_percent: discountPercent,
             p_note: note,
             p_idempotency_key: takeIdemKey(slot),
+            p_markup: markup ?? { mode: 'percent', targets: {} },
           });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);
@@ -1852,7 +1863,12 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         }
       }
 
-      const items = buildItems(quotation.projectId);
+      // الحيلة على الديمو مرآةُ الخادم: list_price لكل بند، لا يمسّ المجموع
+      const rawItems = buildItems(quotation.projectId);
+      const items = rawItems.map((it) => ({
+        ...it,
+        listPriceAgorot: markupListPriceAgorot(it.lineTotalAgorot, it.category, markup),
+      }));
       const vid = uid('qv');
       mutate((draft) => {
         const versions = draft.quotationVersions.filter((v) => v.quotationId === quotationId);
@@ -1876,6 +1892,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             now.getTime() + draft.settings.quotationValidityDays * 86400000,
           ).toISOString(),
           note,
+          markupSpec: markup ?? { mode: 'percent', targets: {} },
           createdBy: userId ?? 'system',
           createdAt: now.toISOString(),
           sentAt: null,

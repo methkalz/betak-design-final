@@ -10,6 +10,7 @@ import type {
   FabricProduct,
   FabricVariant,
   HeightBand,
+  MarkupSpec,
   PricingCategory,
   PricingRule,
   QuotationItem,
@@ -457,6 +458,37 @@ export interface QuotationTotals {
   internalCostAgorot: number;
   marginAgorot: number;
   marginPercent: number;
+}
+
+/**
+ * السعر المُضخَّم المعروض للبند (الحيلة التسويقية) - مرآةٌ حرفية لِما يحسبه
+ * الخادم. عرضٌ فقط: يُظهر «قبل» أعلى السعر الحقيقي، ولا يمسّ ما يُدفع.
+ *
+ * القيمة لكل بند من `targets[category]` وإلا `targets.all` وإلا صفر. النسبة
+ * تُبتر إلى الشيكل (كالمحرّك)، والمبلغ بالشيكل يُضاف كما هو. صفرٌ يعني «بلا
+ * زيادة» فلا يُخزَّن سعرٌ مُضخَّم.
+ */
+export function markupListPriceAgorot(
+  lineTotalAgorot: number,
+  category: string,
+  markup: MarkupSpec | null | undefined,
+): number {
+  if (!markup || !markup.targets) return 0;
+  const raw = markup.targets[category] ?? markup.targets.all ?? 0;
+  if (!(raw > 0)) return 0;
+  if (markup.mode === 'amount') return lineTotalAgorot + Math.round(raw) * 100;
+  return floorToShekel(divRoundHalfAway(lineTotalAgorot * (100 + raw), 100));
+}
+
+/**
+ * مجموع الأسعار المعروضة «قبل الخصم» عبر البنود: المُضخَّم حيث وُجد، وإلا
+ * السعر الحقيقي. يُقارَن بالإجمالي النهائي فيخرج ما «وفّره» الزبون ظاهريًا.
+ */
+export function anchorSubtotalAgorot(items: QuotationItem[]): number {
+  return items.reduce(
+    (s, i) => s + (i.listPriceAgorot > 0 ? i.listPriceAgorot : i.lineTotalAgorot),
+    0,
+  );
 }
 
 export function computeTotals(

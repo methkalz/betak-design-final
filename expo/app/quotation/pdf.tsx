@@ -42,6 +42,12 @@ function buildHtml(params: {
   const [REG, BOLD] = isHe ? [HEEBO_REGULAR_B64, HEEBO_BOLD_B64] : [CAIRO_REGULAR_B64, CAIRO_BOLD_B64];
   const totalMeters = Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000;
   const revExVat = version.totalAgorot - version.vatAgorot;
+  // المرساة: السعر المُضخَّم حيث وُجد وإلا الحقيقي - يُقابله النهائي فيخرج «وفّرت»
+  const anchorSubtotal = version.items.reduce(
+    (a, i) => a + Math.max(i.listPriceAgorot, i.lineTotalAgorot),
+    0,
+  );
+  const saved = anchorSubtotal - revExVat;
 
   const rows = version.items
     .map(
@@ -53,7 +59,11 @@ function buildHtml(params: {
         <td>${i.widthCm} \u00d7 ${i.heightCm} ${t.sizeUnit}</td>
         <td>${i.runningMeters} ${t.metersUnit}</td>
         <td>${money(i.unitPriceAgorot)}</td>
-        <td class="strong">${money(i.lineTotalAgorot)}</td>
+        <td class="strong">${
+          i.listPriceAgorot > i.lineTotalAgorot
+            ? `<span class="was">${money(i.listPriceAgorot)}</span><br/>`
+            : ''
+        }${money(i.lineTotalAgorot)}</td>
       </tr>`,
     )
     .join('');
@@ -98,6 +108,7 @@ function buildHtml(params: {
     background: #F6F6FB; border: 1px solid #EAEAF5; border-radius: 16px; padding: 16px 18px; }
   .totals .r { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12.5px; color: #4A4F6A; }
   .totals .save { color: #10B981; font-weight: 700; }
+  .was { color: #A0A4BB; text-decoration: line-through; font-weight: 400; font-size: 11px; }
   .grand { display: flex; justify-content: space-between; align-items: baseline;
     border-top: 2px solid #4F46E5; margin-top: 10px; padding-top: 12px;
     font-size: 19px; font-weight: 700; color: #4F46E5; }
@@ -145,19 +156,15 @@ function buildHtml(params: {
 
   <div class="totals">
     <div class="r"><span>${t.sumMeters}</span><span>${totalMeters} ${t.metersUnit}</span></div>
-    <div class="r"><span>${t.subtotal}</span><span>${money(version.subtotalAgorot)}</span></div>
-    ${
-      version.discountAgorot > 0
-        ? `<div class="r"><span>${t.discount}</span><span>- ${money(version.discountAgorot)}</span></div>`
-        : ''
-    }
+    <div class="r"><span>${saved > 0 ? t.listTotal : t.subtotal}</span><span>${money(saved > 0 ? anchorSubtotal : version.subtotalAgorot)}</span></div>
     ${
       showVat
-        ? `${version.discountAgorot > 0 ? `<div class="r"><span>${t.afterDiscount}</span><span>${money(revExVat)}</span></div>` : ''}
+        ? `<div class="r"><span>${saved > 0 ? t.afterDiscount : t.subtotal}</span><span>${money(revExVat)}</span></div>
     <div class="r"><span>${t.vat} ${vatPercent}%</span><span>+ ${money(version.vatAgorot)}</span></div>
     <div class="grand"><span>${t.grandInclVat}</span><span>${money(version.totalAgorot)}</span></div>`
         : `<div class="grand"><span>${t.grand}</span><span>${money(revExVat)}</span></div>`
     }
+    ${saved > 0 ? `<div class="r save"><span>${t.youSaved}</span><span>${money(saved)}</span></div>` : ''}
   </div>
 
   <div class="foot">
