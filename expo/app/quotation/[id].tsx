@@ -34,7 +34,14 @@ import { QuotationDecision } from '@/components/QuotationDecision';
 import { palette, spacing } from '@/constants/theme';
 import { QUOTATION_STATUS_LABELS, quotationStatusColor } from '@/domain/labels';
 import { can } from '@/domain/permissions';
-import { anchorSubtotalAgorot, checkDiscount, computeTotals, markupListPriceAgorot, round3 } from '@/domain/pricing';
+import {
+  anchorSubtotalAgorot,
+  checkDiscountAgorot,
+  computeTotals,
+  computeTotalsFromDiscountAgorot,
+  markupListPriceAgorot,
+  round3,
+} from '@/domain/pricing';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
@@ -51,7 +58,8 @@ export default function QuotationScreen() {
     requestDiscount,
   } = useStore();
 
-  const [discount, setDiscount] = useState<number | null>(null);
+  // خصمٌ مطلقٌ بالأغورة (العصا الذكية): يقف الإجمالي على الرقم بالضبط.
+  const [discountAmt, setDiscountAmt] = useState<number | null>(null);
   const [reason, setReason] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -100,32 +108,35 @@ export default function QuotationScreen() {
   const customer = db.customers.find((c) => c.id === project?.customerId);
   const showCost = role === 'admin';
   const statusColor = quotationStatusColor(version.status);
-  const activeDiscount = discount ?? version.discountPercent;
-  const preview = computeTotals(version.items, activeDiscount, db.settings);
+  const activeDiscountAgorot = discountAmt ?? version.discountAgorot;
+  const preview = computeTotalsFromDiscountAgorot(
+    version.items,
+    activeDiscountAgorot,
+    db.settings.vatPercent,
+  );
+  const activePct =
+    preview.subtotalAgorot > 0
+      ? Math.round((activeDiscountAgorot / preview.subtotalAgorot) * 100 * 10) / 10
+      : 0;
   const totalMeters = version.items.reduce((s, i) => s + i.runningMeters, 0);
-  const check = checkDiscount(version.items, activeDiscount, db.settings);
+  const check = checkDiscountAgorot(version.items, activeDiscountAgorot, db.settings);
   const expired = new Date(version.validUntil).getTime() < Date.now() && version.status === 'sent';
 
+  // حساباتٌ خفيفة لا خطافات (تلي عودةً مبكّرة، فلا يجوز أن تكون useMemo):
   // التصنيفات الموجودة في البنود - عليها تُوضَع الزيادة (أو «الكل»).
-  const presentCats = useMemo(
-    () => [...new Set(version.items.map((i) => i.category))],
-    [version.items],
-  );
-  const markupSpec = useMemo<MarkupSpec>(() => {
+  const presentCats = [...new Set(version.items.map((i) => i.category))];
+  const markupSpec: MarkupSpec = (() => {
     const targets: Record<string, number> = {};
     for (const [cat, v] of Object.entries(markupByCat)) {
       const num = parseFloat(v);
       if (num > 0) targets[cat] = num;
     }
     return { mode: markupMode, targets };
-  }, [markupMode, markupByCat]);
-  const anchorSubtotal = useMemo(
-    () =>
-      version.items.reduce(
-        (sum, i) => sum + Math.max(markupListPriceAgorot(i.lineTotalAgorot, i.category, markupSpec), i.lineTotalAgorot),
-        0,
-      ),
-    [version.items, markupSpec],
+  })();
+  const anchorSubtotal = version.items.reduce(
+    (sum, i) =>
+      sum + Math.max(markupListPriceAgorot(i.lineTotalAgorot, i.category, markupSpec), i.lineTotalAgorot),
+    0,
   );
   const hasMarkup = anchorSubtotal > preview.subtotalAgorot;
 
@@ -144,16 +155,16 @@ export default function QuotationScreen() {
         setError('اكتب سبب الخصم لإرسال الطلب للأدمن.');
         return;
       }
-      const rq = await requestDiscount(quotation.id, version.id, activeDiscount, reason);
+      const rq = await requestDiscount(quotation.id, version.id, activePct, reason);
       if (!rq.ok) return setError(rq.error);
       setInfo('تم إرسال طلب الخصم للأدمن. ستصلك النتيجة كإشعار.');
       return;
     }
-    const res = await createVersion(quotation.id, activeDiscount, customerNote, markupSpec);
+    const res = await createVersion(quotation.id, 0, customerNote, markupSpec, activeDiscountAgorot);
     if (!res.ok) return setError(res.error);
-    setDiscount(null);
+    setDiscountAmt(null);
     setReason('');
-    setInfo(`تم إنشاء نسخة جديدة بخصم ${activeDiscount}%.`);
+    setInfo(`تم إنشاء نسخة جديدة - الإجمالي ${money(preview.revenueExVatAgorot)}.`);
   };
 
   return (
@@ -278,7 +289,7 @@ export default function QuotationScreen() {
         <SummaryRow label="مجموع الأمتار" value={meters(round3(totalMeters))} />
         <SummaryRow label="المجموع قبل الخصم" value={money(preview.subtotalAgorot)} />
         <SummaryRow
-          label={`الخصم (${percent(activeDiscount)})`}
+          label={`الخصم (${percent(activePct)})`}
           value={`- ${money(preview.discountAgorot)}`}
         />
         {/* מע"מ لا تُذكر ولا يظهر حسابها إلا حين يُختار כולל מע"מ (قرار
@@ -425,14 +436,12 @@ export default function QuotationScreen() {
             subtitle={`حتى ${db.settings.employeeDiscountLimitPercent}% ضمن صلاحية الموظف • حتى ${db.settings.adminDiscountLimitPercent}% بموافقة الأدمن`}
           />
           <DiscountSlider
-            value={activeDiscount}
-            onChange={setDiscount}
-            max={Math.max(db.settings.adminDiscountLimitPercent * 2, 20)}
+            subtotalAgorot={preview.subtotalAgorot}
+            value={activeDiscountAgorot}
+            onChange={setDiscountAmt}
             employeeLimit={db.settings.employeeDiscountLimitPercent}
             adminLimit={db.settings.adminDiscountLimitPercent}
-            subtotalAgorot={preview.subtotalAgorot}
-            discountAgorot={preview.discountAgorot}
-            totalAgorot={inclVat ? preview.totalAgorot : preview.revenueExVatAgorot}
+            maxPct={Math.max(db.settings.adminDiscountLimitPercent * 2, 20)}
           />
 
           <View style={{ marginTop: spacing.md }}>
@@ -455,7 +464,7 @@ export default function QuotationScreen() {
             />
           </View>
 
-          {(check.authority === 'needs_admin' || activeDiscount > 0) && (
+          {(check.authority === 'needs_admin' || activeDiscountAgorot > 0) && (
             <View style={{ marginTop: spacing.md }}>
               <Field
                 label="سبب الخصم"

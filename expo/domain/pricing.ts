@@ -491,6 +491,37 @@ export function anchorSubtotalAgorot(items: QuotationItem[]): number {
   );
 }
 
+/**
+ * الإجماليات من خصمٍ **مطلق** (العصا الذكية): يقف الإجمالي على الرقم بالضبط.
+ * مرآةٌ حرفية لمسار المطلق في الـRPC: المبلغ يُقصّ عند المجموع، والنسبة تُشتقّ
+ * منه، والضريبة تُضاف فوق الإيراد. تُستعمل لمعاينة الشاشة والعصا معًا.
+ */
+export function computeTotalsFromDiscountAgorot(
+  items: QuotationItem[],
+  discountAgorot: number,
+  vatPercent: number,
+): QuotationTotals {
+  const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
+  const internalCostAgorot = items.reduce((s, i) => s + i.internalCostAgorot, 0);
+  const discount = Math.min(Math.max(Math.round(discountAgorot), 0), subtotalAgorot);
+  const revenueExVatAgorot = subtotalAgorot - discount;
+  const vatAgorot = Math.floor((revenueExVatAgorot * Math.round(vatPercent * 100)) / 1_000_000) * 100;
+  const marginPercent =
+    revenueExVatAgorot > 0
+      ? divRoundHalfAway((revenueExVatAgorot - internalCostAgorot) * 10_000, revenueExVatAgorot) / 100
+      : 0;
+  return {
+    subtotalAgorot,
+    discountAgorot: discount,
+    revenueExVatAgorot,
+    vatAgorot,
+    totalAgorot: revenueExVatAgorot + vatAgorot,
+    internalCostAgorot,
+    marginAgorot: revenueExVatAgorot - internalCostAgorot,
+    marginPercent,
+  };
+}
+
 export function computeTotals(
   items: QuotationItem[],
   discountPercent: number,
@@ -533,6 +564,30 @@ export interface DiscountCheck {
   authority: DiscountAuthority;
   belowMinMargin: boolean;
   message: string;
+}
+
+/**
+ * فحص خصمٍ **مطلق** (العصا الذكية): الصلاحية من النسبة المشتقّة، والهامش من
+ * المبلغ الفعلي. مرآةٌ لِما يفرضه الخادم عند الإرسال.
+ */
+export function checkDiscountAgorot(
+  items: QuotationItem[],
+  discountAgorot: number,
+  settings: BusinessSettings,
+): DiscountCheck {
+  const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
+  const derivedPct =
+    subtotalAgorot > 0 ? Math.round((discountAgorot / subtotalAgorot) * 100 * 100) / 100 : 0;
+  const authority = discountAuthority(derivedPct, settings);
+  const totals = computeTotalsFromDiscountAgorot(items, discountAgorot, settings.vatPercent);
+  const belowMinMargin = totals.marginPercent < settings.minMarginPercent;
+  let message = 'الخصم ضمن صلاحية الموظف.';
+  if (authority === 'needs_admin') message = 'الخصم يتطلب موافقة الأدمن.';
+  if (authority === 'needs_override')
+    message = `خصم أكثر من ${settings.adminDiscountLimitPercent}% يلزمه Override موثق: طلب خصم يعتمده الأدمن.`;
+  if (belowMinMargin)
+    message = `السعر النهائي ينزل تحت الحد الأدنى لنسبة الربح (${settings.minMarginPercent}%).`;
+  return { authority, belowMinMargin, message };
 }
 
 export function checkDiscount(

@@ -1,9 +1,22 @@
 -- ════════════════════════════════════════════════════════════════════
--- api.create_quotation_version
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
+-- التخفيض الذكي الدقيق على السعر النهائي (العصا)
+--
+-- الطلب: «التخفيض الذكي يجب أن يتطرق للسعر النهائي وليس لسعر عناصر...
+-- 1600 .. 1400 .. 1200». فيقف الإجمالي على الرقم المستدير بالضبط.
+--
+-- بلا عمودٍ جديد: `discount_agorot` (الموجود) يصير المصدر الأساسي - مبلغٌ
+-- مطلقٌ دقيق - و`discount_percent` يُشتقّ منه = round(discount/subtotal×100, 2)
+-- لبوابة الصلاحية وطلب الخصم والبصمة. توافقٌ تامّ: حين لا يُمرَّر مبلغٌ يعمل
+-- المسار القديم بالنسبة كما كان.
+--
+-- المحرّك `price_project_windows` **دون تغيير** (المتجهات الذهبية تبقى)،
+-- والزيادة التسويقية (list_price) عرضٌ فقط كما هي - لا تمسّ هذا الخصم.
+--
+-- توقيعٌ جديد (وسيطٌ سابع p_discount_agorot)، فيُسقَط توقيع الحيلة (٦ وسائط)
+-- أولًا لئلا يبقى تحميلٌ زائد.
 -- ════════════════════════════════════════════════════════════════════
+
+drop function if exists api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb);
 
 CREATE OR REPLACE FUNCTION api.create_quotation_version(p_project_id uuid, p_discount_percent numeric, p_note text, p_idempotency_key uuid, p_expected_project_version integer DEFAULT NULL::integer, p_markup jsonb DEFAULT '{}'::jsonb, p_discount_agorot bigint DEFAULT NULL::bigint)
  RETURNS jsonb
@@ -331,3 +344,13 @@ begin
 
   return v_result;
 end $function$;
+
+-- نقل ملكية دالةٍ أُعيد إنشاؤها (أُسقط توقيعها القديم) يحتاج CREATE على المخطط
+grant create on schema api to baytak_rpc_owner;
+alter function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb, bigint) owner to baytak_rpc_owner;
+revoke all on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb, bigint) from public, anon;
+grant execute on function api.create_quotation_version(uuid, numeric, text, uuid, integer, jsonb, bigint) to authenticated;
+
+revoke create on schema api from baytak_rpc_owner;
+
+notify pgrst, 'reload schema';
