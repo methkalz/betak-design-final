@@ -1,12 +1,14 @@
 /**
- * منزلق الخصم — سحبٌ حيّ بمقبض، والمبالغ تتبدّل تحت إصبعك.
+ * منزلق الخصم الذكي — يُقاد بـ**الإجمالي النهائي المستهدَف** لا بالنسبة.
  *
- * لون الشريط ليس زينة: يترجم **الصلاحية** لا المقدار. أخضر ما دام الخصم
- * ضمن حد الموظف، فيصفرّ تدريجيًا حتى حد الأدمن (يلزم اعتماد)، ثم يحمرّ
- * فوقه (يلزم Override موثق). فيعرف المستخدم أثر حركته قبل أن يرفع إصبعه.
+ * التفاوض الحقيقي يجري على الرقم المستدير: «انزل إلى 1600»، لا «انزل 13.51%».
+ * فالعصا تقف بالضبط على 1600 و1400 و1200 (نقاطٌ مغناطيسية)، ويمكن الوقوف
+ * حرًّا على 1550 بينها. القراءة الأساسية هي الإجمالي المستهدَف، والخصم مبلغٌ
+ * مطلقٌ دقيق يُخرَج للأعلى (لا نسبةٌ تُقرِّب فتُخطئ الرقم).
  *
- * والإدخال اليدوي بالوجهين: نسبة مئوية أو مبلغ بالشيكل - يكتب أيهما شاء
- * فيحسب الآخر، لأن البائع يفاوض أحيانًا بالنسبة وأحيانًا بمبلغ مقطوع.
+ * لون الشريط يترجم **الصلاحية** لا المقدار: أخضر ما دام ضمن حد الموظف،
+ * فيصفرّ حتى حد الأدمن (يلزم اعتماد)، ثم يحمرّ فوقه. والنسبة تُشتقّ من المبلغ
+ * لهذا الغرض وحده.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -25,12 +27,16 @@ import { agorotToShekel, money, percent, shekelToAgorot } from '@/lib/format';
 
 const KNOB = 30;
 const TRACK_H = 10;
-/** زنبرك سريع قليل التذبذب: يلتصق كالمغناطيس بلا ارتداد ولا تباطؤ. */
 const SNAPPY = { damping: 26, stiffness: 520, mass: 0.4 } as const;
 const LABEL_H = 26;
 const ROW_H = KNOB + 12;
 
-/** لون الشريط عند نسبة ما: أخضر ← كهرماني ← أحمر بحسب الحدود. */
+/** إسقاطٌ إلى الشيكل الصحيح (مضاعف 100 أغورة). */
+function floorToShekel(agorot: number): number {
+  return Math.floor(agorot / 100) * 100;
+}
+
+/** لون الشريط عند نسبةٍ مشتقّة: أخضر ← كهرماني ← أحمر بحسب الحدود. */
 export function discountTone(pct: number, employeeLimit: number, adminLimit: number): string {
   if (pct <= employeeLimit) return palette.success;
   if (pct <= adminLimit) return palette.warning;
@@ -38,12 +44,13 @@ export function discountTone(pct: number, employeeLimit: number, adminLimit: num
 }
 
 interface Snap {
-  pct: number;
+  /** مبلغ الخصم عند هذه النقطة (أغورة). */
+  discount: number;
   label: string;
   kind: 'zero' | 'limit' | 'round';
 }
 
-/** خطوة «مريحة» تعطي عددًا معقولًا من النقاط مهما كان حجم العرض. */
+/** خطوة «مريحة» تعطي عددًا معقولًا من النقاط المستديرة مهما كان حجم العرض. */
 function niceStep(rangeShekel: number): number {
   for (const t of [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]) {
     if (rangeShekel / t <= 6) return t;
@@ -52,104 +59,99 @@ function niceStep(rangeShekel: number): number {
 }
 
 /**
- * النقاط المغناطيسية: حدود الصلاحية (5% و10%) لأنها تغيّر مسار الموافقة،
- * ونِسَبٌ تُنزل **الإجمالي النهائي** إلى رقم مستدير (1,300 بدل 1,385) لأن
- * التفاوض الحقيقي يجري على الرقم المستدير لا على النسبة.
+ * النقاط المغناطيسية بوصفها **مبالغ خصم**: صفر، وحدود الصلاحية (لأنها تغيّر
+ * مسار الموافقة)، وخصومٌ تُنزل الإجمالي إلى رقمٍ مستدير (1,600 بدل 1,658).
  */
 function buildSnaps(
   subtotalAgorot: number,
-  max: number,
+  maxDiscount: number,
   employeeLimit: number,
   adminLimit: number,
 ): Snap[] {
-  const out: Snap[] = [{ pct: 0, label: 'بلا خصم', kind: 'zero' }];
+  const out: Snap[] = [{ discount: 0, label: 'بلا خصم', kind: 'zero' }];
 
   for (const [limit, label] of [
     [employeeLimit, 'حد الموظف'],
     [adminLimit, 'حد الأدمن'],
   ] as const) {
-    if (limit > 0 && limit <= max) out.push({ pct: limit, label, kind: 'limit' });
+    const d = floorToShekel((subtotalAgorot * limit) / 100);
+    if (d > 0 && d <= maxDiscount) out.push({ discount: d, label, kind: 'limit' });
   }
 
-  if (subtotalAgorot > 0) {
-    const rangeShekel = agorotToShekel((subtotalAgorot * max) / 100);
+  if (subtotalAgorot > 0 && maxDiscount > 0) {
+    const rangeShekel = agorotToShekel(maxDiscount);
     const stepAgorot = shekelToAgorot(niceStep(rangeShekel));
-    const lowest = subtotalAgorot - (subtotalAgorot * max) / 100;
+    const lowestTotal = subtotalAgorot - maxDiscount;
     let target = Math.floor((subtotalAgorot - 1) / stepAgorot) * stepAgorot;
-    while (target >= lowest && target > 0) {
-      const pct = Math.round(((subtotalAgorot - target) / subtotalAgorot) * 1000) / 10;
-      if (pct > 0 && pct <= max) {
-        out.push({ pct, label: `الإجمالي ${money(target)}`, kind: 'round' });
+    while (target >= lowestTotal && target > 0) {
+      const discount = subtotalAgorot - target;
+      if (discount > 0 && discount <= maxDiscount) {
+        out.push({ discount, label: `الإجمالي ${money(target)}`, kind: 'round' });
       }
       target -= stepAgorot;
     }
   }
 
   // الحدود تفوز على النقاط المستديرة إن تقاربتا، فمسار الموافقة أهم
-  const seen = new Map<string, Snap>();
+  const seen = new Map<number, Snap>();
   for (const s of out.sort((a, b) => (a.kind === 'round' ? 1 : -1))) {
-    const key = s.pct.toFixed(1);
+    const key = Math.round(s.discount / 100);
     if (!seen.has(key)) seen.set(key, s);
   }
-  return [...seen.values()].sort((a, b) => a.pct - b.pct);
+  return [...seen.values()].sort((a, b) => a.discount - b.discount);
 }
 
 export function DiscountSlider({
+  subtotalAgorot,
   value,
   onChange,
-  max,
   employeeLimit,
   adminLimit,
-  subtotalAgorot,
-  discountAgorot,
-  totalAgorot,
+  maxPct,
 }: {
-  /** النسبة الحالية (0..max) */
+  subtotalAgorot: number;
+  /** مبلغ الخصم الحالي (أغورة). */
   value: number;
-  onChange: (pct: number) => void;
-  max: number;
+  onChange: (discountAgorot: number) => void;
   employeeLimit: number;
   adminLimit: number;
-  subtotalAgorot: number;
-  discountAgorot: number;
-  totalAgorot: number;
+  /** أقصى نسبة خصمٍ مسموحة (يُشتقّ منها أقصى مبلغ). */
+  maxPct: number;
 }) {
   const [width, setWidth] = useState(0);
-  const [shekelDraft, setShekelDraft] = useState<string | null>(null);
-  const [pctDraft, setPctDraft] = useState<string | null>(null);
-  const startPct = useSharedValue(0);
+  const [totalDraft, setTotalDraft] = useState<string | null>(null);
+  const [discountDraft, setDiscountDraft] = useState<string | null>(null);
+  const startPos = useSharedValue(0);
 
-  const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+  const maxDiscount = Math.max(0, floorToShekel((subtotalAgorot * maxPct) / 100));
+  const clamped = Math.min(Math.max(0, value), maxDiscount);
+  const derivedPct = subtotalAgorot > 0 ? (clamped / subtotalAgorot) * 100 : 0;
+  const targetTotal = subtotalAgorot - clamped;
+
+  const ratio = maxDiscount > 0 ? Math.min(1, Math.max(0, clamped / maxDiscount)) : 0;
   const usable = Math.max(0, width - KNOB);
-  const tone = discountTone(value, employeeLimit, adminLimit);
+  const tone = discountTone(derivedPct, employeeLimit, adminLimit);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setWidth(e.nativeEvent.layout.width);
   }, []);
 
   const snaps = useMemo(
-    () => buildSnaps(subtotalAgorot, max, employeeLimit, adminLimit),
-    [subtotalAgorot, max, employeeLimit, adminLimit],
+    () => buildSnaps(subtotalAgorot, maxDiscount, employeeLimit, adminLimit),
+    [subtotalAgorot, maxDiscount, employeeLimit, adminLimit],
   );
 
-  /** النقطة التي نقف عليها الآن (إن وُجدت) — تُظهر بطاقة الوصف فوق المقبض. */
   const resting = useMemo(
-    () => snaps.find((s) => Math.abs(s.pct - value) < 0.05) ?? null,
-    [snaps, value],
+    () => snaps.find((s) => Math.abs(s.discount - clamped) < 50) ?? null,
+    [snaps, clamped],
   );
 
-  /**
-   * موضع المقبض قيمةٌ مشتركة تعمل على الخيط الرسومي، لا مشتقة من حالة
-   * React: الاشتقاق كان يعيد تشغيل الزنبرك في كل إطار فيتخلّف المقبض عن
-   * الإصبع ويستقر ببطء. الآن يتتبّع الإصبع فورًا، والزنبرك السريع لا يعمل
-   * إلا في الجذب إلى نقطة أو عند تغيير القيمة من الحقول اليدوية.
-   */
   const pos = useSharedValue(0);
   const dragging = useSharedValue(false);
 
   const snapPx = useMemo(
-    () => (usable > 0 ? snaps.map((s) => (s.pct / max) * usable) : []),
-    [snaps, max, usable],
+    () => (usable > 0 && maxDiscount > 0 ? snaps.map((s) => (s.discount / maxDiscount) * usable) : []),
+    [snaps, maxDiscount, usable],
   );
 
   useEffect(() => {
@@ -157,14 +159,14 @@ export function DiscountSlider({
     pos.value = withSpring(ratio * usable, SNAPPY);
   }, [ratio, usable, pos, dragging]);
 
-  /** RTL: الصفر عند اليمين، فالإزاحة تُقاس من اليمين إلى اليسار. */
+  /** RTL: الصفر عند اليمين. البكسل → مبلغ خصمٍ صحيحٍ بالشيكل. */
   const commitPx = useCallback(
     (px: number) => {
-      if (usable <= 0) return;
+      if (usable <= 0 || maxDiscount <= 0) return;
       const r = Math.min(1, Math.max(0, px / usable));
-      onChange(Math.round(r * max * 10) / 10);
+      onChange(floorToShekel(r * maxDiscount));
     },
-    [usable, max, onChange],
+    [usable, maxDiscount, onChange],
   );
 
   const pan = useMemo(
@@ -172,12 +174,11 @@ export function DiscountSlider({
       Gesture.Pan()
         .onBegin(() => {
           dragging.value = true;
-          startPct.value = pos.value;
+          startPos.value = pos.value;
         })
         .onUpdate((e) => {
-          let raw = startPct.value - e.translationX;
+          let raw = startPos.value - e.translationX;
           raw = Math.max(0, Math.min(usable, raw));
-          // الجذب على الخيط الرسومي نفسه: المقبض يلتصق بالنقطة فورًا
           let target = raw;
           for (let i = 0; i < snapPx.length; i++) {
             if (Math.abs(snapPx[i] - raw) <= 16) {
@@ -191,7 +192,7 @@ export function DiscountSlider({
         .onFinalize(() => {
           dragging.value = false;
         }),
-    [startPct, pos, dragging, usable, snapPx, commitPx],
+    [startPos, pos, dragging, usable, snapPx, commitPx],
   );
 
   const tap = useMemo(
@@ -212,44 +213,45 @@ export function DiscountSlider({
 
   const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value }] }));
 
-  const applyPct = (t: string) => {
-    setPctDraft(t);
-    setShekelDraft(null);
+  const applyTarget = (t: string) => {
+    setTotalDraft(t);
+    setDiscountDraft(null);
     const n = parseFloat(t.replace(',', '.'));
-    if (Number.isFinite(n)) onChange(Math.min(max, Math.max(0, Math.round(n * 10) / 10)));
+    if (!Number.isFinite(n)) return;
+    const d = subtotalAgorot - shekelToAgorot(n);
+    onChange(Math.min(maxDiscount, Math.max(0, floorToShekel(d))));
   };
 
-  const applyShekel = (t: string) => {
-    setShekelDraft(t);
-    setPctDraft(null);
+  const applyDiscount = (t: string) => {
+    setDiscountDraft(t);
+    setTotalDraft(null);
     const n = parseFloat(t.replace(',', '.'));
-    if (!Number.isFinite(n) || subtotalAgorot <= 0) return;
-    const pct = (shekelToAgorot(n) / subtotalAgorot) * 100;
-    onChange(Math.min(max, Math.max(0, Math.round(pct * 10) / 10)));
+    if (!Number.isFinite(n)) return;
+    onChange(Math.min(maxDiscount, Math.max(0, floorToShekel(shekelToAgorot(n)))));
   };
 
   return (
     <View style={{ gap: spacing.lg }}>
-      {/* القراءة الحية */}
+      {/* القراءة الحية: الإجمالي المستهدَف هو البطل */}
       <Row justify="space-between" align="flex-end">
         <View>
           <AppText variant="caption" color={palette.muted}>
-            نسبة الخصم
+            الإجمالي المستهدَف
           </AppText>
-          <Row gap={6} align="baseline">
-            <AppText variant="numberLarge" color={tone}>
-              {percent(value)}
-            </AppText>
-            <AppText variant="caption" color={palette.muted}>
-              {money(discountAgorot)}
-            </AppText>
-          </Row>
+          <AppText variant="numberLarge" color={tone}>
+            {money(targetTotal)}
+          </AppText>
         </View>
         <View style={{ alignItems: 'flex-start' }}>
           <AppText variant="caption" color={palette.muted}>
-            المبلغ النهائي
+            الخصم
           </AppText>
-          <AppText variant="number">{money(totalAgorot)}</AppText>
+          <Row gap={6} align="baseline">
+            <AppText variant="number">{money(clamped)}</AppText>
+            <AppText variant="caption" color={palette.muted}>
+              {percent(Math.round(derivedPct * 10) / 10)}
+            </AppText>
+          </Row>
         </View>
       </Row>
 
@@ -275,27 +277,26 @@ export function DiscountSlider({
           <View style={styles.track}>
             <LinearGradient
               colors={[palette.success, palette.warning, palette.danger]}
-              locations={[0, Math.min(0.85, adminLimit / Math.max(max, 1)), 1]}
+              locations={[0, Math.min(0.85, maxPct > 0 ? adminLimit / maxPct : 0.85), 1]}
               start={{ x: 1, y: 0.5 }}
               end={{ x: 0, y: 0.5 }}
               style={StyleSheet.absoluteFill}
             />
-            {/* الجزء غير المستخدم يُغطّى فيبقى اللون معبّرًا عن الموضع */}
             <View style={[styles.trackRest, { width: `${(1 - ratio) * 100}%` }]} />
           </View>
 
-          {/* النقاط المغناطيسية فوق الشريط */}
           {usable > 0 &&
+            maxDiscount > 0 &&
             snaps.map((s) => {
-              const on = Math.abs(s.pct - value) < 0.05;
+              const on = Math.abs(s.discount - clamped) < 50;
               return (
                 <View
-                  key={`${s.kind}-${s.pct}`}
+                  key={`${s.kind}-${s.discount}`}
                   pointerEvents="none"
                   style={[
                     styles.snapDot,
                     {
-                      right: KNOB / 2 + (s.pct / max) * usable - (on ? 4 : 3),
+                      right: KNOB / 2 + (s.discount / maxDiscount) * usable - (on ? 4 : 3),
                       width: on ? 8 : 6,
                       height: on ? 8 : 6,
                       borderRadius: on ? 4 : 3,
@@ -313,29 +314,29 @@ export function DiscountSlider({
 
       <Row justify="space-between">
         <AppText variant="caption" color={palette.muted}>
-          0%
+          {money(subtotalAgorot - maxDiscount)}
         </AppText>
         <AppText variant="caption" color={palette.muted}>
-          {percent(max)}
+          {money(subtotalAgorot)}
         </AppText>
       </Row>
 
-      {/* الإدخال اليدوي بالوجهين */}
+      {/* الإدخال اليدوي بالوجهين: الإجمالي المستهدَف أو مبلغ الخصم */}
       <Row gap={spacing.md} align="flex-start">
         <View style={{ flex: 1 }}>
           <Field
-            label="نسبة مئوية"
-            value={pctDraft ?? String(value)}
-            onChangeText={applyPct}
+            label="الإجمالي المستهدَف"
+            value={totalDraft ?? String(agorotToShekel(targetTotal))}
+            onChangeText={applyTarget}
             keyboardType="decimal-pad"
-            suffix="%"
+            suffix="₪"
           />
         </View>
         <View style={{ flex: 1 }}>
           <Field
             label="مبلغ الخصم"
-            value={shekelDraft ?? String(agorotToShekel(discountAgorot))}
-            onChangeText={applyShekel}
+            value={discountDraft ?? String(agorotToShekel(clamped))}
+            onChangeText={applyDiscount}
             keyboardType="decimal-pad"
             suffix="₪"
           />
@@ -346,63 +347,52 @@ export function DiscountSlider({
 }
 
 const styles = StyleSheet.create({
-  /**
-   * الصفر عند اليمين: row-reverse مع flex-start يضع المقبض على الحافة
-   * اليمنى ثم ينزلق يسارًا. (كان justifyContent: center فيتوسط المقبض
-   * بعيدًا عن الشريط.)
-   */
   trackWrap: {
     height: ROW_H,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  /**
-   * موضع صريح لا absoluteFillObject: الأخير يثبّت top وbottom معًا فيتمدد
-   * الشريط على كامل الارتفاع ويُلغى height - وهو سبب ابتعاد المقبض عن الخط.
-   */
   track: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: (ROW_H - TRACK_H) / 2,
+    flex: 1,
     height: TRACK_H,
     borderRadius: TRACK_H / 2,
     overflow: 'hidden',
-    backgroundColor: palette.sand,
+    backgroundColor: palette.sandDeep,
   },
   trackRest: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: palette.sand,
-  },
-  snapDot: {
-    position: 'absolute',
-    top: ROW_H / 2 - 4,
-  },
-  snapLabel: {
-    position: 'absolute',
-    bottom: 0,
-    minWidth: 120,
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    backgroundColor: palette.white,
+    backgroundColor: palette.sandDeep,
   },
   knob: {
+    position: 'absolute',
+    right: 0,
     width: KNOB,
     height: KNOB,
     borderRadius: KNOB / 2,
     backgroundColor: palette.white,
     borderWidth: 3,
-    shadowColor: '#3F3D8F',
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    ...({ elevation: 4 } as object),
+    shadowColor: '#1B1F32',
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  snapDot: {
+    position: 'absolute',
+    top: ROW_H / 2 - 3,
+  },
+  snapLabel: {
+    position: 'absolute',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    borderWidth: 1.4,
+    backgroundColor: palette.white,
+    minWidth: 120,
+    alignItems: 'center',
   },
 });

@@ -443,6 +443,38 @@ probe = as_user(SALES, f"""select 'v=' || (select count(*) from api.quotation_it
               from api.quotation_versions where version_id = '{vm}');""")
 check('40 العرضان يكشفان list_price وmarkup_spec', 'v=1|m=15' in probe, probe)
 
+# ── التخفيض الذكي الدقيق: مبلغٌ مطلق يقف الإجمالي على الرقم بالضبط ─────────────
+# PN بندٌ واحد، subtotal = 58000. خصمٌ مطلق 8000 ← الإيراد قبل מע"מ = 50000
+# بالضبط (يقف على 500₪). والمسار المئوي القديم لا يبلغه: 13.79% تعطي
+# floor(58000×13.79/100/100)×100 = 7900 لا 8000 - فالمطلق أدقّ بالتصميم.
+out = as_user(SALES, f"""select api.create_quotation_version(
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f005'::uuid, null,
+  '{{}}'::jsonb, 8000)::text;""")
+ok = ('"discount_agorot": 8000' in out
+      and '"subtotal_agorot": 58000' in out
+      and '"total_agorot": 59000' in out)   # rev_ex 50000 + מע"מ 9000
+check('41 خصمٌ مطلق 8000: الإيراد يقف على 50000 (المطلق دقيق حيث المئوي 7900)',
+      ok, out)
+
+vd = grab(r'"version_id"\s*:\s*"([0-9a-f-]+)"', out)
+probe = sql(f"""select 'pct=' || discount_percent || '|disc=' || discount_agorot
+ from core.quotation_versions where id = '{vd}';""", quiet=False)
+check('42 النسبة تُشتقّ من المبلغ للصلاحية: 8000/58000 = 13.79٪',
+      'pct=13.79|disc=8000' in probe, probe)
+
+# مبلغٌ يفوق المجموع يُقصّ إلى المجموع (least) - لا خصمٌ سالب ولا إيرادٌ سالب
+out = as_user(SALES, f"""select api.create_quotation_version(
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f006'::uuid, null,
+  '{{}}'::jsonb, 99999999)::text;""")
+check('43 مبلغٌ يفوق المجموع يُقصّ إلى المجموع (الإجمالي 0 لا سالب)',
+      '"discount_agorot": 58000' in out and '"total_agorot": 0' in out, out)
+
+# مبلغٌ سالب مرفوض
+out = as_user(SALES, f"""select api.create_quotation_version(
+  '{pid('PN')}'::uuid, 0, '', 'aaaa4444-0000-4000-8000-00000000f007'::uuid, null,
+  '{{}}'::jsonb, -100)::text;""")
+check('44 مبلغ خصمٍ سالب BD400', 'BD400' in out or 'سالبًا' in out, out)
+
 
 print('\n=== cleanup ===')
 sql(PURGE)

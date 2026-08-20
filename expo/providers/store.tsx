@@ -19,7 +19,13 @@ import {
 } from '@/domain/labels';
 import type { AssignmentKind } from '@/domain/assignment';
 import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/permissions';
-import { computeTotals, markupListPriceAgorot, priceWindow, round3 } from '@/domain/pricing';
+import {
+  computeTotals,
+  computeTotalsFromDiscountAgorot,
+  markupListPriceAgorot,
+  priceWindow,
+  round3,
+} from '@/domain/pricing';
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
 import { attachmentPath, uploadAttachmentFile } from '@/lib/storage';
@@ -1832,6 +1838,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       discountPercent: number,
       note: string,
       markup?: MarkupSpec,
+      discountAgorot?: number,
     ): Promise<Result<string>> => {
       const denied = guard('create_quotation');
       if (denied) return denied as Result<string>;
@@ -1843,7 +1850,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (source === 'live') {
         // المفتاح يشمل الزيادة: مقترحٌ بزيادةٍ مختلفة نسخةٌ مختلفة
         const markupKey = markup ? JSON.stringify(markup.targets) : '-';
-        const slot = `qv:${quotationId}:${discountPercent}:${markupKey}`;
+        const slot = `qv:${quotationId}:${discountPercent}:${discountAgorot ?? '-'}:${markupKey}`;
         setBusy('create-quote');
         try {
           const { data, error } = await supabase.rpc('create_quotation_version', {
@@ -1852,6 +1859,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             p_note: note,
             p_idempotency_key: takeIdemKey(slot),
             p_markup: markup ?? { mode: 'percent', targets: {} },
+            p_discount_agorot: discountAgorot ?? null,
           });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);
@@ -1872,7 +1880,14 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       const vid = uid('qv');
       mutate((draft) => {
         const versions = draft.quotationVersions.filter((v) => v.quotationId === quotationId);
-        const totals = computeTotals(items, discountPercent, draft.settings);
+        const totals =
+          discountAgorot != null
+            ? computeTotalsFromDiscountAgorot(items, discountAgorot, draft.settings.vatPercent)
+            : computeTotals(items, discountPercent, draft.settings);
+        const derivedPct =
+          totals.subtotalAgorot > 0
+            ? Math.round((totals.discountAgorot / totals.subtotalAgorot) * 100 * 100) / 100
+            : 0;
         const now = new Date();
         draft.quotationVersions.push({
           id: vid,
@@ -1882,7 +1897,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           status: 'draft',
           items,
           subtotalAgorot: totals.subtotalAgorot,
-          discountPercent,
+          discountPercent: discountAgorot != null ? derivedPct : discountPercent,
           discountAgorot: totals.discountAgorot,
           vatAgorot: totals.vatAgorot,
           totalAgorot: totals.totalAgorot,
