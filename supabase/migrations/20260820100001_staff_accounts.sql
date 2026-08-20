@@ -17,16 +17,6 @@
 alter table core.organization_members
   add column if not exists capability_overrides jsonb not null default '{}'::jsonb;
 
-grant usage on schema auth to baytak_rpc_owner;
-grant select, insert on auth.users to baytak_rpc_owner;
-grant update (encrypted_password, banned_until, updated_at) on auth.users to baytak_rpc_owner;
-grant select, insert on auth.identities to baytak_rpc_owner;
-grant select, delete on auth.sessions to baytak_rpc_owner;
-grant select, delete on auth.refresh_tokens to baytak_rpc_owner;
-grant usage on schema extensions to baytak_rpc_owner;
-grant select, insert on core.profiles to baytak_rpc_owner;
-grant select, insert, update on core.organization_members to baytak_rpc_owner;
-
 CREATE OR REPLACE FUNCTION private.capability_known(p_capability text)
  RETURNS boolean
  LANGUAGE sql
@@ -532,25 +522,19 @@ begin
   return v_result;
 end $function$;
 
--- نقل ملكية دالةٍ جديدة يحتاج CREATE على المخطط لحظةَ النقل - يُمنح ثم يُسحب
-grant create on schema api to baytak_rpc_owner;
-
-alter function api.create_staff(text, text, text, text, uuid, text) owner to baytak_rpc_owner;
+-- هذه الخمس وحدها تبقى بملكية postgres لا baytak_rpc_owner - عمدًا:
+-- عملها كله على auth.users، وdور postgres يملك الكتابة عليه ولا يملك
+-- إعادة منحها (لا grant option)، فمنحُ المالك المعتاد يصير لا-أثرَ صامتًا
+-- (WARNING 01007) وتسقط الدالة عند أول لمسة. الحارس الداخلي (أدمن
+-- المؤسسة حصرًا) هو البوابة، وsearch_path فارغ كسائر الدوال
 revoke all on function api.create_staff(text, text, text, text, uuid, text) from public, anon;
 grant execute on function api.create_staff(text, text, text, text, uuid, text) to authenticated;
-alter function api.set_staff_active(uuid, boolean, uuid) owner to baytak_rpc_owner;
 revoke all on function api.set_staff_active(uuid, boolean, uuid) from public, anon;
 grant execute on function api.set_staff_active(uuid, boolean, uuid) to authenticated;
-alter function api.set_staff_role(uuid, text, uuid) owner to baytak_rpc_owner;
 revoke all on function api.set_staff_role(uuid, text, uuid) from public, anon;
 grant execute on function api.set_staff_role(uuid, text, uuid) to authenticated;
-alter function api.set_staff_capability(uuid, text, boolean, uuid) owner to baytak_rpc_owner;
 revoke all on function api.set_staff_capability(uuid, text, boolean, uuid) from public, anon;
 grant execute on function api.set_staff_capability(uuid, text, boolean, uuid) to authenticated;
-alter function api.reset_staff_password(uuid, text, uuid) owner to baytak_rpc_owner;
 revoke all on function api.reset_staff_password(uuid, text, uuid) from public, anon;
 grant execute on function api.reset_staff_password(uuid, text, uuid) to authenticated;
-
-revoke create on schema api from baytak_rpc_owner;
-
 notify pgrst, 'reload schema';
