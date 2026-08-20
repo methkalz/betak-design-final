@@ -22,6 +22,7 @@ import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/p
 import {
   computeTotals,
   computeTotalsFromDiscountAgorot,
+  derivedDiscountPercent,
   markupListPriceAgorot,
   priceWindow,
   round3,
@@ -1884,10 +1885,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           discountAgorot != null
             ? computeTotalsFromDiscountAgorot(items, discountAgorot, draft.settings.vatPercent)
             : computeTotals(items, discountPercent, draft.settings);
-        const derivedPct =
-          totals.subtotalAgorot > 0
-            ? Math.round((totals.discountAgorot / totals.subtotalAgorot) * 100 * 100) / 100
-            : 0;
+        const derivedPct = derivedDiscountPercent(totals.discountAgorot, totals.subtotalAgorot);
         const now = new Date();
         draft.quotationVersions.push({
           id: vid,
@@ -2058,36 +2056,39 @@ export const [StoreProvider, useStore] = createContextHook(() => {
     async (
       quotationId: UUID,
       versionId: UUID,
+      discountAgorot: number,
       percent: number,
       reason: string,
     ): Promise<Result<void>> => {
       if (!reason.trim()) return failWith('سبب الخصم مطلوب.', 'validation');
 
       if (source === 'live') {
-        // نموذج الخادم: النسبة المطلوبة تعيش على مسودةٍ والطلبُ يتعلق بها.
-        // إن لم تكن النسخة الحالية مسودةً بهذه النسبة تُنشأ أولًا. المفاتيح
-        // على العرض والنسبة لا على النسخة: الشاشة بعد التحديث تعرض المسودة
-        // الجديدة، فإعادة المحاولة تجدها وتطلب عليها نفسها - لا مسودة ثانية
+        // نموذج الخادم: المسودة تحمل مبلغ الخصم المطلق (العصا الذكية)، والطلبُ
+        // يتعلّق بها. إن لم تكن النسخة الحالية مسودةً بهذا المبلغ تُنشأ أولًا -
+        // بالمبلغ المطلق لا بالنسبة، فيصل الزبونَ الرقمُ الذي فاوض عليه بالضبط.
+        // المفاتيح على العرض والمبلغ لا على النسخة: الشاشة بعد التحديث تعرض
+        // المسودة الجديدة، فإعادة المحاولة تجدها وتطلب عليها نفسها - لا مسودة ثانية
         const current = db.quotationVersions.find((v) => v.id === versionId);
         const quotation = db.quotations.find((q) => q.id === quotationId);
         if (!current || !quotation) return failWith('العرض غير موجود.', 'validation');
         setBusy('request-discount');
         try {
           let targetVid = versionId;
-          if (!(current.status === 'draft' && current.discountPercent === percent)) {
-            const slotC = `drc:${quotationId}:${percent}`;
+          if (!(current.status === 'draft' && current.discountAgorot === discountAgorot)) {
+            const slotC = `drc:${quotationId}:${discountAgorot}`;
             const { data, error } = await supabase.rpc('create_quotation_version', {
               p_project_id: quotation.projectId,
-              p_discount_percent: percent,
+              p_discount_percent: 0,
               p_note: `طلب خصم ${percent}%`,
               p_idempotency_key: takeIdemKey(slotC),
+              p_discount_agorot: discountAgorot,
             });
             settleIdemKey(slotC, error);
             if (error) return liveFail(error);
             targetVid = (data as { version_id?: string } | null)?.version_id ?? '';
             if (!targetVid) return failWith('تعذر إنشاء نسخة الخصم.', 'validation');
           }
-          const slotR = `drq:${quotationId}:${percent}`;
+          const slotR = `drq:${quotationId}:${discountAgorot}`;
           const { error: reqError } = await supabase.rpc('request_discount', {
             p_version_id: targetVid,
             p_reason: reason.trim(),
@@ -2115,6 +2116,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           quotationId,
           versionId,
           requestedPercent: percent,
+          requestedDiscountAgorot: discountAgorot,
           reason: reason.trim(),
           status: 'pending',
           requestedBy: userId ?? 'system',
@@ -2179,7 +2181,17 @@ export const [StoreProvider, useStore] = createContextHook(() => {
           const quotation = draft.quotations.find((q) => q.id === req.quotationId);
           const base = draft.quotationVersions.find((v) => v.id === req.versionId);
           if (quotation && base) {
-            const totals = computeTotals(base.items, req.requestedPercent, draft.settings);
+            // المبلغ المطلق - إن وُجد - يقف الإجمالي على الرقم بالضبط؛ وإلا
+            // فالنسبة للطلبات القديمة/المبذورة. النسبة المخزَّنة تُشتقّ من الناتج.
+            const totals =
+              req.requestedDiscountAgorot != null
+                ? computeTotalsFromDiscountAgorot(
+                    base.items,
+                    req.requestedDiscountAgorot,
+                    draft.settings.vatPercent,
+                  )
+                : computeTotals(base.items, req.requestedPercent, draft.settings);
+            const derivedPct = derivedDiscountPercent(totals.discountAgorot, totals.subtotalAgorot);
             const vid = uid('qv');
             const versions = draft.quotationVersions.filter((v) => v.quotationId === quotation.id);
             draft.quotationVersions.push({
@@ -2187,7 +2199,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
               id: vid,
               versionNumber: versions.length + 1,
               status: 'draft',
-              discountPercent: req.requestedPercent,
+              discountPercent: derivedPct,
               discountAgorot: totals.discountAgorot,
               vatAgorot: totals.vatAgorot,
               totalAgorot: totals.totalAgorot,

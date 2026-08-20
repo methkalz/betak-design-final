@@ -560,6 +560,16 @@ export function discountAuthority(
   return 'needs_override';
 }
 
+/**
+ * النسبة المشتقّة من مبلغ الخصم المطلق - بخانتين عشريّتين، **مصدرٌ واحد**
+ * تستعمله الشاشة (لطلب الموافقة) وفاحصُ الصلاحية والخادمُ سواءً. أيّ تقريبٍ
+ * أخشن يخالف قرارَ البوابة عند الحدّ فيغلق المسار؛ فالتوحيد هنا يمنع ذلك بنيويًّا.
+ */
+export function derivedDiscountPercent(discountAgorot: number, subtotalAgorot: number): number {
+  if (!(subtotalAgorot > 0)) return 0;
+  return Math.round((discountAgorot / subtotalAgorot) * 100 * 100) / 100;
+}
+
 export interface DiscountCheck {
   authority: DiscountAuthority;
   belowMinMargin: boolean;
@@ -576,8 +586,7 @@ export function checkDiscountAgorot(
   settings: BusinessSettings,
 ): DiscountCheck {
   const subtotalAgorot = items.reduce((s, i) => s + i.lineTotalAgorot, 0);
-  const derivedPct =
-    subtotalAgorot > 0 ? Math.round((discountAgorot / subtotalAgorot) * 100 * 100) / 100 : 0;
+  const derivedPct = derivedDiscountPercent(discountAgorot, subtotalAgorot);
   const authority = discountAuthority(derivedPct, settings);
   const totals = computeTotalsFromDiscountAgorot(items, discountAgorot, settings.vatPercent);
   const belowMinMargin = totals.marginPercent < settings.minMarginPercent;
