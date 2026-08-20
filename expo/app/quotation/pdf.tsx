@@ -126,14 +126,14 @@ function buildHtml(params: {
     <thead>
       <tr>
         <th>#</th><th>الغرفة والشباك</th><th>الوصف</th><th>القياس</th>
-        <th>متر طولي</th><th>سعر المتر</th><th>الإجمالي</th>
+        <th>الأمتار</th><th>سعر المتر</th><th>الإجمالي</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
 
   <div class="totals">
-    <div><span>مجموع الأمتار الطولية</span><span>${totalMeters} م</span></div>
+    <div><span>مجموع الأمتار</span><span>${totalMeters} م</span></div>
     <div><span>المجموع</span><span>${money(version.subtotalAgorot)}</span></div>
     <div><span>الخصم (${version.discountPercent}%)</span><span>- ${money(version.discountAgorot)}</span></div>
     ${
@@ -147,7 +147,7 @@ function buildHtml(params: {
 
   <div class="foot">
     ${version.note ? `ملاحظة: ${version.note}<br/>` : ''}
-    الأسعار ${showVat ? 'לא כולל מע"מ و' : ''}شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
+    الأسعار شاملة القياس والتركيب والتوصيل. التنفيذ يبدأ بعد اعتماد العرض ودفع الدفعة الأولى.
     <br/>${orgName} - شكرًا لثقتكم.
   </div>
 </body>

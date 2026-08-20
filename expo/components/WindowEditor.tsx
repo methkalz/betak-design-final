@@ -425,7 +425,7 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
             </AppText>
           </Row>
           <View style={{ marginTop: spacing.md, gap: 6 }}>
-            <PreviewRow label="متر طولي" value={meters(preview.runningMeters)} />
+            <PreviewRow label="الأمتار" value={meters(preview.runningMeters)} />
             <PreviewRow label="قماش مطلوب" value={meters(preview.fabricMeters)} />
             {hasLining && <PreviewRow label="بطانة مطلوبة" value={meters(preview.liningMeters)} />}
             <PreviewRow label="سعر المتر" value={money(preview.unitPriceAgorot)} />

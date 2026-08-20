@@ -724,7 +724,7 @@ function RoomsTab({
               <View style={{ flex: 1 }}>
                 <AppText variant="heading">{room.name}</AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {roomWindows.length} شباك • {meters(round3(totalRunning), false)} متر طولي
+                  {roomWindows.length} شباك • {meters(round3(totalRunning), false)} متر
                 </AppText>
               </View>
               {editable && (
@@ -916,7 +916,7 @@ function QuoteTab({
                 {item.description}
               </AppText>
               <AppText variant="caption" color={palette.muted}>
-                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر طولي
+                {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر
               </AppText>
             </View>
             <View style={{ alignItems: 'flex-start' }}>

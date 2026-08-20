@@ -203,7 +203,7 @@ export default function QuotationScreen() {
                   {item.description}
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
-                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر طولي •{' '}
+                  {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر •{' '}
                   {item.band === 'standard' ? 'أقل من 320 سم' : '320–500 سم'}
                 </AppText>
               </View>
@@ -241,7 +241,7 @@ export default function QuotationScreen() {
         </Row>
         {/* مجموع الأمتار قبل المال: هو ما يُطلب من المخزن ويُسلَّم للخياط،
             وغيابه كان يُلزم جمعه يدويًا من البنود */}
-        <SummaryRow label="مجموع الأمتار الطولية" value={meters(round3(totalMeters))} />
+        <SummaryRow label="مجموع الأمتار" value={meters(round3(totalMeters))} />
         <SummaryRow label="المجموع قبل الخصم" value={money(preview.subtotalAgorot)} />
         <SummaryRow
           label={`الخصم (${percent(activeDiscount)})`}
