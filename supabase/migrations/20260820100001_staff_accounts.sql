@@ -532,6 +532,9 @@ begin
   return v_result;
 end $function$;
 
+-- نقل ملكية دالةٍ جديدة يحتاج CREATE على المخطط لحظةَ النقل - يُمنح ثم يُسحب
+grant create on schema api to baytak_rpc_owner;
+
 alter function api.create_staff(text, text, text, text, uuid, text) owner to baytak_rpc_owner;
 revoke all on function api.create_staff(text, text, text, text, uuid, text) from public, anon;
 grant execute on function api.create_staff(text, text, text, text, uuid, text) to authenticated;
@@ -547,5 +550,7 @@ grant execute on function api.set_staff_capability(uuid, text, boolean, uuid) to
 alter function api.reset_staff_password(uuid, text, uuid) owner to baytak_rpc_owner;
 revoke all on function api.reset_staff_password(uuid, text, uuid) from public, anon;
 grant execute on function api.reset_staff_password(uuid, text, uuid) to authenticated;
+
+revoke create on schema api from baytak_rpc_owner;
 
 notify pgrst, 'reload schema';
