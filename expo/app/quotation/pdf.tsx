@@ -1,6 +1,6 @@
-import * as Print from 'expo-print';
+
 import { useLocalSearchParams } from 'expo-router';
-import * as Sharing from 'expo-sharing';
+
 import { FileText, MessageCircle, Share2 } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
@@ -10,6 +10,7 @@ import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen }
 import { CAIRO_BOLD_B64, CAIRO_REGULAR_B64 } from '@/constants/cairoFont';
 import { HEEBO_BOLD_B64, HEEBO_REGULAR_B64 } from '@/constants/heeboFont';
 import { palette, radius, spacing } from '@/constants/theme';
+import { exportHtmlDocument } from '@/lib/exportDoc';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import { BRAND_WORDMARK, QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
@@ -282,19 +283,11 @@ export default function QuotationPdfScreen() {
     setInfo(null);
     setBusy('pdf');
     try {
-      const { uri } = await Print.printToFileAsync({ html });
-      setBusy('share');
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `${quotation.number} - ${customer?.fullName ?? ''}`,
-          UTI: 'com.adobe.pdf',
-        });
-        setInfo('تم إنشاء ملف PDF ومشاركته.');
-      } else {
-        setInfo(`تم إنشاء ملف PDF: ${uri}`);
-      }
+      const title = `${quotation.number} - ${customer?.fullName ?? ''}`.trim();
+      const res = await exportHtmlDocument(html, title);
+      if (res.kind === 'shared') setInfo('تم إنشاء ملف PDF ومشاركته.');
+      else if (res.kind === 'printed') setInfo('فُتحت نافذة الطباعة - اختر «حفظ كـPDF».');
+      else setInfo(`تم إنشاء ملف PDF: ${res.uri}`);
     } catch (e) {
       console.log('[pdf] export failed', e);
       setError('تعذر إنشاء ملف PDF. حاول مرة أخرى.');
@@ -474,7 +467,8 @@ export default function QuotationPdfScreen() {
         </Row>
         {Platform.OS === 'web' && (
           <AppText variant="caption" color={palette.muted} align="center">
-            المشاركة الأصلية تعمل على الجهاز؛ على الويب يفتح الملف في نافذة الطباعة.
+            على الحاسوب: «تصدير PDF» يفتح نافذة الطباعة على المقترح - اختر «حفظ كـPDF»
+            لتنزيله، ثم أرسله بواتساب.
           </AppText>
         )}
       </View>

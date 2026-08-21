@@ -1,5 +1,5 @@
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+
+
 import { BarChart3, FileDown, Package, Scissors, TrendingUp, Users } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
@@ -22,6 +22,7 @@ import { can } from '@/domain/permissions';
 import { customersProfitReport, monthlyReport } from '@/domain/reports';
 import { rootProjects } from '@/domain/annex';
 import { approvedVersion, projectFinance, useRollViews } from '@/hooks/selectors';
+import { exportHtmlDocument } from '@/lib/exportDoc';
 import { meters, money, percent } from '@/lib/format';
 import { useStore } from '@/providers/store';
 
@@ -96,13 +97,10 @@ export default function ReportsScreen() {
  ${m.byTown.map((t) => row(`${t.town} (${t.count})`, money(t.totalAgorot))).join('') || row('لا اعتمادات هذا الشهر', '-')}
 </div>
 </body></html>`;
-      const { uri } = await Print.printToFileAsync({ html });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `تقرير ${months[sel].label}` });
-        setExportMsg('أُنشئ الملف الشهري وشورك.');
-      } else {
-        setExportMsg(`أُنشئ الملف: ${uri}`);
-      }
+      const res = await exportHtmlDocument(html, `تقرير ${months[sel].label}`);
+      if (res.kind === 'shared') setExportMsg('أُنشئ الملف الشهري وشورك.');
+      else if (res.kind === 'printed') setExportMsg('فُتحت نافذة الطباعة - اختر «حفظ كـPDF».');
+      else setExportMsg(`أُنشئ الملف: ${res.uri}`);
     } catch {
       setExportMsg('تعذر إنشاء الملف - حاول مجددًا.');
     } finally {
