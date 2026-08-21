@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { DesktopShell } from '@/components/DesktopShell';
 import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
 import { useAndroidBackFallback } from '@/lib/nav';
@@ -102,7 +103,12 @@ export default function RootLayout() {
         <StoreProvider>
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.ivory }}>
             <StatusBar style="dark" />
-            <RootLayoutNav />
+            {/* القوقعة حول الملاحة كلّها لا داخل (tabs): فالشريط الجانبي يبقى
+                قائمًا على كلّ شاشة - مشروعًا كانت أو مقترحًا أو إعدادات.
+                وعلى الهاتف يعيد أبناءه كما هم بلا عنصرٍ زائد. */}
+            <DesktopShell>
+              <RootLayoutNav />
+            </DesktopShell>
           </GestureHandlerRootView>
         </StoreProvider>
       </AuthProvider>
