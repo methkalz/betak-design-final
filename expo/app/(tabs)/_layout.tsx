@@ -13,18 +13,20 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 
 import { font, palette } from '@/constants/theme';
+import { useIsDesktop } from '@/hooks/useResponsive';
+import { tabDestinations } from '@/lib/navModel';
 import { useStore } from '@/providers/store';
 
 export default function TabsLayout() {
   const { role, currentUser, hydrated } = useStore();
+  const isDesktop = useIsDesktop();
 
   // بوابة القوقعة: لا شاشة داخلية بلا جلسة. زر رجوع أندرويد على شاشة
   // الدخول كان يهبط هنا فيُعرض المعرض بدور «ميداني» افتراضي بلا كلمة سر -
   // والباب الذي أُغلق في الواجهة لا يُترك مفتوحًا من الخلف.
   if (hydrated && !currentUser) return <Redirect href="/login" />;
-  const isAdmin = role === 'admin' || role === 'sales';
-  const isField = role === 'field';
-  const isTailor = role === 'tailor';
+  // نفس شروط الأدوار، من المصدر الموحَّد الذي يستهلكه الشريط الجانبي أيضًا
+  const dest = tabDestinations(role);
 
   return (
     <View style={{ flex: 1 }}>
@@ -35,8 +37,10 @@ export default function TabsLayout() {
         tabBarActiveTintColor: palette.olive,
         tabBarInactiveTintColor: palette.muted,
         tabBarLabelStyle: { fontFamily: font.medium, fontSize: 12, marginTop: 2 },
+        // على المكتب يحلّ الشريط الجانبي (DesktopShell) محلّ هذا الشريط
+        // فيُخفى - والمسارات تبقى قائمة، وإنّما يغيب رسمُ الشريط وحده.
         // شريط زجاجي عائم: خلفية blur حقيقية على iOS وشفافية بيضاء على أندرويد
-        tabBarStyle: {
+        tabBarStyle: isDesktop ? { display: 'none' } : {
           position: 'absolute',
           backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.92)',
           borderTopWidth: 0,
@@ -70,7 +74,7 @@ export default function TabsLayout() {
         name="inventory"
         options={{
           title: 'المخزون',
-          href: isAdmin ? '/inventory' : null,
+          href: dest.inventory,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Layers size={22} color={color} /></TabIcon>,
         }}
       />
@@ -78,7 +82,7 @@ export default function TabsLayout() {
         name="customers"
         options={{
           title: 'الزبائن',
-          href: isAdmin ? '/customers' : null,
+          href: dest.customers,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Users size={22} color={color} /></TabIcon>,
         }}
       />
@@ -86,7 +90,7 @@ export default function TabsLayout() {
         name="mystock"
         options={{
           title: 'بضاعتي',
-          href: isTailor ? '/mystock' : null,
+          href: dest.mystock,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Layers size={22} color={color} /></TabIcon>,
         }}
       />
@@ -94,7 +98,7 @@ export default function TabsLayout() {
         name="tasks"
         options={{
           title: 'أوامر الإنتاج',
-          href: isTailor ? '/tasks' : null,
+          href: dest.tasks,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><Scissors size={22} color={color} /></TabIcon>,
         }}
       />
@@ -102,7 +106,7 @@ export default function TabsLayout() {
         name="visits"
         options={{
           title: 'زياراتي',
-          href: isField ? '/visits' : null,
+          href: dest.visits,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><CalendarCheck size={22} color={color} /></TabIcon>,
         }}
       />
@@ -110,7 +114,7 @@ export default function TabsLayout() {
         name="projects"
         options={{
           title: 'المشاريع',
-          href: isTailor ? null : '/projects',
+          href: dest.projects,
           tabBarIcon: ({ color, focused }) => <TabIcon focused={focused}><LayoutGrid size={22} color={color} /></TabIcon>,
         }}
       />

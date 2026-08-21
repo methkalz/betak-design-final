@@ -1,19 +1,7 @@
 import { useRouter } from 'expo-router';
-import {
-  BadgePercent,
-  Bell,
-  ChevronLeft,
-  CloudOff,
-  FileText,
-  LogOut,
-  RefreshCcw,
-  ScrollText,
-  Settings,
-  ShieldCheck,
-  Tags,
-  Users,
-  Wallet,
-} from 'lucide-react-native';
+// أيقونات الروابط انتقلت إلى `lib/navModel` مع اللائحة نفسها؛ ما بقي هنا
+// هو أيقونات هذه الشاشة وحدها.
+import { ChevronLeft, CloudOff, LogOut, ShieldCheck } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
 
@@ -23,16 +11,8 @@ import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { ROLE_LABELS, can } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
+import { secondaryLinks } from '@/lib/navModel';
 import { useStore } from '@/providers/store';
-
-interface LinkItem {
-  label: string;
-  hint: string;
-  icon: React.ReactNode;
-  href: string;
-  badge?: number;
-  show: boolean;
-}
 
 export default function MoreScreen() {
   const { db, currentUser, role, isOnline, setIsOnline, signOut } = useStore();
@@ -43,74 +23,7 @@ export default function MoreScreen() {
   const pendingOps = db.operations.filter((o) => o.state !== 'synced').length;
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending').length;
 
-  const links: LinkItem[] = [
-    {
-      label: 'الإشعارات',
-      hint: 'كل ما يخصك من تنبيهات',
-      icon: <Bell size={20} color={palette.olive} />,
-      href: '/notifications',
-      badge: unreadCount(db, currentUser?.id),
-      show: true,
-    },
-    {
-      label: 'الدفعات والتحصيل',
-      hint: 'كل الدفعات وحالة التحصيل',
-      icon: <Wallet size={20} color={palette.olive} />,
-      href: '/payments',
-      show: can(role, 'record_payment'),
-    },
-    {
-      label: 'طلبات الخصم',
-      hint: 'الموافقات الاستثنائية',
-      icon: <BadgePercent size={20} color={palette.olive} />,
-      href: '/discounts',
-      badge: pendingDiscounts,
-      show: can(role, 'approve_discount'),
-    },
-    {
-      label: 'التقارير',
-      hint: 'الأداء والربحية والمخزون',
-      icon: <FileText size={20} color={palette.olive} />,
-      href: '/reports',
-      show: can(role, 'view_reports'),
-    },
-    {
-      label: 'قواعد التسعير',
-      hint: 'الأسعار حسب الارتفاع والنوع',
-      icon: <Tags size={20} color={palette.olive} />,
-      href: '/pricing-rules',
-      show: can(role, 'edit_pricing_rules'),
-    },
-    {
-      label: 'مركز المزامنة',
-      hint: 'العمليات المحفوظة على الجهاز',
-      icon: <RefreshCcw size={20} color={palette.olive} />,
-      href: '/sync',
-      badge: pendingOps,
-      show: true,
-    },
-    {
-      label: 'الطاقم',
-      hint: 'الحسابات، الأداء، ما بين يد كل واحد',
-      icon: <Users size={20} color={palette.olive} />,
-      href: '/team',
-      show: can(role, 'manage_users'),
-    },
-    {
-      label: 'سجل التدقيق',
-      hint: 'من فعل ماذا ومتى',
-      icon: <ScrollText size={20} color={palette.olive} />,
-      href: '/audit',
-      show: role === 'admin',
-    },
-    {
-      label: 'الإعدادات والصلاحيات',
-      hint: 'المعرض، الأدوار والصلاحيات',
-      icon: <Settings size={20} color={palette.olive} />,
-      href: '/settings',
-      show: true,
-    },
-  ];
+  const links = secondaryLinks(db, role, currentUser?.id);
 
   return (
     <ScrollView
