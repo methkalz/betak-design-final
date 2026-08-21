@@ -22,7 +22,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Banner, Row } from '@/components/ui';
-import { font, palette, radius, shadow, spacing } from '@/constants/theme';
+import { font, layout, palette, radius, shadow, spacing } from '@/constants/theme';
+import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { fetchLiveDatabase } from '@/lib/live';
 import { normalizePhone } from '@/lib/phone';
 import { useAuth } from '@/providers/auth';
@@ -33,6 +34,8 @@ export default function LoginScreen() {
   const { liveConfigured, signInLive, signOutLive } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
+  const topPad = useTopPad(spacing.xxl);
   const [phoneInput, setPhoneInput] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -85,12 +88,23 @@ export default function LoginScreen() {
       style={{ flex: 1 }}
     >
       <ScrollView
-        contentContainerStyle={{
-          paddingTop: insets.top + spacing.xxl,
-          paddingBottom: insets.bottom + spacing.xxl,
-          paddingHorizontal: spacing.xl,
-          gap: spacing.xl,
-        }}
+        contentContainerStyle={[
+          {
+            paddingTop: topPad,
+            paddingBottom: isDesktop ? layout.gutter : insets.bottom + spacing.xxl,
+            paddingHorizontal: spacing.xl,
+            gap: spacing.xl,
+          },
+          // على المكتب: بطاقةٌ بمقاس نموذجٍ في وسط الشاشة، لا شريطٌ ممتدّ
+          // من حافةٍ إلى حافة. والتوسيط رأسيًّا لأن الصفحة أقصر من النافذة.
+          isDesktop && {
+            width: '100%',
+            maxWidth: layout.form,
+            alignSelf: 'center',
+            flexGrow: 1,
+            justifyContent: 'center',
+          },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={{ gap: 4 }}>

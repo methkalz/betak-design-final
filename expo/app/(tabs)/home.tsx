@@ -31,7 +31,6 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { AppHeader } from '@/components/AppHeader';
@@ -49,7 +48,8 @@ import {
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
-import { gradients, palette, radius, shadow, spacing } from '@/constants/theme';
+import { gradients, layout, palette, radius, shadow, spacing } from '@/constants/theme';
+import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { assignmentGaps, type AssignmentGap } from '@/domain/assignment';
 import { LOW_STOCK_THRESHOLD_M } from '@/domain/inventory';
 import { staffBalance } from '@/domain/staffLedger';
@@ -318,6 +318,19 @@ export default function DashboardScreen() {
   return <AdminDashboard />;
 }
 
+/**
+ * سقف عرض اللوحة على سطح المكتب. بلا هذا تمتدّ البطاقات من حافةٍ إلى حافة
+ * (بطاقةٌ بعرض 1900 بكسل على شاشةٍ عريضة) - وهو ما لا يُقرأ ولا يُستعمل.
+ * والعرض 720 مقيسٌ بكثافة البطاقات: ثلاث مربّعاتٍ زجاجية بـ≈226 لكلٍّ،
+ * أي ٢٫١× حجمها على هاتفٍ بعرض 390 - أكبر، وما زالت تُقرأ كمربّعات.
+ */
+const PAGE_DESKTOP = {
+  width: '100%',
+  maxWidth: layout.column,
+  alignSelf: 'center',
+  paddingHorizontal: layout.gutter,
+} as const;
+
 function LoadingDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
@@ -333,6 +346,8 @@ function LoadingDashboard() {
 
 function AdminDashboard() {
   const { db } = useStore();
+  const { isDesktop } = useResponsive();
+  const topPad = useTopPad(spacing.md);
   const router = useRouter();
   const rolls = useRollViews();
   const variantStock = useVariantStockViews();
@@ -473,7 +488,6 @@ function AdminDashboard() {
       onPress: () => router.push('/inventory'),
     });
 
-  const insets = useSafeAreaInsets();
   const { currentUser } = useStore();
   const hour = new Date().getHours();
   const hello = hour < 12 ? 'صباح الخير' : hour < 17 ? 'نهارك سعيد' : 'مساء الخير';
@@ -510,10 +524,13 @@ function AdminDashboard() {
       />
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: 130, paddingTop: insets.top + spacing.md }}
+      contentContainerStyle={{
+        paddingBottom: isDesktop ? layout.gutter : 130,
+        paddingTop: topPad,
+      }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xl }}>
+      <View style={[{ paddingHorizontal: spacing.lg, gap: spacing.xl }, isDesktop && PAGE_DESKTOP]}>
         {/* التحية - على الصفحة مباشرة، لا شريط ملوّن */}
         <Row justify="space-between">
           <Row gap={spacing.md}>
@@ -1066,6 +1083,7 @@ function PipelineChart() {
  */
 function FieldDashboard() {
   const { db, currentUser } = useStore();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const today = new Date();
 
@@ -1090,12 +1108,12 @@ function FieldDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: isDesktop ? layout.gutter : 120 }}
       showsVerticalScrollIndicator={false}
     >
       <RoleAurora />
       <AppHeader subtitle={`لديك ${todays.length} زيارة اليوم و ${upcoming.length} قادمة`} />
-      <View style={{ padding: spacing.lg, gap: spacing.xl }}>
+      <View style={[{ padding: spacing.lg, gap: spacing.xl }, isDesktop && PAGE_DESKTOP]}>
         <Enter delay={ENTER.hero}>
           <Row gap={spacing.md}>
             <GlassTile
@@ -1191,6 +1209,7 @@ function FieldDashboard() {
  */
 function TailorDashboard() {
   const { db, currentUser } = useStore();
+  const { isDesktop } = useResponsive();
   const router = useRouter();
   const today = new Date();
   const open = db.tailorAssignments.filter(
@@ -1213,12 +1232,12 @@ function TailorDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{ paddingBottom: 120 }}
+      contentContainerStyle={{ paddingBottom: isDesktop ? layout.gutter : 120 }}
       showsVerticalScrollIndicator={false}
     >
       <RoleAurora />
       <AppHeader subtitle={`${open.length} أمر إنتاج قيد التنفيذ`} />
-      <View style={{ padding: spacing.lg, gap: spacing.xl }}>
+      <View style={[{ padding: spacing.lg, gap: spacing.xl }, isDesktop && PAGE_DESKTOP]}>
         <Enter delay={ENTER.hero}>
           <Row gap={spacing.md}>
             <GlassTile

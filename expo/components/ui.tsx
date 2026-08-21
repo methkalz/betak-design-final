@@ -4,7 +4,6 @@ import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, u
 import { X } from 'lucide-react-native';
 import {
   ActivityIndicator,
-  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -12,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
   type LayoutChangeEvent,
   type StyleProp,
@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing as REasing,
+  FadeIn,
   SlideInDown,
   useAnimatedStyle,
   useSharedValue,
@@ -27,7 +28,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { font, fontHe, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
+import { font, fontHe, layout, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export const RTL_ROW = 'row-reverse' as const;
 
@@ -735,13 +737,23 @@ export function Sheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  const maxHeight = Math.round(Dimensions.get('window').height * 0.62);
+  // كان Dimensions.get: قياسٌ يُلتقط مرّةً ولا يتجدّد، فارتفاع الورقة يبقى
+  // على قياس النافذة القديم بعد تغيير حجمها على المكتب.
+  const { height } = useWindowDimensions();
+  const { isDesktop } = useResponsive();
+  const maxHeight = Math.round(height * (isDesktop ? 0.78 : 0.62));
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={styles.sheetWrap} pointerEvents="box-none">
-        <Animated.View entering={SlideInDown.duration(320)} style={styles.sheet}>
-          <View style={styles.sheetGrip} />
+      {/* تصعد من الأسفل على الهاتف، وتحطّ في الوسط على الشاشة العريضة:
+          «من الأسفل» معناها الإبهام، ولا إبهام هنا. */}
+      <View style={[styles.sheetWrap, isDesktop && styles.sheetWrapDesktop]} pointerEvents="box-none">
+        <Animated.View
+          entering={isDesktop ? FadeIn.duration(180) : SlideInDown.duration(320)}
+          style={[styles.sheet, isDesktop && styles.sheetDesktop]}
+        >
+          {/* المقبض يُسحب بالإصبع - وحده */}
+          {!isDesktop && <View style={styles.sheetGrip} />}
           <Row justify="space-between" align="flex-start">
             <View style={{ flex: 1, gap: 2 }}>
               <AppText variant="heading">{title}</AppText>
@@ -797,12 +809,16 @@ export function ConfirmSheet({
   /** رحلة التأكيد الحية طويلة: الزر يُحمَّل فلا ضغطة ثانية تسبق اللقطة. */
   loading?: boolean;
 }) {
+  const { isDesktop } = useResponsive();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.sheetBackdrop} onPress={onCancel} />
-      <View style={styles.sheetWrap} pointerEvents="box-none">
-        <Animated.View entering={SlideInDown.duration(320)} style={styles.sheet}>
-          <View style={styles.sheetGrip} />
+      <View style={[styles.sheetWrap, isDesktop && styles.sheetWrapDesktop]} pointerEvents="box-none">
+        <Animated.View
+          entering={isDesktop ? FadeIn.duration(180) : SlideInDown.duration(320)}
+          style={[styles.sheet, isDesktop && styles.sheetDesktop]}
+        >
+          {!isDesktop && <View style={styles.sheetGrip} />}
           {!!icon && (
             <View
               style={[
@@ -912,6 +928,33 @@ export function shade(hex: string, amount: number): string {
 /** مقبضٌ إمبراطوري للتمرير - يكشفه ScrollScreen لمن يحتاج العودة لأعلى. */
 export type ScrollScreenHandle = { scrollToTop: (animated?: boolean) => void };
 
+/*
+ * أنماط حاوية المحتوى - ثوابت على مستوى الوحدة لا كائناتٌ تُبنى مع كل رسم:
+ * `useWindowDimensions` يُطلق مع كل بكسل تغييرِ حجم، فكائنٌ جديد في كل مرّة
+ * يُبطل أي memo تحته.
+ *
+ * CONTENT_PHONE **نسخةٌ حرفية** من القيمة التي كانت مضمَّنة هنا - فمراجعتها
+ * سؤالٌ ميكانيكي: هل تطابق `{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }`؟
+ */
+const CONTENT_PHONE: ViewStyle = { padding: spacing.lg, paddingBottom: 120, gap: spacing.lg };
+
+/*
+ * على المكتب: عمودٌ واحد بعرض القراءة وسط الصفحة. و`paddingBottom` يعود إلى
+ * الحشوة العادية لأن الـ120 كانت تُفرِّغ مكانًا لشريط التبويبات السفلي، ولا
+ * شريطَ سفليًّا على المكتب (المسار الرابع يجعله جانبيًّا).
+ */
+const CONTENT_DESKTOP: ViewStyle = {
+  padding: layout.gutter,
+  paddingBottom: layout.gutter,
+  gap: spacing.lg,
+  width: '100%',
+  maxWidth: layout.column,
+  alignSelf: 'center',
+};
+
+/** للشاشات التي تعرض شبكاتٍ أو قوائم بعمودين - أوسع من عمود القراءة. */
+const CONTENT_DESKTOP_WIDE: ViewStyle = { ...CONTENT_DESKTOP, maxWidth: layout.columnWide };
+
 /**
  * غلاف الشاشة القابل للتمرير. يكشف `scrollToTop()` عبر ref لمن يحتاجه
  * (كمحرّر الشباك بعد «حفظ وإضافة التالي»: النموذج الجديد أعلى الصفحة،
@@ -920,9 +963,10 @@ export type ScrollScreenHandle = { scrollToTop: (animated?: boolean) => void };
  */
 export const ScrollScreen = forwardRef<
   ScrollScreenHandle,
-  { children: React.ReactNode; contentStyle?: StyleProp<ViewStyle> }
->(function ScrollScreen({ children, contentStyle }, ref) {
+  { children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; wide?: boolean }
+>(function ScrollScreen({ children, contentStyle, wide }, ref) {
   const inner = useRef<ScrollView>(null);
+  const { isDesktop } = useResponsive();
   useImperativeHandle(
     ref,
     () => ({ scrollToTop: (animated = true) => inner.current?.scrollTo({ y: 0, animated }) }),
@@ -932,8 +976,12 @@ export const ScrollScreen = forwardRef<
     <ScrollView
       ref={inner}
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={[{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }, contentStyle]}
-      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[
+        isDesktop ? (wide ? CONTENT_DESKTOP_WIDE : CONTENT_DESKTOP) : CONTENT_PHONE,
+        contentStyle,
+      ]}
+      // الفأرة تحتاج شريط تمريرٍ تراه وتسحبه؛ الإبهام لا يحتاجه.
+      showsVerticalScrollIndicator={isDesktop}
       keyboardShouldPersistTaps="handled"
     >
       {children}
@@ -1019,6 +1067,18 @@ const styles = StyleSheet.create({
   sheetWrap: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  sheetWrapDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sheetDesktop: {
+    width: '100%',
+    maxWidth: layout.form,
+    // كلّ الزوايا لا العلويّتان: حوارٌ حرّ لا ورقةٌ ملتصقة بالحافّة
+    borderRadius: radius.xl,
+    // لا شريط إيماءاتٍ على المكتب، فلا حاجة لحشوة xxxl السفلية
+    paddingBottom: spacing.xl,
   },
   sheet: {
     backgroundColor: palette.white,
