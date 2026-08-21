@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { AlertTriangle, Layers, Package, PackagePlus, Plus } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
@@ -16,6 +15,7 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
+import { useListContent, useTopPad } from '@/hooks/useResponsive';
 import { availabilityTone, consumedInLastDays } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
 import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
@@ -34,7 +34,8 @@ type Tab = 'stock' | 'library';
 export default function InventoryScreen() {
   const { db, role } = useStore();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topPad = useTopPad();
+  const listContent = useListContent();
   const [tab, setTab] = useState<Tab>('stock');
   const rolls = useRollViews();
   const stock = useVariantStockViews();
@@ -54,7 +55,7 @@ export default function InventoryScreen() {
   }, [rolls, db.stockMovements]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
+    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
         <Row justify="space-between" align="flex-end">
           <AppText variant="title">مخزون الأقمشة</AppText>
@@ -122,7 +123,7 @@ export default function InventoryScreen() {
         <FlatList
           data={stock}
           keyExtractor={(g) => g.variantId}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+          contentContainerStyle={listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => {
             // أول بطانةٍ في القائمة يسبقها فاصلٌ رفيع: البطانة صنفٌ يُشترى
@@ -237,7 +238,7 @@ export default function InventoryScreen() {
         <FlatList
           data={db.fabricProducts}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+          contentContainerStyle={listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const variants = db.fabricVariants.filter((v) => v.productId === item.id);

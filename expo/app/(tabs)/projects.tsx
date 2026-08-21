@@ -2,11 +2,11 @@ import { useRouter } from 'expo-router';
 import { Plus, Search, LayoutGrid } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { FlatList, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProjectRow } from '@/components/cards';
 import { AppText, Chip, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
+import { useListContent, useTopPad } from '@/hooks/useResponsive';
 import { can } from '@/domain/permissions';
 import { useStore } from '@/providers/store';
 import type { ProjectStatus } from '@/types/domain';
@@ -32,7 +32,8 @@ const GROUPS: Record<Filter, ProjectStatus[] | null> = {
 export default function ProjectsScreen() {
   const { db, role, currentUser } = useStore();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topPad = useTopPad();
+  const listContent = useListContent();
   const [query, setQuery] = useState<string>('');
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -72,7 +73,7 @@ export default function ProjectsScreen() {
   }, [scoped]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
+    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
         <Row justify="space-between">
           <AppText variant="title">المشاريع</AppText>
@@ -131,7 +132,7 @@ export default function ProjectsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+        contentContainerStyle={listContent}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => <ProjectRow projectId={item.id} />}
         ListEmptyComponent={

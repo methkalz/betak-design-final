@@ -1,13 +1,13 @@
 import { CalendarCheck } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import { FlatList, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { VisitCard } from '@/components/cards';
 import { PendingInstallations } from '@/components/PendingInstallations';
 import { TabPanel } from '@/components/TabMotion';
 import { AppText, Card, EmptyState, Row, SegmentedControl } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
+import { useListContent, useTopPad } from '@/hooks/useResponsive';
 import { VISIT_TYPE_LABELS } from '@/domain/labels';
 import { formatDate, formatTime, isSameDay } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -18,7 +18,8 @@ const TAB_ORDER: Tab[] = ['today', 'upcoming', 'done'];
 
 export default function VisitsScreen() {
   const { db, currentUser } = useStore();
-  const insets = useSafeAreaInsets();
+  const topPad = useTopPad();
+  const listContent = useListContent();
   const [tab, setTab] = useState<Tab>('today');
 
   const mine = useMemo(
@@ -39,7 +40,7 @@ export default function VisitsScreen() {
   }, [mine, tab]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
+    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
         <AppText variant="title">زياراتي</AppText>
         <SegmentedControl
@@ -59,7 +60,7 @@ export default function VisitsScreen() {
       <FlatList
         data={data}
         keyExtractor={(v) => v.id}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+        contentContainerStyle={listContent}
         showsVerticalScrollIndicator={false}
         /* التركيبات المنتظرة فوق القائمة لا في تبويب منفصل: هي أول ما يجب أن
            يفعله العامل حين ينتهي الخياط، ودفنها خلف تبويب يعني ألّا يفعله. */

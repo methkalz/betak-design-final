@@ -16,10 +16,10 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Card, Pill, Row, SectionHeader } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { layout, palette, radius, spacing } from '@/constants/theme';
+import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { ROLE_LABELS, can } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
@@ -37,7 +37,8 @@ interface LinkItem {
 export default function MoreScreen() {
   const { db, currentUser, role, isOnline, setIsOnline, signOut } = useStore();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topPad = useTopPad(spacing.lg);
+  const { isDesktop } = useResponsive();
 
   const pendingOps = db.operations.filter((o) => o.state !== 'synced').length;
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending').length;
@@ -114,12 +115,21 @@ export default function MoreScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.ivory }}
-      contentContainerStyle={{
-        paddingTop: insets.top + spacing.lg,
-        padding: spacing.lg,
-        paddingBottom: 120,
-        gap: spacing.xl,
-      }}
+      contentContainerStyle={[
+        {
+          paddingTop: topPad,
+          padding: spacing.lg,
+          paddingBottom: 120,
+          gap: spacing.xl,
+        },
+        isDesktop && {
+          padding: layout.gutter,
+          paddingBottom: layout.gutter,
+          width: '100%',
+          maxWidth: layout.column,
+          alignSelf: 'center',
+        },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <Card>
