@@ -29,6 +29,11 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { font, fontHe, layout, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
+import {
+  CONTENT_DESKTOP,
+  CONTENT_DESKTOP_WIDE,
+  CONTENT_PHONE,
+} from '@/domain/responsive';
 import { useResponsive } from '@/hooks/useResponsive';
 
 export const RTL_ROW = 'row-reverse' as const;
@@ -928,32 +933,8 @@ export function shade(hex: string, amount: number): string {
 /** مقبضٌ إمبراطوري للتمرير - يكشفه ScrollScreen لمن يحتاج العودة لأعلى. */
 export type ScrollScreenHandle = { scrollToTop: (animated?: boolean) => void };
 
-/*
- * أنماط حاوية المحتوى - ثوابت على مستوى الوحدة لا كائناتٌ تُبنى مع كل رسم:
- * `useWindowDimensions` يُطلق مع كل بكسل تغييرِ حجم، فكائنٌ جديد في كل مرّة
- * يُبطل أي memo تحته.
- *
- * CONTENT_PHONE **نسخةٌ حرفية** من القيمة التي كانت مضمَّنة هنا - فمراجعتها
- * سؤالٌ ميكانيكي: هل تطابق `{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }`؟
- */
-const CONTENT_PHONE: ViewStyle = { padding: spacing.lg, paddingBottom: 120, gap: spacing.lg };
-
-/*
- * على المكتب: عمودٌ واحد بعرض القراءة وسط الصفحة. و`paddingBottom` يعود إلى
- * الحشوة العادية لأن الـ120 كانت تُفرِّغ مكانًا لشريط التبويبات السفلي، ولا
- * شريطَ سفليًّا على المكتب (المسار الرابع يجعله جانبيًّا).
- */
-const CONTENT_DESKTOP: ViewStyle = {
-  padding: layout.gutter,
-  paddingBottom: layout.gutter,
-  gap: spacing.lg,
-  width: '100%',
-  maxWidth: layout.column,
-  alignSelf: 'center',
-};
-
-/** للشاشات التي تعرض شبكاتٍ أو قوائم بعمودين - أوسع من عمود القراءة. */
-const CONTENT_DESKTOP_WIDE: ViewStyle = { ...CONTENT_DESKTOP, maxWidth: layout.columnWide };
+/* أنماط الحاوية تعيش في `domain/responsive.ts` - وحدةٌ نقيّة مفحوصةٌ بالوحدة،
+ * فقيم الهاتف مقفولةٌ باختبارٍ لا بمراجعةٍ بصرية. */
 
 /**
  * غلاف الشاشة القابل للتمرير. يكشف `scrollToTop()` عبر ref لمن يحتاجه

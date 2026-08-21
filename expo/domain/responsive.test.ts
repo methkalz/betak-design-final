@@ -48,3 +48,43 @@ test('سقوف التخطيط كلّها أوسع من أعرض هاتف - فل�
     expect(cap).toBeGreaterThan(WIDEST_PHONE);
   }
 });
+
+/**
+ * الحارس الحقيقي لقاعدة «لا تضرّ نسخة التطبيق»: قيم الهاتف مقفولةٌ على ما
+ * كانت عليه **قبل** حزمة الويب. مصدر الأرقام هو الشيفرة التاريخية نفسها:
+ * `ScrollScreen` كان `{ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg }`
+ * وشاشات التبويب `{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }`
+ * حيث lg=16 وmd=12. أيّ انحرافٍ هنا يسقط البوابة قبل أن يصل جهازًا.
+ */
+test('قيم الهاتف مطابقةٌ حرفيًّا لما كانت عليه قبل حزمة الويب', async () => {
+  const { CONTENT_PHONE, LIST_PHONE } = await import('@/domain/responsive');
+  const { spacing } = await import('@/constants/theme');
+
+  expect(CONTENT_PHONE).toEqual({ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg });
+  expect(LIST_PHONE).toEqual({ padding: spacing.lg, paddingBottom: 120, gap: spacing.md });
+
+  // ولا سقفَ عرضٍ ولا توسيطٍ على الهاتف - المفاتيح غائبةٌ لا مضبوطةٌ بقيمة
+  for (const style of [CONTENT_PHONE, LIST_PHONE]) {
+    expect('maxWidth' in style).toBe(false);
+    expect('alignSelf' in style).toBe(false);
+    expect('width' in style).toBe(false);
+  }
+});
+
+test('حاويات المكتب موسَّطةٌ ومحدودة العرض، وتسقط حشوة شريط التبويبات', async () => {
+  const { CONTENT_DESKTOP, CONTENT_DESKTOP_WIDE, LIST_DESKTOP } = await import(
+    '@/domain/responsive'
+  );
+  const { layout } = await import('@/constants/theme');
+
+  for (const style of [CONTENT_DESKTOP, LIST_DESKTOP]) {
+    expect(style.maxWidth).toBe(layout.column);
+    expect(style.alignSelf).toBe('center');
+    expect(style.width).toBe('100%');
+    // الـ120 كانت لشريط تبويباتٍ سفليّ لا وجود له على المكتب
+    expect(style.paddingBottom).toBe(layout.gutter);
+    expect(style.paddingBottom).not.toBe(120);
+  }
+  expect(CONTENT_DESKTOP_WIDE.maxWidth).toBe(layout.columnWide);
+  expect(CONTENT_DESKTOP_WIDE.maxWidth).toBeGreaterThan(CONTENT_DESKTOP.maxWidth);
+});

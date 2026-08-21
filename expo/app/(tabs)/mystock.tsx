@@ -12,10 +12,10 @@ import { AlertTriangle, PackageOpen, PackagePlus } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, Button, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
+import { useListContent, useTopPad } from '@/hooks/useResponsive';
 import { availabilityTone } from '@/domain/inventory';
 import { round3 } from '@/domain/pricing';
 import { useRollViews } from '@/hooks/selectors';
@@ -32,7 +32,8 @@ function receiptsLabel(n: number): string {
 export default function MyStockScreen() {
   const { currentUser } = useStore();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const topPad = useTopPad();
+  const listContent = useListContent();
   const rolls = useRollViews();
 
   const mine = useMemo(
@@ -87,7 +88,7 @@ export default function MyStockScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: insets.top + spacing.sm }}>
+    <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
         <AppText variant="title">بضاعتي</AppText>
         <Row gap={spacing.md}>
@@ -127,7 +128,7 @@ export default function MyStockScreen() {
       <FlatList
         data={groups}
         keyExtractor={(g) => g.variantId}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120, gap: spacing.md }}
+        contentContainerStyle={listContent}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const level = availabilityTone(item.availableM);
