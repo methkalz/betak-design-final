@@ -2,10 +2,10 @@ import { useRouter } from 'expo-router';
 // أيقونات الروابط انتقلت إلى `lib/navModel` مع اللائحة نفسها؛ ما بقي هنا
 // هو أيقونات هذه الشاشة وحدها.
 import { ChevronLeft, CloudOff, LogOut, ShieldCheck } from 'lucide-react-native';
-import React from 'react';
-import { Alert, Pressable, ScrollView, Switch, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, ScrollView, Switch, View } from 'react-native';
 
-import { AppText, Card, Pill, Row, SectionHeader } from '@/components/ui';
+import { AppText, Card, ConfirmSheet, Pill, Row, SectionHeader } from '@/components/ui';
 import { layout, palette, radius, spacing } from '@/constants/theme';
 import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { ROLE_LABELS, can } from '@/domain/permissions';
@@ -19,6 +19,7 @@ export default function MoreScreen() {
   const router = useRouter();
   const topPad = useTopPad(spacing.lg);
   const { isDesktop } = useResponsive();
+  const [confirmOut, setConfirmOut] = useState(false);
 
   const pendingOps = db.operations.filter((o) => o.state !== 'synced').length;
   const pendingDiscounts = db.discountRequests.filter((d) => d.status === 'pending').length;
@@ -149,19 +150,7 @@ export default function MoreScreen() {
       </View>
 
       <Pressable
-        onPress={() =>
-          Alert.alert('تسجيل الخروج', 'هل تريد الخروج من الحساب؟', [
-            { text: 'إلغاء', style: 'cancel' },
-            {
-              text: 'خروج',
-              style: 'destructive',
-              onPress: () => {
-                signOut();
-                router.replace('/login');
-              },
-            },
-          ])
-        }
+        onPress={() => setConfirmOut(true)}
         style={({ pressed }) => [
           {
             minHeight: 52,
@@ -185,6 +174,21 @@ export default function MoreScreen() {
       <AppText variant="caption" color={palette.muted} align="center">
         بيتك ديزاين • إصدار 1.0 • {db.organization.name}
       </AppText>
+
+      <ConfirmSheet
+        visible={confirmOut}
+        title="تسجيل الخروج"
+        body="ستحتاج إلى رقم هاتفك وكلمة السر للدخول مجددًا."
+        confirmLabel="خروج"
+        tone="danger"
+        icon={<LogOut size={22} color={palette.danger} />}
+        onConfirm={() => {
+          setConfirmOut(false);
+          signOut();
+          router.replace('/login');
+        }}
+        onCancel={() => setConfirmOut(false)}
+      />
     </ScrollView>
   );
 }

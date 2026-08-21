@@ -806,7 +806,8 @@ export function ConfirmSheet({
   title: string;
   body?: string;
   confirmLabel: string;
-  cancelLabel?: string;
+  /** `null` = زرٌّ واحد: إشعارٌ أو خطأ، لا سؤال. */
+  cancelLabel?: string | null;
   tone?: 'primary' | 'danger';
   icon?: React.ReactNode;
   onConfirm: () => void;
@@ -850,7 +851,9 @@ export function ConfirmSheet({
               full
               onPress={onConfirm}
             />
-            <Button label={cancelLabel} variant="ghost" full onPress={onCancel} />
+            {cancelLabel !== null && (
+              <Button label={cancelLabel ?? 'إلغاء'} variant="ghost" full onPress={onCancel} />
+            )}
           </View>
         </Animated.View>
       </View>
