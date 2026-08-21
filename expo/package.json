@@ -7,6 +7,7 @@
     "start": "bunx rork start -p 72xauvl81ef7xdo88xgur",
     "start-web": "bunx rork start -p 72xauvl81ef7xdo88xgur --web",
     "start-web-dev": "DEBUG=expo* bunx rork start -p 72xauvl81ef7xdo88xgur --web",
+    "build-web": "expo export --platform web --output-dir dist",
     "lint": "expo lint"
   },
   "dependencies": {

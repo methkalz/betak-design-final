@@ -148,7 +148,7 @@ jobs:
   typescript:
     name: expo type-check
     runs-on: ubuntu-24.04   # اسم صريح — لا انتقال Major تلقائي مع -latest
-    timeout-minutes: 15
+    timeout-minutes: 25   # +10 لحزمة الويب
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1 (node24)
 
@@ -167,3 +167,16 @@ jobs:
       - name: golden pricing vectors (TS side)
         working-directory: expo
         run: bun test   # نفس متجهات SQL — أي فرق أغورة واحد يفشل البوابة
+
+      # حزمة الويب — أرخص حارسٍ ضد انحدار نسخة الديسكتوب. لو انكسر استيرادٌ
+      # على الويب (وحدةٌ بلا تطبيق ويب، أو نمطٌ غير مدعوم) تسقط البوابة هنا
+      # لا على السيرفر. تعمد أن تكون بعد tsc وbun test: الفحوص الرخيصة أولًا.
+      #
+      # ⚠️ هذا حارسُ ترجمةٍ لا بناءٌ صالحٌ للنشر: الـrunner بلا expo/.env فمتغيّرا
+      # EXPO_PUBLIC_* غائبان، والحزمة الناتجة بلا وصلٍ حيّ بـSupabase. النشر
+      # مسارٌ منفصل يتطلّب .env الإنتاج (والبوابة تبقى contents: read بلا أسرار).
+      - name: web bundle (expo export)
+        working-directory: expo
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: bun x expo export --platform web --output-dir dist
