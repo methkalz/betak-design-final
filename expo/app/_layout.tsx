@@ -14,6 +14,7 @@ import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DesktopShell } from '@/components/DesktopShell';
+import { IdleGuard } from '@/components/IdleGuard';
 import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
 import { useAndroidBackFallback } from '@/lib/nav';
@@ -106,6 +107,8 @@ export default function RootLayout() {
             {/* القوقعة حول الملاحة كلّها لا داخل (tabs): فالشريط الجانبي يبقى
                 قائمًا على كلّ شاشة - مشروعًا كانت أو مقترحًا أو إعدادات.
                 وعلى الهاتف يعيد أبناءه كما هم بلا عنصرٍ زائد. */}
+            {/* حارس الخمول: الويب وحده - مكتبٌ مشترك لا يبقى مفتوحًا للأبد */}
+            <IdleGuard />
             <DesktopShell>
               <RootLayoutNav />
             </DesktopShell>
