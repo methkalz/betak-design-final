@@ -1,14 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, MapPin, MessageCircle, Phone, Plus, StickyNote } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Platform, View } from 'react-native';
+import { Linking, Platform, View } from 'react-native';
 
 import { ProjectRow } from '@/components/cards';
 import { Spotlight, type SpotlightTarget } from '@/components/Spotlight';
 import {
   AppText,
+  Banner,
   Button,
   Card,
+  ConfirmSheet,
   EmptyState,
   Pill,
   Row,
@@ -34,6 +36,9 @@ export default function CustomerScreen() {
   const newProjectRef = useRef<View>(null);
   const [spot, setSpot] = useState<SpotlightTarget | null>(null);
   const [showSpot, setShowSpot] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (justCreated !== '1') return;
@@ -185,23 +190,38 @@ export default function CustomerScreen() {
           variant="ghost"
           full
           icon={<Archive size={16} color={palette.olive} />}
-          onPress={() =>
-            Alert.alert('أرشفة الزبون', 'لا يتم الحذف الفعلي - يمكن استرجاعه لاحقًا.', [
-              { text: 'إلغاء', style: 'cancel' },
-              {
-                text: 'أرشفة',
-                style: 'destructive',
-                onPress: async () => {
-                  const res = await archiveCustomer(customer.id);
-                  if (!res.ok) {
-                    Alert.alert('تعذرت الأرشفة', res.error);
-                    return;
-                  }
-                  goBack();
-                },
-              },
-            ])
+          onPress={() => setConfirmArchive(true)}
+        />
+      )}
+
+      <ConfirmSheet
+        visible={confirmArchive}
+        title="أرشفة الزبون"
+        body="لا يتم الحذف الفعلي - يمكن استرجاعه لاحقًا."
+        confirmLabel="أرشفة"
+        tone="danger"
+        loading={archiving}
+        icon={<Archive size={22} color={palette.danger} />}
+        onConfirm={async () => {
+          setArchiving(true);
+          const res = await archiveCustomer(customer.id);
+          setArchiving(false);
+          setConfirmArchive(false);
+          if (!res.ok) {
+            setArchiveError(res.error);
+            return;
           }
+          goBack();
+        }}
+        onCancel={() => setConfirmArchive(false)}
+      />
+
+      {!!archiveError && (
+        <Banner
+          tone="danger"
+          title="تعذرت الأرشفة"
+          body={archiveError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setArchiveError(null)} />}
         />
       )}
 

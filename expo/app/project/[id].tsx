@@ -13,10 +13,11 @@ import {
   Scissors,
   Sparkles,
   Trash2,
+  Undo2,
   Wallet,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing as REasing,
   runOnJS,
@@ -358,6 +359,7 @@ function TabBar({
 /* ───────────────────────── Overview ───────────────────────── */
 
 function OverviewTab({ projectId, statusColor }: { projectId: string; statusColor: string }) {
+  const [actionError, setActionError] = useState<string | null>(null);
   const { db, role, setProjectStatus } = useStore();
   const router = useRouter();
   const project = db.projects.find((p) => p.id === projectId)!;
@@ -481,12 +483,21 @@ function OverviewTab({ projectId, statusColor }: { projectId: string; statusColo
         onConfirm={async () => {
           if (pending) {
             const res = await setProjectStatus(projectId, pending.to);
-            if (!res.ok) Alert.alert('تعذر تغيير الحالة', res.error);
+            if (!res.ok) setActionError(res.error);
           }
           setPending(null);
         }}
         onCancel={() => setPending(null)}
       />
+
+      {!!actionError && (
+        <Banner
+          tone="danger"
+          title="تعذّرت العملية"
+          body={actionError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setActionError(null)} />}
+        />
+      )}
 
       <Card>
         <AppText variant="heading">الفريق والمواعيد</AppText>
@@ -651,6 +662,9 @@ function RoomsTab({
   projectId: string;
   onFocusCard: (y: number) => void;
 }) {
+  const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const { db, role, busy: storeBusy, addRoom, deleteRoom, createQuotation } = useStore();
   const router = useRouter();
   const [newRoom, setNewRoom] = useState<string>('');
@@ -729,19 +743,7 @@ function RoomsTab({
               </View>
               {editable && (
                 <Pressable
-                  onPress={() =>
-                    Alert.alert('حذف الغرفة', 'سيتم حذف كل شبابيك هذه الغرفة.', [
-                      { text: 'إلغاء', style: 'cancel' },
-                      {
-                        text: 'حذف',
-                        style: 'destructive',
-                        onPress: async () => {
-                          const res = await deleteRoom(room.id);
-                          if (!res.ok) Alert.alert('تعذر الحذف', res.error);
-                        },
-                      },
-                    ])
-                  }
+                  onPress={() => setRoomToDelete(room.id)}
                   hitSlop={12}
                 >
                   <Trash2 size={18} color={palette.danger} />
@@ -815,10 +817,38 @@ function RoomsTab({
             if (quotation) return router.push(`/quotation/${quotation.id}`);
             const res = await createQuotation(projectId);
             if (res.ok) router.push(`/quotation/${res.data}`);
-            else Alert.alert('تعذر الإنشاء', res.error);
+            else setActionError(res.error);
           }}
         />
       )}
+
+      {!!actionError && (
+        <Banner
+          tone="danger"
+          title="تعذّرت العملية"
+          body={actionError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setActionError(null)} />}
+        />
+      )}
+
+      <ConfirmSheet
+        visible={roomToDelete !== null}
+        title="حذف الغرفة"
+        body="سيتم حذف كل شبابيك هذه الغرفة."
+        confirmLabel="حذف"
+        tone="danger"
+        loading={deletingRoom}
+        icon={<Trash2 size={22} color={palette.danger} />}
+        onConfirm={async () => {
+          if (!roomToDelete) return;
+          setDeletingRoom(true);
+          const res = await deleteRoom(roomToDelete);
+          setDeletingRoom(false);
+          setRoomToDelete(null);
+          if (!res.ok) setActionError(res.error);
+        }}
+        onCancel={() => setRoomToDelete(null)}
+      />
     </>
   );
 }
@@ -833,6 +863,7 @@ function QuoteTab({
   onGoToProduction: () => void;
 }) {
   const { db, role, busy: storeBusy, createQuotation } = useStore();
+  const [actionError, setActionError] = useState<string | null>(null);
   const router = useRouter();
   const quotation = db.quotations.find((q) => q.projectId === projectId);
   const version = currentVersion(db, projectId);
@@ -859,7 +890,7 @@ function QuoteTab({
                 onPress={async () => {
                   const res = await createQuotation(projectId);
                   if (res.ok) router.push(`/quotation/${res.data}`);
-                  else Alert.alert('تعذر الإنشاء', res.error);
+                  else setActionError(res.error);
                 }}
               />
             ) : undefined
@@ -951,6 +982,15 @@ function QuoteTab({
         icon={<FileText size={18} color={palette.ivory} />}
         onPress={() => router.push(`/quotation/${quotation.id}`)}
       />
+
+      {!!actionError && (
+        <Banner
+          tone="danger"
+          title="تعذّرت العملية"
+          body={actionError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setActionError(null)} />}
+        />
+      )}
     </>
   );
 }
@@ -1158,6 +1198,9 @@ function MoneyTab({ projectId }: { projectId: string }) {
       ),
     [db.quotationVersions, db.quotations, projectId],
   );
+  const [payToReverse, setPayToReverse] = useState<string | null>(null);
+  const [reversing, setReversing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [amount, setAmount] = useState<string>('');
   const [method, setMethod] = useState<'cash' | 'check'>('cash');
   const [checksOpen, setChecksOpen] = useState<boolean>(false);
@@ -1309,23 +1352,40 @@ function MoneyTab({ projectId }: { projectId: string }) {
                 label="عكس"
                 variant="ghost"
                 small
-                onPress={() =>
-                  Alert.alert('عكس الدفعة', 'سيتم إنشاء قيد عكسي دائم في السجل.', [
-                    { text: 'إلغاء', style: 'cancel' },
-                    {
-                              text: 'تأكيد',
-                              onPress: async () => {
-                                const r = await reversePayment(p.id, 'تصحيح إداري');
-                                if (!r.ok) Alert.alert('تعذر العكس', r.error);
-                              },
-                            },
-                  ])
-                }
+                onPress={() => setPayToReverse(p.id)}
               />
             )}
           </Row>
         ))}
       </Card>
+
+      {!!actionError && (
+        <Banner
+          tone="danger"
+          title="تعذّرت العملية"
+          body={actionError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setActionError(null)} />}
+        />
+      )}
+
+      <ConfirmSheet
+        visible={payToReverse !== null}
+        title="عكس الدفعة"
+        body="سيتم إنشاء قيد عكسي دائم في السجل - لا يُحذف الأصل ولا يُعدّل."
+        confirmLabel="تأكيد العكس"
+        tone="danger"
+        loading={reversing}
+        icon={<Undo2 size={22} color={palette.danger} />}
+        onConfirm={async () => {
+          if (!payToReverse) return;
+          setReversing(true);
+          const r = await reversePayment(payToReverse, 'تصحيح إداري');
+          setReversing(false);
+          setPayToReverse(null);
+          if (!r.ok) setActionError(r.error);
+        }}
+        onCancel={() => setPayToReverse(null)}
+      />
     </>
   );
 }

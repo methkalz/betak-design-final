@@ -12,13 +12,14 @@ import {
   UserCheck,
 } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, Pressable, View } from 'react-native';
+import { Linking, Platform, Pressable, View } from 'react-native';
 
 import {
   AppText,
   Banner,
   Button,
   Card,
+  ConfirmSheet,
   Divider,
   EmptyState,
   Field,
@@ -48,6 +49,7 @@ export default function VisitScreen() {
   const goBack = useGoBack('/visits');
   const { db, isOnline, busy, startVisit, completeVisit, updateVisit, addAttachment } = useStore();
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   // null = لم يلمس الحقل؛ '' = مسحٌ مقصود يُحفَظ - فلا يبعث النص القديم
   const [note, setNote] = useState<string | null>(null);
 
@@ -112,9 +114,9 @@ export default function VisitScreen() {
     }
     const res = await completeVisit(visit.id);
     if (!res.ok) return setError(res.error);
-    Alert.alert('تم إكمال الزيارة', 'حُفظت الزيارة على خادم المعرض.', [
-      { text: 'تمام', onPress: () => goBack() },
-    ]);
+    // كانت Alert بزرٍّ واحد يحمل goBack - وهي كعبٌ فارغ على الويب، فيُتمّ
+    // المستخدم الزيارة ثم **يعلق** على الشاشة بلا رسالةٍ ولا رجوع.
+    setDone(true);
   };
 
   return (
@@ -382,6 +384,19 @@ export default function VisitScreen() {
           icon={<CheckCircle2 size={16} color={palette.success} />}
         />
       )}
+      <ConfirmSheet
+        visible={done}
+        title="تم إكمال الزيارة"
+        body="حُفظت الزيارة على خادم المعرض."
+        confirmLabel="تمام"
+        cancelLabel={null}
+        icon={<CheckCircle2 size={22} color={palette.success} />}
+        onConfirm={() => {
+          setDone(false);
+          goBack();
+        }}
+        onCancel={() => setDone(false)}
+      />
     </ScrollScreen>
   );
 }

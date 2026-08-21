@@ -1,12 +1,13 @@
 import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import {
   AppText,
   Banner,
   Button,
   Card,
+  ConfirmSheet,
   Divider,
   Field,
   Pill,
@@ -70,6 +71,9 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const scroller = useRef<ScrollScreenHandle>(null);
 
   const roomCount = db.windows.filter((w) => w.roomId === roomId).length;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [name, setName] = useState<string>(existing?.name ?? nextWindowName(roomCount));
   const [width, setWidth] = useState<string>(existing ? String(existing.widthCm) : '');
   const [height, setHeight] = useState<string>(existing ? String(existing.heightCm) : '');
@@ -487,23 +491,38 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           variant="ghost"
           full
           icon={<Trash2 size={16} color={palette.danger} />}
-          onPress={() =>
-            Alert.alert('حذف الشباك', 'سيتم حذف القياس نهائيًا من المشروع.', [
-              { text: 'إلغاء', style: 'cancel' },
-              {
-                text: 'حذف',
-                style: 'destructive',
-                onPress: async () => {
-                  const res = await deleteWindow(existing.id);
-                  if (!res.ok) {
-                    Alert.alert('تعذر الحذف', res.error);
-                    return;
-                  }
-                  goBack();
-                },
-              },
-            ])
-          }
+          onPress={() => setConfirmDelete(true)}
+        />
+      )}
+      {!!existing && (
+        <ConfirmSheet
+          visible={confirmDelete}
+          title="حذف الشباك"
+          body="سيتم حذف القياس نهائيًا من المشروع."
+          confirmLabel="حذف"
+          tone="danger"
+          loading={deleting}
+          icon={<Trash2 size={22} color={palette.danger} />}
+          onConfirm={async () => {
+            setDeleting(true);
+            const res = await deleteWindow(existing.id);
+            setDeleting(false);
+            setConfirmDelete(false);
+            if (!res.ok) {
+              setDeleteError(res.error);
+              return;
+            }
+            goBack();
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
+      {!!deleteError && (
+        <Banner
+          tone="danger"
+          title="تعذر الحذف"
+          body={deleteError}
+          action={<Button label="حسنًا" variant="ghost" small onPress={() => setDeleteError(null)} />}
         />
       )}
       <AppText variant="caption" color={palette.muted} align="center">
