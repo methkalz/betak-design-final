@@ -25,13 +25,15 @@
       "package": "app.rork.72xauvl81ef7xdo88xgur"
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "https://betakd.com"
         }
       ],
       "expo-font",
