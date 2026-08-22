@@ -52,7 +52,7 @@ import { CheckPhotos } from '@/components/CheckPhotos';
 import { SignedImage } from '@/components/SignedImage';
 import { AdvanceButton } from '@/components/AdvanceButton';
 import { TabPanel } from '@/components/TabMotion';
-import { font, gradients, palette, radius, spacing } from '@/constants/theme';
+import { font, gradients, layout, palette, radius, spacing } from '@/constants/theme';
 import {
   ATTACHMENT_KIND_LABELS,
   PROJECT_STATUS_HINTS,
@@ -68,6 +68,7 @@ import { can } from '@/domain/permissions';
 import { round3 } from '@/domain/pricing';
 import { projectFamilyFinance } from '@/domain/annex';
 import { currentVersion, projectFabricGaps, projectFinance, useProject } from '@/hooks/selectors';
+import { useResponsive } from '@/hooks/useResponsive';
 import { cm, formatDate, meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
 import { useStore } from '@/providers/store';
@@ -112,6 +113,7 @@ export default function ProjectStudioScreen() {
   const tabsRef = useRef<ScrollView>(null);
   const tabsPinned = useRef(false);
   const bodyRef = useRef<ScrollView>(null);
+  const { isDesktop } = useResponsive();
 
   /**
    * بعد إنشاء المشروع تنتقل الشاشة إلى الغرف من نفسها.
@@ -172,12 +174,20 @@ export default function ProjectStudioScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory }}>
       <Stack.Screen options={{ headerShown: false }} />
+      {/* التدرّج يبقى ممتدًّا على النافذة - هو لوحةُ رأسٍ لا محتوى. أمّا ما
+          بداخله فيُحصر في عمود القراءة نفسه كالجسم تحته، وإلا سافر العنوان
+          إلى أقصى الحافّة والمحتوى موسَّطٌ في الوسط. */}
       <LinearGradient
         colors={[palette.oliveDeepest, palette.olive]}
         start={{ x: 0.1, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}
+        style={{
+          paddingTop: isDesktop ? layout.gutter : insets.top + spacing.sm,
+          paddingHorizontal: spacing.lg,
+          paddingBottom: spacing.lg,
+        }}
       >
+       <View style={isDesktop ? { width: '100%', maxWidth: layout.column, alignSelf: 'center' } : undefined}>
         <Row justify="space-between">
           <Pressable onPress={goBack} hitSlop={8} style={styles.backBtn}>
             <ArrowRight size={20} color={palette.ivory} />
@@ -211,6 +221,7 @@ export default function ProjectStudioScreen() {
             {PROJECT_STATUS_HINTS[project.status]}
           </AppText>
         </View>
+       </View>
       </LinearGradient>
 
       <TabBar tabs={visibleTabs} active={tab} onSelect={setTab} scrollRef={tabsRef} pinned={tabsPinned} />
@@ -218,8 +229,18 @@ export default function ProjectStudioScreen() {
       <ScrollView
         ref={bodyRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          isDesktop
+            ? {
+                padding: layout.gutter,
+                paddingBottom: layout.gutter,
+                width: '100%',
+                maxWidth: layout.column,
+                alignSelf: 'center',
+              }
+            : { padding: spacing.lg, paddingBottom: 140 }
+        }
+        showsVerticalScrollIndicator={isDesktop}
       >
         <TabPanel tab={tab} order={tabOrder} onSwap={resetScroll}>
           {(shown) => (
@@ -274,6 +295,7 @@ function TabBar({
   scrollRef: React.RefObject<ScrollView | null>;
   pinned: React.MutableRefObject<boolean>;
 }) {
+  const { isDesktop } = useResponsive();
   const [edges, setEdges] = useState<Partial<Record<Tab, Edge>>>({});
   const stripW = useRef(0);
   const scrolledFor = useRef<Tab | null>(null);
@@ -320,10 +342,14 @@ function TabBar({
           الحشوة الجانبية فاصلان لا `paddingHorizontal`: المؤشّر عنصر مطلق
           يُوضع بـ`left: 0`، ولو كان للحاوية حشوة لاختلف مبدأ إحداثياته عن
           مبدأ قياسات التبويبات فانزاح الخط بمقدارها. */}
+      {/* الحصر على الشريط نفسه لا على محتواه: المؤشّر عنصرٌ مطلق مبدؤه مبدأ
+          محتوى التمرير، فحشوةٌ أو هامشٌ داخليّ يزيحه بمقدارهما - وهو الفخّ
+          الذي يحذّر منه التعليق أعلاه. تضييق الحاوية يترك المبدأ كما هو. */}
       <ScrollView
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={isDesktop ? { width: '100%', maxWidth: layout.column, alignSelf: 'center' } : undefined}
         onLayout={(e) => {
           stripW.current = e.nativeEvent.layout.width;
         }}

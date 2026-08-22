@@ -6,7 +6,7 @@ import { FlatList, TextInput, View } from 'react-native';
 import { ProjectRow } from '@/components/cards';
 import { AppText, Chip, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { can } from '@/domain/permissions';
 import { useStore } from '@/providers/store';
 import type { ProjectStatus } from '@/types/domain';
@@ -34,6 +34,7 @@ export default function ProjectsScreen() {
   const router = useRouter();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const [query, setQuery] = useState<string>('');
   const [filter, setFilter] = useState<Filter>('all');
 
@@ -74,7 +75,7 @@ export default function ProjectsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <Row justify="space-between">
           <AppText variant="title">المشاريع</AppText>
           {can(role, 'manage_customers') && (

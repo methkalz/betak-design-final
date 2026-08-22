@@ -6,7 +6,7 @@ import { TailorCard } from '@/components/cards';
 import { TabPanel } from '@/components/TabMotion';
 import { AppText, EmptyState, Row, SegmentedControl } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { TAILOR_STAGE_LABELS } from '@/domain/labels';
 import { meters } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -19,6 +19,7 @@ export default function TasksScreen() {
   const { db, currentUser } = useStore();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const [tab, setTab] = useState<Tab>('open');
 
   const mine = useMemo(
@@ -36,7 +37,7 @@ export default function TasksScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <AppText variant="title">أوامر الإنتاج</AppText>
         <Row gap={spacing.md}>
           <View style={{ flex: 1, backgroundColor: palette.sageSoft, borderRadius: radius.lg, padding: spacing.md }}>

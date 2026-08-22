@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { layout, spacing } from '@/constants/theme';
 import {
+  HEADER_DESKTOP,
+  HEADER_PHONE,
   LIST_DESKTOP,
   LIST_PHONE,
   resolveResponsive,
@@ -52,4 +54,14 @@ export function useTopPad(extra: number = spacing.sm): number {
  */
 export function useListContent(): ViewStyle {
   return (useResponsive().isDesktop ? LIST_DESKTOP : LIST_PHONE) as ViewStyle;
+}
+
+/**
+ * رأس شاشة القائمة - العنوان والبحث والمرشّحات فوق القائمة.
+ *
+ * الرأس لا يُمرَّر مع القائمة فلا يرث `contentContainerStyle`، فيلزمه سقفُه
+ * الخاصّ. وبدونه يمتدّ على النافذة كلّها بينما البطاقات تحته موسَّطة.
+ */
+export function useListHeader(): ViewStyle {
+  return (useResponsive().isDesktop ? HEADER_DESKTOP : HEADER_PHONE) as ViewStyle;
 }
