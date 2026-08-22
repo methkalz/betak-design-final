@@ -264,7 +264,7 @@ update core.pricing_rules
    set customer_price_per_meter_agorot = 45000, tailor_cost_per_meter_agorot = 7000
  where organization_id = '{ORG}';
 update core.windows
-   set quantity = 1, fullness = 3, has_lining = false, track = 'standard',
+   set quantity = 1, fullness = 3, has_lining = false, track = 'ceiling_rail',
        fabric_variant_id = '{VARO}', lining_variant_id = null
  where id = '{wid(2)}';""")
 if 'ERROR' in out:

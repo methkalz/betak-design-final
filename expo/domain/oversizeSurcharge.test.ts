@@ -47,7 +47,7 @@ const RULES = [
 /** شباك 200 سم، قطعة واحدة، مضاعف 3 → مترّان طوليّان. */
 const WIN = {
   id: 'w', organizationId: 'o', projectId: 'p', roomId: 'r', name: 'ش',
-  widthCm: 200, hasLining: true, track: 'standard', fullness: 3,
+  widthCm: 200, hasLining: true, track: 'ceiling_rail', fullness: 3,
   fabricVariantId: 'v1', liningVariantId: null, quantity: 1,
   notes: '', measuredAt: null, measuredBy: null,
 } as unknown as WindowUnit;
