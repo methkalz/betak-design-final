@@ -309,8 +309,11 @@ where i.version_id = '{ver}';""", quiet=False)
     if ver:
         probe = sql(f"""select (pricing_context->'settings'->>'oversize_surcharge_percent')
 from core.quotation_versions where id = '{ver}';""", quiet=False)
+        # مساواةٌ على القيمة المفروزة لا احتواءَ نصّ: '30' in probe يمرّ على
+        # «130.00» و«3.00» و«0.30» - أي على ثلاث قيمٍ خاطئة تمامًا.
+        m2 = re.search(r'^\s*(\d+(?:\.\d+)?)\s*$', probe, re.M)
         check('oversize parity: snapshot captured oversize_surcharge_percent',
-              '30' in probe, probe)
+              bool(m2) and float(m2.group(1)) == 30.0, probe)
 
     # ★ التوافق الرجعيّ على مستوى SQL: لقطةٌ **تخلو** من المفتاح على شبّاك 500
     #   يجب ألّا تُزاد - وهذا الإثبات الوحيد أن النسخ المقفلة لا تُعاد تسعيرها.

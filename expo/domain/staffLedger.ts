@@ -21,6 +21,7 @@ import {
   resolveBand,
   resolveCategory,
   round3,
+  runningMeters,
   TALL_BAND_MAX_CM,
 } from '@/domain/pricing';
 import type { Role, UUID } from '@/types/domain';
@@ -35,7 +36,11 @@ export function windowTailorFeeAgorot(db: Database, windowId: UUID): number {
   const kind: 'crepe' | 'other' = product?.kind === 'crepe' ? 'crepe' : 'other';
   const rule = findRule(db.pricingRules, resolveBand(w.heightCm), resolveCategory(kind, w.hasLining));
   if (!rule) return 0;
-  const rm = round3((w.widthCm / 100) * w.quantity);
+  // ★ أمتارُ المحرّك نفسها لا حسابٌ موازٍ: (widthCm/100)×qty بالعائم يهبط
+  //   تحت نصف الألف حيث يصعد المسار الصحيح - 50.05/100 = 0.50049999999999994
+  //   فيقرأ round3 صفرًا خمسمئة حيث المحرّك خمسمئة وواحدًا. قِيس: 356 عرضًا
+  //   بين 100 و600 سم يفقد فيها الخياط شيكلًا كاملًا من أجره.
+  const rm = runningMeters(w.widthCm, w.quantity);
   // ★ الخياط يقبض بالمعدَّل المُزاد نفسه الذي دخل تكلفة الشباك - وإلا خاط
   //   ارتفاعًا يُحاسَب المحلُّ عليه بزيادة ويقبض هو بلا زيادة.
   const tailorRate = oversizeRateAgorot(
@@ -62,7 +67,7 @@ export function tailorAccruals(db: Database, tailorId: UUID): TailorAccrual[] {
         projectId: a.projectId,
         completedAt: a.completedAt as string,
         feeAgorot: windows.reduce((s, w) => s + windowTailorFeeAgorot(db, w.id), 0),
-        metersM: round3(windows.reduce((s, w) => s + (w.widthCm / 100) * w.quantity, 0)),
+        metersM: round3(windows.reduce((s, w) => s + runningMeters(w.widthCm, w.quantity), 0)),
       };
     })
     .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
