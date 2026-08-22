@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { PoweredBy } from '@/components/PoweredBy';
 import { AppText, ConfirmSheet, Divider, Pill, Row, RTL_ROW } from '@/components/ui';
 import { layout, palette, radius, shadow, spacing, TOUCH } from '@/constants/theme';
 import { ROLE_LABELS } from '@/domain/permissions';
@@ -130,6 +131,10 @@ function Sidebar({ pathname }: { pathname: string }) {
         danger
         onPress={() => setConfirmOut(true)}
       />
+
+      {/* قدم القوقعة: السطح الوحيد الدائم على المكتب، فالتوقيع هنا يظهر على
+          كلّ شاشةٍ بلا أن يُقحَم في تخطيط أيٍّ منها. */}
+      <PoweredBy />
 
       <ConfirmSheet
         visible={confirmOut}
