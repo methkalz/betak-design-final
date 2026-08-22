@@ -225,8 +225,8 @@ begin
   if not (p_width_cm > 0 and p_height_cm > 0) then
     raise exception 'العرض والارتفاع يجب أن يكونا أكبر من صفر.' using errcode = 'BD400';
   end if;
-  if p_height_cm > 500 then
-    raise exception 'الارتفاع أكبر من 500 سم - يحتاج تسعيرة خاصة من الأدمن.'
+  if p_height_cm > 800 then
+    raise exception 'الارتفاع أكبر من 800 سم - يحتاج تسعيرة خاصة من الأدمن.'
       using errcode = 'BD400';
   end if;
   if p_fullness < 1.5 or p_fullness > 4 then

@@ -33,6 +33,9 @@ VARL  = 'aaaa5555-0000-4000-8000-0000000000e5'  # بطانة خاصة 1100
 
 passed, failed = [], []
 
+# نمطُ التقاط معرّف النسخة - مستعملٌ في أكثر من كتلة
+VER_RE = r'"version_id"\s*:\s*"([0-9a-f-]+)"'
+
 
 def sql(text, quiet=True):
     put_text(text + '\n', '/tmp/gve.sql')
@@ -58,6 +61,9 @@ def pid(n): return f'aaaa5555-0000-4000-8000-0000000000d{n}'
 def rid(n): return f'aaaa5555-0000-4000-8000-00000000f0d{n}'
 def wid(n): return f'aaaa5555-0000-4000-8000-00000000e0d{n}'
 def key(n): return f'aaaa5555-0000-4000-8000-00000000ee0{n}'
+# مساحةٌ مستقلّة لمفاتيح كتلة الزيادة: ee0{1..9} محجوزةٌ للمتجهات الثمانية
+# ولمرآة المكوّنات، وإعادةُ استعمال مفتاحٍ بمدخلاتٍ مختلفة يرفضها العقد.
+def okey(n): return f'aaaa5555-0000-4000-8000-00000000ef0{n}'
 
 
 PURGE = f"""
@@ -237,6 +243,93 @@ where i.version_id = '{ver}';""", quiet=False)
 from core.quotation_versions where id = '{ver}';""", quiet=False)
         check('component parity: snapshot captured the component keys',
               '8000|40000|5000' in probe, probe)
+
+print('\n=== زيادة الارتفاع الكبير: مرآة ≥500 سم بين المحرّكين ===')
+# ★ لماذا هذه الكتلة موجودة: المتجهات الثمانية **عمياء عن الارتفاع** - كلّ
+# شبابيكها 250 سم، و`lineArithmetic` لا يستقبل الارتفاع أصلًا. فلا شيء في
+# البوابة يكشف عطبًا في الزيادة لولا هذا الفحص.
+#
+# الأرقام ولّدها محرك TS الحقيقي (oversizeRateAgorot ← lineArithmetic ←
+# totalsArithmetic) لا حسابٌ يدوي: قاعدة 45000/7000، قماش 2000، مضاعف 3،
+# بلا بطانة، مسار عادي، قياس 3000، نسبة 30% ← المعدّلات 58500/9100/3900.
+out = sql(f"""
+update core.business_settings
+   set track_cost_per_meter_agorot = 1000,
+       delivery_cost_per_meter_agorot = 1000,
+       measure_install_cost_per_meter_agorot = 3000,
+       motorized_track_cost_per_meter_agorot = 0,
+       motorized_track_price_per_meter_agorot = 0,
+       motor_cost_agorot = 0, motor_price_agorot = 0,
+       remote_cost_agorot = 0, remote_price_agorot = 0,
+       oversize_surcharge_percent = 30
+ where organization_id = '{ORG}';
+update core.pricing_rules
+   set customer_price_per_meter_agorot = 45000, tailor_cost_per_meter_agorot = 7000
+ where organization_id = '{ORG}';
+update core.windows
+   set quantity = 1, fullness = 3, has_lining = false, track = 'ceiling_rail',
+       fabric_variant_id = '{VARO}', lining_variant_id = null
+ where id = '{wid(2)}';""")
+if 'ERROR' in out:
+    check('oversize parity: seed', False, out)
+else:
+    OVERSIZE = [
+        ('A ≥500 تسري الزيادة', 250, 500, okey(1),
+         '2.500|7.500|0.000|146200|52500|58500|146200|0|172500|26300|146200|64.09'),
+        # ★ المميِّز: ضربُ المجموع بدل المعدَّل يعطي 29700 لا 29800
+        ('B شبّاك ضيّق يفرّق شيكلًا (المعدَّل لا المجموع)', 51, 500, okey(2),
+         '0.510|1.530|0.000|29800|10700|58500|29800|0|35100|5300|29800|64.09'),
+        ('C 499 تحت الحدّ بسنتيمتر - بلا زيادة', 250, 499, okey(3),
+         '2.500|7.500|0.000|112500|45000|45000|112500|0|132700|20200|112500|60.00'),
+    ]
+    ver = None
+    for name, w_cm, h_cm, k, expected in OVERSIZE:
+        sql(f"""update core.windows set width_cm = {w_cm}, height_cm = {h_cm}
+ where id = '{wid(2)}';""")
+        out = as_user(ADMIN, f"""select api.create_quotation_version(
+          '{pid(2)}'::uuid, 0, '', '{k}'::uuid)::text;""")
+        m = re.search(VER_RE, out)
+        if not m:
+            check(f'oversize parity: {name} (create)', False, out)
+            continue
+        ver = m.group(1)
+        probe = sql(f"""select i.running_meters::text || '|' || i.fabric_meters::text
+ || '|' || i.lining_meters::text || '|' || i.line_total_agorot
+ || '|' || i.internal_cost_agorot || '|' || i.unit_price_agorot
+ || '|' || v.subtotal_agorot || '|' || v.discount_agorot
+ || '|' || v.total_agorot || '|' || v.vat_agorot
+ || '|' || (v.total_agorot - v.vat_agorot) || '|' || v.margin_percent::text
+from core.quotation_items i
+join core.quotation_versions v on v.id = i.version_id
+where i.version_id = '{ver}';""", quiet=False)
+        check(f'oversize parity: {name}', expected in probe,
+              'expected: ' + expected + '\n     got: ' + probe)
+
+    # اللقطة التقطت المفتاح - بدونه يقرؤه المحرّك صفرًا فتصير الميزة لا شيءَ صامتًا
+    if ver:
+        probe = sql(f"""select (pricing_context->'settings'->>'oversize_surcharge_percent')
+from core.quotation_versions where id = '{ver}';""", quiet=False)
+        check('oversize parity: snapshot captured oversize_surcharge_percent',
+              '30' in probe, probe)
+
+    # ★ التوافق الرجعيّ على مستوى SQL: لقطةٌ **تخلو** من المفتاح على شبّاك 500
+    #   يجب ألّا تُزاد - وهذا الإثبات الوحيد أن النسخ المقفلة لا تُعاد تسعيرها.
+    sql(f"""update core.windows set width_cm = 250, height_cm = 500
+ where id = '{wid(2)}';""")
+    probe = sql(f"""select unit_price_agorot from private.price_project_windows(
+  '{ORG}'::uuid, '{pid(2)}'::uuid,
+  jsonb_build_object(
+    'settings', jsonb_build_object(
+      'track_cost_per_meter_agorot', 1000,
+      'delivery_cost_per_meter_agorot', 1000,
+      'measure_install_cost_per_meter_agorot', 3000,
+      'lining_cost_per_meter_agorot', 900),
+    'rules', jsonb_build_array(jsonb_build_object(
+      'band', 'tall', 'category', 'other_without_lining',
+      'customer_price_per_meter_agorot', 45000,
+      'tailor_cost_per_meter_agorot', 7000)))) limit 1;""", quiet=False)
+    check('oversize parity: لقطةٌ بلا المفتاح لا تُزاد (توافق رجعيّ)',
+          '45000' in probe, probe)
 
 print('\n=== cleanup ===')
 sql(PURGE)

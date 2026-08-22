@@ -255,7 +255,7 @@ export default function QuotationScreen() {
                 </AppText>
                 <AppText variant="caption" color={palette.muted}>
                   {cm(item.widthCm)} × {cm(item.heightCm)} • {meters(item.runningMeters, false)} متر •{' '}
-                  {item.band === 'standard' ? 'أقل من 320 سم' : '320–500 سم'}
+                  {item.band === 'standard' ? 'أقل من 320 سم' : '320 سم فأكثر'}
                 </AppText>
               </View>
               <View style={{ alignItems: 'flex-start' }}>

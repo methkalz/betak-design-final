@@ -44,7 +44,14 @@ const S = {
   remoteCost: 10000,
   remotePrice: 20000,
   vatPercent: 18,
+  oversizePct: 30,
 };
+
+/** مرآةُ oversizeRateAgorot في نسخة الصفحة - أعدادٌ صحيحة بحتة. */
+function surch(rate: number, heightCm: number): number {
+  if (heightCm < 500) return rate;
+  return divRoundHalfAway(rate * (10_000 + Math.round(S.oversizePct * 100)), 10_000);
+}
 
 const RULES: Record<string, Record<string, [number, number]>> = {
   standard: {
@@ -84,7 +91,7 @@ function pagePrice(o: {
   const motor = o.track === 'motorized';
   const hasLining = o.lining.id !== 'none';
   const band = o.heightCm >= 320 ? 'tall' : 'standard';
-  const overMax = o.heightCm > 500;
+  const overMax = o.heightCm > 800;
   const cat =
     (o.fabric.kind === 'crepe' ? 'crepe' : 'other') +
     (hasLining ? '_with_lining' : '_without_lining');
@@ -97,7 +104,11 @@ function pagePrice(o: {
   const perWinCost = motor ? (S.motorCost + S.remoteCost) * units : 0;
 
   const surcharge = hasLining ? o.lining.surcharge : 0;
-  let unitPrice = rule[0] + surcharge + trackPrice;
+  // ثلاثةٌ وحدها تُزاد؛ زيادةُ لون البطانة وسعرُ المسار تُجمعان بعدها
+  const customerRate = surch(rule[0], o.heightCm);
+  const tailorRate = surch(rule[1], o.heightCm);
+  const installRate = surch(S.installCost, o.heightCm);
+  let unitPrice = customerRate + surcharge + trackPrice;
 
   const rt = rmTh(o.widthCm, units);
   const fullTh = Math.round(o.fullness * 1000);
@@ -112,7 +123,7 @@ function pagePrice(o: {
   const perRmMilli =
     o.fabric.cost * fullTh +
     (hasLining ? o.lining.cost * liningMulTh : 0) +
-    (rule[1] + trackCost + S.deliveryCost + S.installCost) * 1000;
+    (tailorRate + trackCost + S.deliveryCost + installRate) * 1000;
   const internalCost = floorToShekel(divRoundHalfAway(perRmMilli * rt, 1_000_000)) + perWinCost;
 
   if (overMax) {
@@ -124,8 +135,8 @@ function pagePrice(o: {
   const whole = (milliPerRm: number) => divRoundHalfAway(milliPerRm * rt, 1_000_000);
   const items = [whole(o.fabric.cost * fullTh)];
   if (hasLining) items.push(whole(o.lining.cost * liningMulTh));
-  items.push(whole(rule[1] * 1000), whole(trackCost * 1000));
-  items.push(whole(S.deliveryCost * 1000), whole(S.installCost * 1000));
+  items.push(whole(tailorRate * 1000), whole(trackCost * 1000));
+  items.push(whole(S.deliveryCost * 1000), whole(installRate * 1000));
   if (motor) items.push(S.motorCost * units, S.remoteCost * units);
   const itemsSum = items.reduce((a, b) => a + b, 0);
 
@@ -192,7 +203,7 @@ function enginePrice(o: {
 
 const WIDTHS = [100, 165, 320, 427.5];
 // حدُّ الشريحة عند 320: الطرفان يُختبران على جانبَي الحدّ نفسه
-const HEIGHTS = [240, 319, 320, 500, 520];
+const HEIGHTS = [240, 319, 320, 499, 500, 501, 799, 800, 801];
 const FULLNESS = [2, 2.5, 3];
 const QUANTITIES = [1, 3];
 const TRACKS: TrackType[] = ['standard', 'motorized'];
@@ -233,7 +244,7 @@ test('كل احتمال تعرضه الصفحة يطابق المحرك أغور
                   `${where} البطانة ${eng.liningMeters}`,
                 );
                 // فوق ٥٠٠ سم يمتنع المحرك عن التسعير كله، فالتكلفة عنده صفر
-                if (heightCm <= 500) {
+                if (heightCm <= 800) {
                   expect(`${where} التكلفة ${page.internalCost}`).toBe(
                     `${where} التكلفة ${eng.internalCostAgorot}`,
                   );
@@ -255,7 +266,9 @@ test('كل احتمال تعرضه الصفحة يطابق المحرك أغور
       }
     }
   }
-  expect(cases).toBe(1440);
+  // 4 عروض × 9 ارتفاعات × 3 امتلاء × 2 كمية × 2 مسار × (2 قماش × 3 بطانة)
+  // حرفيٌّ لا محسوب: إسقاط بُعدٍ سهوًا يجب أن يُسقط البوابة لا أن يمرّ
+  expect(cases).toBe(2592);
 });
 
 test('الخصم والضريبة والهامش في الصفحة تطابق تجميع المحرك', () => {
@@ -283,5 +296,29 @@ test('الخصم والضريبة والهامش في الصفحة تطابق ت
       engTotals.marginAgorot,
     ]);
     expect([discount, page.marginPercent]).toEqual([discount, engTotals.marginPercent]);
+  }
+});
+
+/**
+ * حارسُ انحرافِ الحاسبة المستقلّة.
+ *
+ * `pagePrice` أعلاه **نسخةٌ يدوية** من منطق صفحة الحاسبة، لا استيرادٌ منها.
+ * فلو عُدِّل المحرّك والنسخة اليدوية وحدهما، بقيت الحاسبة الحقيقية تسعّر
+ * بالقديم والبوابةُ خضراء - والمالك يستعملها أمام الزبون. هذا الفحص رخيص
+ * ويحوّل الانحراف الصامت إلى بناءٍ أحمر.
+ */
+test('نسختا الحاسبة المستقلّة تحملان القاعدة نفسها', async () => {
+  const files = ['tools/price-calculator/app.js', 'tools/price-calculator.html'];
+  for (const f of files) {
+    const src = await Bun.file(f).text();
+    expect(`${f}: يعرف نسبة الزيادة`).toBe(
+      src.includes('oversizePct') ? `${f}: يعرف نسبة الزيادة` : `${f}: يجهل الزيادة`,
+    );
+    expect(`${f}: السقف 800`).toBe(
+      src.includes('heightCm > 800') ? `${f}: السقف 800` : `${f}: السقف ما زال 500`,
+    );
+    expect(`${f}: الحدّ 500`).toBe(
+      src.includes('heightCm < 500') ? `${f}: الحدّ 500` : `${f}: بلا حدّ 500`,
+    );
   }
 });

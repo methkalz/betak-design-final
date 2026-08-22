@@ -249,9 +249,9 @@ out = as_user(F1, f"""select api.save_window(
   '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 280, null, '{key(22)}'::uuid)::text;""")
 ok1 = 'اختر القماش' in out
 out = as_user(F1, f"""select api.save_window(
-  '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 501, '{VAR}'::uuid, '{key(23)}'::uuid)::text;""")
-check('22 بلا قماش أو فوق 500 سم → BD400',
-      ok1 and ('500' in out and 'تسعيرة خاصة' in out), out)
+  '{PRJ2}'::uuid, '{ROOM}'::uuid, 300, 801, '{VAR}'::uuid, '{key(23)}'::uuid)::text;""")
+check('22 بلا قماش أو فوق 800 سم → BD400',
+      ok1 and ('800' in out and 'تسعيرة خاصة' in out), out)
 
 out = as_user(F1, f"""select api.save_window(
   '{PRJ2}'::uuid, '{ROOM}'::uuid, 350, 280, '{VAR}'::uuid, '{key(24)}'::uuid,
