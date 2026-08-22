@@ -100,6 +100,8 @@ const settings: BusinessSettings = {
   motorPriceAgorot: 90000,
   remoteCostAgorot: 10000,
   remotePriceAgorot: 20000,
+  // زيادة الارتفاع الكبير (500 سم فأكثر) - قرار المالك 22.8.2026
+  oversizeSurchargePercent: 30,
 };
 
 const profiles: Profile[] = [
@@ -1456,4 +1458,4 @@ export function buildSeed(): Database {
  * فاتورة الـPDF رغم تصحيحه في البذرة: كان التطبيق يقرأ لقطةً قديمة. كل تعديل
  * على البيانات التجريبية يستلزم زيادة الرقم هنا.
  */
-export const SEED_VERSION = 'baytak-seed-v12';
+export const SEED_VERSION = 'baytak-seed-v13';

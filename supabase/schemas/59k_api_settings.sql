@@ -5,7 +5,7 @@
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
 -- ════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE FUNCTION api.update_business_settings(p_idempotency_key uuid, p_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_delivery_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_measure_install_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_lining_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_min_margin_percent numeric DEFAULT NULL::numeric, p_employee_discount_limit_percent numeric DEFAULT NULL::numeric, p_admin_discount_limit_percent numeric DEFAULT NULL::numeric, p_quotation_validity_days integer DEFAULT NULL::integer, p_vat_percent numeric DEFAULT NULL::numeric, p_field_visit_wage_agorot bigint DEFAULT NULL::bigint, p_motorized_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_motorized_track_price_per_meter_agorot bigint DEFAULT NULL::bigint, p_motor_cost_agorot bigint DEFAULT NULL::bigint, p_motor_price_agorot bigint DEFAULT NULL::bigint, p_remote_cost_agorot bigint DEFAULT NULL::bigint, p_remote_price_agorot bigint DEFAULT NULL::bigint)
+CREATE OR REPLACE FUNCTION api.update_business_settings(p_idempotency_key uuid, p_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_delivery_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_measure_install_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_lining_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_min_margin_percent numeric DEFAULT NULL::numeric, p_employee_discount_limit_percent numeric DEFAULT NULL::numeric, p_admin_discount_limit_percent numeric DEFAULT NULL::numeric, p_quotation_validity_days integer DEFAULT NULL::integer, p_vat_percent numeric DEFAULT NULL::numeric, p_field_visit_wage_agorot bigint DEFAULT NULL::bigint, p_motorized_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_motorized_track_price_per_meter_agorot bigint DEFAULT NULL::bigint, p_motor_cost_agorot bigint DEFAULT NULL::bigint, p_motor_price_agorot bigint DEFAULT NULL::bigint, p_remote_cost_agorot bigint DEFAULT NULL::bigint, p_remote_price_agorot bigint DEFAULT NULL::bigint, p_oversize_surcharge_percent numeric DEFAULT NULL::numeric)
  RETURNS jsonb
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -46,7 +46,8 @@ begin
   if coalesce(p_min_margin_percent, 0) < 0 or coalesce(p_min_margin_percent, 0) > 100
      or coalesce(p_vat_percent, 0) < 0 or coalesce(p_vat_percent, 0) > 100
      or coalesce(p_employee_discount_limit_percent, 0) < 0 or coalesce(p_employee_discount_limit_percent, 0) > 100
-     or coalesce(p_admin_discount_limit_percent, 0) < 0 or coalesce(p_admin_discount_limit_percent, 0) > 100 then
+     or coalesce(p_admin_discount_limit_percent, 0) < 0 or coalesce(p_admin_discount_limit_percent, 0) > 100
+     or coalesce(p_oversize_surcharge_percent, 0) < 0 or coalesce(p_oversize_surcharge_percent, 0) > 100 then
     raise exception 'النسب بين 0 و100.' using errcode = 'BD400';
   end if;
   if p_quotation_validity_days is not null and p_quotation_validity_days <= 0 then
@@ -63,7 +64,8 @@ begin
     'mt_cost', p_motorized_track_cost_per_meter_agorot,
     'mt_price', p_motorized_track_price_per_meter_agorot,
     'motor_cost', p_motor_cost_agorot, 'motor_price', p_motor_price_agorot,
-    'remote_cost', p_remote_cost_agorot, 'remote_price', p_remote_price_agorot);
+    'remote_cost', p_remote_cost_agorot, 'remote_price', p_remote_price_agorot,
+    'oversize_pct', p_oversize_surcharge_percent);
 
   select * into v_prior from core.client_operations o
   where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
@@ -121,6 +123,7 @@ begin
     motor_price_agorot                     = coalesce(p_motor_price_agorot, motor_price_agorot),
     remote_cost_agorot                     = coalesce(p_remote_cost_agorot, remote_cost_agorot),
     remote_price_agorot                    = coalesce(p_remote_price_agorot, remote_price_agorot),
+    oversize_surcharge_percent             = coalesce(p_oversize_surcharge_percent, oversize_surcharge_percent),
     updated_at                             = now()
   where organization_id = v_org;
 

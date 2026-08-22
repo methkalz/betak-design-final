@@ -325,6 +325,12 @@ export interface BusinessSettings {
   /** جهاز التحكم: لازمٌ لكل ستارة كهربائية. */
   remoteCostAgorot: number;
   remotePriceAgorot: number;
+  /**
+   * زيادة الارتفاع الكبير: نسبةٌ تُضاف لشبابيك 500 سم فأكثر على سعر الزبون
+   * للمتر وأجرة الخياط والقياس والتركيب. الافتراضي 30. مجمَّدةٌ في لقطة كل
+   * مقترح كبقية الأسعار، فالمقفول لا يتغيّر.
+   */
+  oversizeSurchargePercent: number;
   /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
   timezone?: string;
 }
