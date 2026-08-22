@@ -64,7 +64,7 @@ COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيان
 COMMENT ON TABLE core.pricing_rules IS 'سعر الزبون وأجرة الخياط لكل متر ركض. قابل للتعديل من الأدمن وحده.';
 COMMENT ON COLUMN core.pricing_rules.customer_price_per_meter_agorot IS 'بالأغورة. مثال: ₪290 = 29000.';
 COMMENT ON COLUMN core.pricing_rules.tailor_cost_per_meter_agorot IS 'حساس: أجرة الخياط جزء من التكلفة الداخلية. لا تعرض لدور field.';
-COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 320 = standard، و320 فأكثر = tall (تصحيح المالك 10.8.2026). فوق 500 يحتاج تسعيرة خاصة.';
+COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 320 = standard، و320 فأكثر = tall. ومن 500 سم فأكثر تُزاد ثلاثة معدّلات بنسبة oversize_surcharge_percent. فوق 800 يحتاج تسعيرة خاصة.';
 COMMENT ON COLUMN core.windows.fullness IS 'مضاعف الكرمشة. أمتار القماش = المتر الركض × fullness (domain/pricing.ts).';
 COMMENT ON TABLE core.quotation_items IS 'بنود مجمدة. لا تعدل بعد قفل النسخة — تنسخ إلى النسخة التالية بقيم جديدة.';
 COMMENT ON COLUMN core.quotation_items.internal_cost_agorot IS 'حساس: تكلفة البند الداخلية.';

@@ -19,7 +19,10 @@ import type {
 
 /** يتغيّر السعر عند 320 سم (تصحيح المالك 10.8.2026 - كان 330). */
 export const TALL_BAND_MIN_CM = 320;
-export const TALL_BAND_MAX_CM = 500;
+/** من 500 سم فأكثر - شاملًا الـ500 - تُزاد ثلاثة معدّلات بنسبة الأدمن. */
+export const OVERSIZE_MIN_CM = 500;
+/** أقصى ارتفاعٍ يقبل التسعير التلقائي؛ فوقه تسعيرةُ الأدمن وحدها. */
+export const TALL_BAND_MAX_CM = 800;
 
 export function resolveBand(heightCm: number): HeightBand {
   return heightCm >= TALL_BAND_MIN_CM ? 'tall' : 'standard';
@@ -47,6 +50,28 @@ function divRoundHalfAway(numer: number, denom: number): number {
   const q = Math.floor(n / denom);
   const r = n - q * denom;
   return sign * (r * 2 >= denom ? q + 1 : q);
+}
+
+/**
+ * زيادة الارتفاع الكبير - العملية القانونية الواحدة، مرآةُ SQL حرفًا.
+ *
+ * النسبة `numeric(5,2)` على الخادم فتُقاس بأجزاء المئة: 30 ← 3000، والمضاعف
+ * 10000 + 3000 = 13000. والحساب أعدادٌ صحيحة بحتة، فلا يلمس عائمٌ رقمًا ماليًّا.
+ *
+ * ⚠️ لا تُكتب `Math.round((100 + pct) * 100)`: تشكيل العائم `100 + pct` يُفسد
+ * الناتج - عند 33.33٪ يعطي 19999 بدل 20000 لمعدَّل 15000. الصيغة هنا لا
+ * تُشكّل ذلك العائم أصلًا.
+ *
+ * وتُطبَّق على **المعدَّل** لا على المجموع: الإسقاطُ إلى الشيكل يسبق الضربَ
+ * لو طُبِّقت على المجموع، فيضيع شيكلٌ من الشبابيك الضيّقة.
+ */
+export function oversizeRateAgorot(
+  rateAgorot: number,
+  heightCm: number,
+  surchargePercent: number,
+): number {
+  if (heightCm < OVERSIZE_MIN_CM) return rateAgorot;
+  return divRoundHalfAway(rateAgorot * (10_000 + Math.round(surchargePercent * 100)), 10_000);
 }
 
 /**
@@ -285,7 +310,7 @@ export function priceWindow(input: PriceInput): WindowPricing {
       ? liningVariant.metersPerRunningMeter
       : win.fullness;
 
-  // فوق 500 سم: لا تسعير تلقائي إطلاقًا — مطابقة لمحرك SQL (BD422).
+  // فوق 800 سم: لا تسعير تلقائي إطلاقًا — مطابقة لمحرك SQL (BD422).
   // الأمتار تُعرض للمعلومة؛ كل الأرقام المالية صفر حتى يسعّر الأدمن يدويًا.
   if (win.heightCm > TALL_BAND_MAX_CM) {
     return {
@@ -303,7 +328,7 @@ export function priceWindow(input: PriceInput): WindowPricing {
       marginAgorot: 0,
       marginPercent: 0,
       requiresAdminPricing: true,
-      warnings: ['الارتفاع يتجاوز 500 سم - لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
+      warnings: ['الارتفاع يتجاوز 800 سم - لا تسعير تلقائي؛ يلزم تسعيرة خاصة من الأدمن.'],
     };
   }
 
@@ -343,8 +368,22 @@ export function priceWindow(input: PriceInput): WindowPricing {
     ? (settings.motorCostAgorot + settings.remoteCostAgorot) * units
     : 0;
 
-  const unitPriceAgorot =
-    (rule?.customerPricePerMeterAgorot ?? 0) + liningSurcharge + trackPricePerM;
+  /*
+   * زيادة الارتفاع الكبير: ثلاثة معدّلات وحدها تُزاد من 500 سم فأكثر - سعر
+   * الزبون للمتر، وأجرة الخياط، والقياس والتركيب. زيادةُ لون البطانة وسعرُ
+   * المسار الكهربائي إضافتان مستقلّتان لا علاقة لهما بالارتفاع، فتُجمعان
+   * **بعد** الزيادة لا تُضربان بها. مرآةُ محرّك SQL حرفًا.
+   */
+  const oversizePct = settings.oversizeSurchargePercent ?? 0;
+  const customerRateAgorot = oversizeRateAgorot(
+    rule?.customerPricePerMeterAgorot ?? 0, win.heightCm, oversizePct);
+  const tailorRateAgorot = oversizeRateAgorot(
+    rule?.tailorCostPerMeterAgorot ?? 0, win.heightCm, oversizePct);
+  const measureInstallRateAgorot = oversizeRateAgorot(
+    settings.measureInstallCostPerMeterAgorot, win.heightCm, oversizePct);
+  const isOversize = win.heightCm >= OVERSIZE_MIN_CM && oversizePct > 0;
+
+  const unitPriceAgorot = customerRateAgorot + liningSurcharge + trackPricePerM;
   const fabricCostPerM = variant?.costPerMeterAgorot ?? 0;
   const liningCostPerM = liningVariant?.costPerMeterAgorot ?? settings.liningCostPerMeterAgorot;
 
@@ -354,12 +393,12 @@ export function priceWindow(input: PriceInput): WindowPricing {
     fullness: win.fullness,
     hasLining: win.hasLining,
     unitPriceAgorot,
-    tailorCostAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
+    tailorCostAgorot: tailorRateAgorot,
     fabricCostAgorot: fabricCostPerM,
     liningCostAgorot: liningCostPerM,
     trackCostAgorot: trackCostPerM,
     deliveryCostAgorot: settings.deliveryCostPerMeterAgorot,
-    measureInstallCostAgorot: settings.measureInstallCostPerMeterAgorot,
+    measureInstallCostAgorot: measureInstallRateAgorot,
     liningMetersPerRunningMeter: liningPerRm,
     perWindowPriceAgorot,
     perWindowCostAgorot,
@@ -387,8 +426,10 @@ export function priceWindow(input: PriceInput): WindowPricing {
   }
   costLines.push({
     label: 'الخياط',
-    detail: band === 'standard' ? 'ارتفاع عادي' : 'ارتفاع عالٍ',
-    amountAgorot: rule?.tailorCostPerMeterAgorot ?? 0,
+    detail: band === 'standard'
+      ? 'ارتفاع عادي'
+      : isOversize ? `ارتفاع عالٍ +${oversizePct}%` : 'ارتفاع عالٍ',
+    amountAgorot: tailorRateAgorot,
   });
   costLines.push({
     label: isMotorized ? 'مسار كهربائي' : 'مسار عادي',
@@ -416,8 +457,8 @@ export function priceWindow(input: PriceInput): WindowPricing {
   });
   costLines.push({
     label: 'القياس والتركيب',
-    detail: 'لكل متر طولي',
-    amountAgorot: settings.measureInstallCostPerMeterAgorot,
+    detail: isOversize ? `لكل متر طولي +${oversizePct}%` : 'لكل متر طولي',
+    amountAgorot: measureInstallRateAgorot,
   });
 
   // قرار المالك 9.8.2026: الأسعار قبل מע"מ والضريبة تُضاف عليها. والهامش

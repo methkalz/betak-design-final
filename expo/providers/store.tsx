@@ -1294,8 +1294,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       }
       if (!(input.widthCm > 0) || !(input.heightCm > 0))
         return failWith('العرض والارتفاع يجب أن يكونا أكبر من صفر.', 'validation');
-      if (input.heightCm > 500)
-        return failWith('الارتفاع أكبر من 500 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
+      if (input.heightCm > 800)
+        return failWith('الارتفاع أكبر من 800 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
       if (input.fullness < 1.5 || input.fullness > 4)
         return failWith('المضاعف يجب أن يكون بين 1.5 و 4.', 'validation');
       // القماش لم يعد اختياريًا: الحجز صار يجري تلقائيًا عند اعتماد العرض،

@@ -30,7 +30,7 @@ const CATEGORY_LABELS: Record<PricingCategory, string> = {
 
 const BAND_LABELS: Record<HeightBand, string> = {
   standard: 'ارتفاع أقل من 320 سم',
-  tall: 'ارتفاع 320–500 سم',
+  tall: 'ارتفاع 320 سم فأكثر',
 };
 
 /**
