@@ -57,14 +57,16 @@ test('سقوف التخطيط كلّها أوسع من أعرض هاتف - فل�
  * حيث lg=16 وmd=12. أيّ انحرافٍ هنا يسقط البوابة قبل أن يصل جهازًا.
  */
 test('قيم الهاتف مطابقةٌ حرفيًّا لما كانت عليه قبل حزمة الويب', async () => {
-  const { CONTENT_PHONE, LIST_PHONE } = await import('@/domain/responsive');
+  const { CONTENT_PHONE, HEADER_PHONE, LIST_PHONE } = await import('@/domain/responsive');
   const { spacing } = await import('@/constants/theme');
 
   expect(CONTENT_PHONE).toEqual({ padding: spacing.lg, paddingBottom: 120, gap: spacing.lg });
   expect(LIST_PHONE).toEqual({ padding: spacing.lg, paddingBottom: 120, gap: spacing.md });
+  // رأس القائمة: نسخةٌ حرفية ممّا كان مضمَّنًا في الشاشات الستّ
+  expect(HEADER_PHONE).toEqual({ paddingHorizontal: spacing.lg, gap: spacing.md });
 
   // ولا سقفَ عرضٍ ولا توسيطٍ على الهاتف - المفاتيح غائبةٌ لا مضبوطةٌ بقيمة
-  for (const style of [CONTENT_PHONE, LIST_PHONE]) {
+  for (const style of [CONTENT_PHONE, LIST_PHONE, HEADER_PHONE]) {
     expect('maxWidth' in style).toBe(false);
     expect('alignSelf' in style).toBe(false);
     expect('width' in style).toBe(false);
@@ -87,4 +89,26 @@ test('حاويات المكتب موسَّطةٌ ومحدودة العرض، و�
   }
   expect(CONTENT_DESKTOP_WIDE.maxWidth).toBe(layout.columnWide);
   expect(CONTENT_DESKTOP_WIDE.maxWidth).toBeGreaterThan(CONTENT_DESKTOP.maxWidth);
+});
+
+/**
+ * ★ الرأس والقائمة يجب أن يتحاذَيا.
+ *
+ * الرأس يعلو القائمة ولا يُمرَّر معها، فلا يرث `contentContainerStyle` -
+ * وبلا سقفٍ خاصٍّ به يمتدّ على النافذة كلّها بينما البطاقات تحته موسَّطة.
+ * وحتى مع السقف، لو اختلفت الحشوة الأفقية لانزاح مربّع البحث عن حافّة
+ * البطاقات بمقدار الفرق، وهو انزياحٌ تراه العين لأن الحافّتين متجاورتان.
+ */
+test('رأس القائمة على المكتب: نفس السقف ونفس الحشوة الأفقية للقائمة', async () => {
+  const { HEADER_DESKTOP, LIST_DESKTOP } = await import('@/domain/responsive');
+  const { layout } = await import('@/constants/theme');
+
+  expect(HEADER_DESKTOP.maxWidth).toBe(LIST_DESKTOP.maxWidth);
+  expect(HEADER_DESKTOP.maxWidth).toBe(layout.column);
+  expect(HEADER_DESKTOP.alignSelf).toBe('center');
+  expect(HEADER_DESKTOP.width).toBe('100%');
+  // الحافّتان الرأسيّتان متجاورتان - أيّ فرقٍ هنا انزياحٌ مرئيّ
+  expect(HEADER_DESKTOP.paddingHorizontal).toBe(LIST_DESKTOP.padding);
+  // ولا حشوةَ سفلية: الرأس ليس حاويةَ تمرير
+  expect('paddingBottom' in HEADER_DESKTOP).toBe(false);
 });

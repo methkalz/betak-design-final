@@ -15,7 +15,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Divider, EmptyState, Pill, Row, Swatch } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { availabilityTone } from '@/domain/inventory';
 import { round3 } from '@/domain/pricing';
 import { useRollViews } from '@/hooks/selectors';
@@ -34,6 +34,7 @@ export default function MyStockScreen() {
   const router = useRouter();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const rolls = useRollViews();
 
   const mine = useMemo(
@@ -89,7 +90,7 @@ export default function MyStockScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <AppText variant="title">بضاعتي</AppText>
         <Row gap={spacing.md}>
           <View style={[styles.tile, { backgroundColor: palette.sageSoft }]}>

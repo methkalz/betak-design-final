@@ -15,7 +15,7 @@ import {
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { availabilityTone, consumedInLastDays } from '@/domain/inventory';
 import { can } from '@/domain/permissions';
 import { useRollViews, useVariantStockViews } from '@/hooks/selectors';
@@ -36,6 +36,7 @@ export default function InventoryScreen() {
   const router = useRouter();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const [tab, setTab] = useState<Tab>('stock');
   const rolls = useRollViews();
   const stock = useVariantStockViews();
@@ -56,7 +57,7 @@ export default function InventoryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <Row justify="space-between" align="flex-end">
           <AppText variant="title">مخزون الأقمشة</AppText>
           {showCost && (

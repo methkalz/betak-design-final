@@ -38,6 +38,8 @@ export function resolveResponsive(width: number, platformOS: string): Responsive
  */
 export const CONTENT_PHONE = { padding: 16, paddingBottom: 120, gap: 16 } as const;
 export const LIST_PHONE = { padding: 16, paddingBottom: 120, gap: 12 } as const;
+/** رأس شاشة القائمة (العنوان والبحث والمرشّحات) - يعلو القائمة ولا يمرّر معها. */
+export const HEADER_PHONE = { paddingHorizontal: 16, gap: 12 } as const;
 
 /**
  * على المكتب: عمودٌ موسَّط بعرض القراءة. و`paddingBottom` يعود إلى الحشوة
@@ -57,3 +59,22 @@ export const CONTENT_DESKTOP_WIDE = { ...CONTENT_DESKTOP, maxWidth: layout.colum
 
 /** حاوية القوائم على المكتب - نفس عرض اللوحة فيتّسق التطبيق كلّه. */
 export const LIST_DESKTOP = { ...CONTENT_DESKTOP, gap: 12 } as const;
+
+/**
+ * رأس القائمة على المكتب.
+ *
+ * **الحشوة الأفقية هي حشوة القائمة نفسها** (`layout.gutter`) لا حشوة الهاتف:
+ * لو اختلفتا لانزاح مربّع البحث عن حافّة البطاقات تحته بمقدار الفرق - وهو
+ * انزياحٌ تراه العين فورًا لأن الحافّتين رأسيّتان متجاورتان.
+ *
+ * ولماذا حاويةٌ مستقلّة أصلًا: الرأس يعلو القائمة ولا يُمرَّر معها، فلا يمكن
+ * أن يرث `contentContainerStyle`. وبلا سقفٍ خاصٍّ به يمتدّ على النافذة كلّها
+ * بينما القائمة تحته موسَّطةٌ في 720 - وهذا هو الامتداد الذي يشتكي منه المستخدم.
+ */
+export const HEADER_DESKTOP = {
+  paddingHorizontal: layout.gutter,
+  gap: 12,
+  width: '100%',
+  maxWidth: layout.column,
+  alignSelf: 'center',
+} as const;

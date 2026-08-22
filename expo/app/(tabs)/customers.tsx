@@ -6,7 +6,7 @@ import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { AppText, Card, EmptyState, IconButton, Row } from '@/components/ui';
 import { font, palette, radius, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { projectFinance } from '@/hooks/selectors';
 import { money, phone } from '@/lib/format';
 import { digitsOnly } from '@/lib/phone';
@@ -17,6 +17,7 @@ export default function CustomersScreen() {
   const router = useRouter();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const [query, setQuery] = useState<string>('');
 
   const list = useMemo(() => {
@@ -38,7 +39,7 @@ export default function CustomersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <Row justify="space-between">
           <AppText variant="title">الزبائن</AppText>
           <IconButton onPress={() => router.push('/customer/new')} bg={palette.olive}>

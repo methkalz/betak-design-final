@@ -6,8 +6,8 @@ import { VisitCard } from '@/components/cards';
 import { PendingInstallations } from '@/components/PendingInstallations';
 import { TabPanel } from '@/components/TabMotion';
 import { AppText, Card, EmptyState, Row, SegmentedControl } from '@/components/ui';
-import { palette, spacing } from '@/constants/theme';
-import { useListContent, useTopPad } from '@/hooks/useResponsive';
+import { palette } from '@/constants/theme';
+import { useListContent, useListHeader, useTopPad } from '@/hooks/useResponsive';
 import { VISIT_TYPE_LABELS } from '@/domain/labels';
 import { formatDate, formatTime, isSameDay } from '@/lib/format';
 import { useStore } from '@/providers/store';
@@ -20,6 +20,7 @@ export default function VisitsScreen() {
   const { db, currentUser } = useStore();
   const topPad = useTopPad();
   const listContent = useListContent();
+  const listHeader = useListHeader();
   const [tab, setTab] = useState<Tab>('today');
 
   const mine = useMemo(
@@ -41,7 +42,7 @@ export default function VisitsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.ivory, paddingTop: topPad }}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={listHeader}>
         <AppText variant="title">زياراتي</AppText>
         <SegmentedControl
           value={tab}
