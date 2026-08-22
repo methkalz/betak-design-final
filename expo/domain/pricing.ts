@@ -263,9 +263,10 @@ export interface WindowPricing {
   marginAgorot: number;
   marginPercent: number;
   /**
-   * Heights above 500cm get NO automatic price (owner rule; the SQL engine
-   * rejects them with BD422). When true, every money figure here is zero
-   * and the window needs an admin-set special price.
+   * Heights above TALL_BAND_MAX_CM (800) get NO automatic price (owner rule;
+   * the SQL engine rejects them with BD422). From 500 up to that ceiling the
+   * oversize surcharge applies instead. When true, every money figure here is
+   * zero and the window needs an admin-set special price.
    */
   requiresAdminPricing: boolean;
   warnings: string[];

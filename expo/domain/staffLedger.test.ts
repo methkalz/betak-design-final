@@ -5,6 +5,7 @@
 import { test, expect } from 'bun:test';
 
 import { checkSchedule, staffBalance, tailorAccruals, windowTailorFeeAgorot } from './staffLedger';
+import { round3, runningMeters } from '@/domain/pricing';
 import type { Database } from '@/data/seed';
 
 function makeDb(over: Partial<Database>): Database {
@@ -110,4 +111,39 @@ test('جدول الشيكات من منتصف الشهر يبقى على يوم�
     return `${d.getDate()}.${d.getMonth() + 1}`;
   });
   expect(dates).toEqual(['15.8', '15.9', '15.10']);
+});
+
+/**
+ * ★ أمتارُ الدفتر هي أمتارُ المحرّك بالضبط.
+ *
+ * كان الدفتر يحسب `round3((widthCm/100) × qty)` بالعائم بينما يحسب المحرّك
+ * ألفياتٍ صحيحة. القسمةُ على مئة تهبط تحت نصف الألف حيث يصعد المسار الصحيح -
+ * 104.35/100 يقرؤه العائم دون 1.0435 - فيقرأ الدفتر 1.043 والمحرّك 1.044.
+ *
+ * ليس فرقَ عرضٍ: بين 100 و600 سم، **356 عرضًا** يفقد فيها الخياط شيكلًا كاملًا
+ * من أجره. ولا مرآةَ في SQL تكشفه - هذا الحساب يعيش على العميل وحده.
+ *
+ * الأرقام حرفيّة لا مشتقّة من الدالّة المفحوصة، والمعدَّل 91₪ (70 مُزادًا 30%)
+ * لأن المعدّلات الصغيرة تبتلع الفرقَ في التقعيد فلا تميّز شيئًا.
+ */
+test('أمتار دفتر الطاقم = أمتار المحرّك، والفرق شيكلٌ في جيب الخياط', () => {
+  const win = (widthCm: number, quantity: number) =>
+    makeDb({
+      fabricProducts: [{ id: 'p2', kind: 'other' }] as never,
+      fabricVariants: [{ id: 'v2', productId: 'p2' }] as never,
+      windows: [{
+        id: 'wx', widthCm, heightCm: 500, quantity,
+        hasLining: true, fabricVariantId: 'v2',
+      }] as never,
+    });
+
+  // 104.35سم ×1: المحرّك 1.044م × 91₪ = 95.00₪ - والمسار العائم كان يعطي 94₪
+  expect(windowTailorFeeAgorot(win(104.35, 1), 'wx')).toBe(9500);
+  // 100.35سم ×3: المحرّك 3.011م × 91₪ = 274.00₪ - والعائم 273₪
+  expect(windowTailorFeeAgorot(win(100.35, 3), 'wx')).toBe(27400);
+
+  // وأن الحالتين مميِّزتان أصلًا: لولا اختلاف المسارين لما أثبت الاختبار شيئًا
+  for (const [w, q] of [[104.35, 1], [100.35, 3]] as [number, number][]) {
+    expect(runningMeters(w, q)).not.toBe(round3((w / 100) * q));
+  }
 });
