@@ -11,6 +11,7 @@ import { useResponsive, useTopPad } from '@/hooks/useResponsive';
 import { ROLE_LABELS, can } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
+import { PoweredBy } from '@/components/PoweredBy';
 import { secondaryLinks } from '@/lib/navModel';
 import { useStore } from '@/providers/store';
 
@@ -174,6 +175,11 @@ export default function MoreScreen() {
       <AppText variant="caption" color={palette.muted} align="center">
         بيتك ديزاين • إصدار 1.0 • {db.organization.name}
       </AppText>
+
+      {/* على نافذةٍ أضيق من 1024 تعود القوقعة شظيّةً فلا شريطَ جانبيّ ولا
+          قدمَ له - و«المزيد» هي قدم التطبيق عندئذٍ. فالتوقيع يبلغ مستخدم
+          الويب مهما كان عرض نافذته. (لا يظهر على الأصليّ: الحارس منصّة.) */}
+      <PoweredBy />
 
       <ConfirmSheet
         visible={confirmOut}

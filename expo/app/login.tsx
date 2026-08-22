@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PoweredBy } from '@/components/PoweredBy';
 import { AppText, Banner, Row } from '@/components/ui';
 import { font, layout, palette, radius, shadow, spacing } from '@/constants/theme';
 import { useResponsive, useTopPad } from '@/hooks/useResponsive';
@@ -185,6 +186,10 @@ export default function LoginScreen() {
             </AppText>
           </View>
         )}
+
+        {/* القوقعة تعود شظيّةً على شاشة الدخول، فلا قدمَ لها هنا - والتوقيع
+            يوضع بنفسه. وهذه أوّل شاشةٍ يراها زائرٌ لم يدخل بعد. */}
+        <PoweredBy tone="onDark" />
       </ScrollView>
     </LinearGradient>
   );
