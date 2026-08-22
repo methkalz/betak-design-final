@@ -13,6 +13,7 @@ COMMENT ON COLUMN core.audit_logs.actor_id IS 'يسمح بأن يكون null: ا
 COMMENT ON TABLE core.profiles IS 'بيانات المستخدم العامة. المفتاح هو auth.users.id — لا كلمات سر ولا PIN هنا.';
 COMMENT ON COLUMN core.business_settings.vat_percent IS 'نسبة ض.ق.م. مصدر الحقيقة الوحيد — لا تكرر على core.organizations.';
 COMMENT ON COLUMN core.business_settings.timezone IS 'المنطقة الزمنية للمؤسسة (اسم IANA). تُستعمل لاشتقاق سنة ترقيم المستندات؛ اسم غير صالح يُفشل عملية الترقيم بخطأ صريح من at time zone.';
+COMMENT ON COLUMN core.business_settings.oversize_surcharge_percent IS 'نسبة الزيادة على الشبابيك بارتفاع 500 سم فأكثر - تُطبَّق على سعر الزبون للمتر وأجرة الخياط والقياس والتركيب. قابلة للتعديل من الأدمن.';
 COMMENT ON TABLE core.client_operations IS 'دفتر الـidempotency. يقرأ في مستهل كل RPC حساس قبل تنفيذ أي أثر جانبي.';
 COMMENT ON COLUMN core.client_operations.result IS 'يعاد حرفيا عند تكرار نفس idempotency_key بدل إعادة تنفيذ العملية.';
 COMMENT ON COLUMN core.client_operations.payload IS 'بصمة مدخلات الطلب. إعادة استخدام المفتاح ببصمة مختلفة تُرفض بـBD400.';
@@ -63,7 +64,7 @@ COMMENT ON TABLE core.organizations IS 'المستأجر (tenant). كل بيان
 COMMENT ON TABLE core.pricing_rules IS 'سعر الزبون وأجرة الخياط لكل متر ركض. قابل للتعديل من الأدمن وحده.';
 COMMENT ON COLUMN core.pricing_rules.customer_price_per_meter_agorot IS 'بالأغورة. مثال: ₪290 = 29000.';
 COMMENT ON COLUMN core.pricing_rules.tailor_cost_per_meter_agorot IS 'حساس: أجرة الخياط جزء من التكلفة الداخلية. لا تعرض لدور field.';
-COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 320 = standard، و320 فأكثر = tall (تصحيح المالك 10.8.2026). فوق 500 يحتاج تسعيرة خاصة.';
+COMMENT ON COLUMN core.windows.height_cm IS 'يحدد نطاق التسعير: أقل من 320 = standard، و320 فأكثر = tall. ومن 500 سم فأكثر تُزاد ثلاثة معدّلات بنسبة oversize_surcharge_percent. فوق 800 يحتاج تسعيرة خاصة.';
 COMMENT ON COLUMN core.windows.fullness IS 'مضاعف الكرمشة. أمتار القماش = المتر الركض × fullness (domain/pricing.ts).';
 COMMENT ON TABLE core.quotation_items IS 'بنود مجمدة. لا تعدل بعد قفل النسخة — تنسخ إلى النسخة التالية بقيم جديدة.';
 COMMENT ON COLUMN core.quotation_items.internal_cost_agorot IS 'حساس: تكلفة البند الداخلية.';

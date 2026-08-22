@@ -9,7 +9,7 @@ import type { Database } from '@/data/seed';
 
 function makeDb(over: Partial<Database>): Database {
   return {
-    settings: { fieldVisitWageAgorot: 15000 },
+    settings: { fieldVisitWageAgorot: 15000, oversizeSurchargePercent: 30 },
     profiles: [],
     windows: [],
     fabricVariants: [],
@@ -28,20 +28,30 @@ function makeDb(over: Partial<Database>): Database {
 
 test('مستحق الشباك = أجرة المتر حسب الشريحة × أمتاره، مقعَّدًا للشيكل', () => {
   const db = makeDb({
-    fabricProducts: [{ id: 'p1', kind: 'crepe' }] as never,
-    fabricVariants: [{ id: 'v1', productId: 'p1' }] as never,
+    fabricProducts: [{ id: 'p1', kind: 'crepe' }, { id: 'p2', kind: 'other' }] as never,
+    fabricVariants: [
+      { id: 'v1', productId: 'p1' },
+      { id: 'v2', productId: 'p2' },
+    ] as never,
     windows: [
       // 3.2 م × 40₪ = 128₪
       { id: 'w1', widthCm: 320, heightCm: 300, quantity: 1, hasLining: true, fabricVariantId: 'v1' },
       // كسور تُقعَّد: 1.55 م × 40₪ = 62.0 → 62₪
       { id: 'w2', widthCm: 155, heightCm: 200, quantity: 1, hasLining: true, fabricVariantId: 'v1' },
-      // فوق 500 سم: تسعير خاص - لا مستحق تلقائيًا
-      { id: 'w3', widthCm: 300, heightCm: 560, quantity: 1, hasLining: true, fabricVariantId: 'v1' },
+      // فوق 800 سم: تسعير خاص - لا مستحق تلقائيًا
+      { id: 'w3', widthCm: 300, heightCm: 860, quantity: 1, hasLining: true, fabricVariantId: 'v1' },
+      // ★ 500 سم بالضبط: الخياط يقبض بالمعدَّل المُزاد 70+30% = 91₪
+      //   3.0 م × 91₪ = 273₪ (قماشٌ «آخر» ليطابق قاعدة tall/other_with_lining)
+      { id: 'w4', widthCm: 300, heightCm: 500, quantity: 1, hasLining: true, fabricVariantId: 'v2' },
+      // 499: تحت الحدّ بسنتيمتر - بلا زيادة. 3.0 م × 70₪ = 210₪
+      { id: 'w5', widthCm: 300, heightCm: 499, quantity: 1, hasLining: true, fabricVariantId: 'v2' },
     ] as never,
   });
   expect(windowTailorFeeAgorot(db, 'w1')).toBe(12800);
   expect(windowTailorFeeAgorot(db, 'w2')).toBe(6200);
   expect(windowTailorFeeAgorot(db, 'w3')).toBe(0);
+  expect(windowTailorFeeAgorot(db, 'w4')).toBe(27300);
+  expect(windowTailorFeeAgorot(db, 'w5')).toBe(21000);
 });
 
 test('الاستحقاق عن الورشات الجاهزة فقط، والرصيد جارٍ يقبل السالب', () => {

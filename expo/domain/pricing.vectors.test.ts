@@ -49,8 +49,9 @@ for (const v of vectors.vectors) {
   });
 }
 
-// فوق 500 سم: لا تسعير تلقائي — مطابقة المعاينة لمحرك SQL (يرفض BD422).
-test('height above 500cm gets no automatic price (requiresAdminPricing)', () => {
+// فوق 800 سم: لا تسعير تلقائي — مطابقة المعاينة لمحرك SQL (يرفض BD422).
+// (‏500-800 يُسعَّر بزيادة الارتفاع؛ اختبارها في oversizeSurcharge.test.ts)
+test('height above 800cm gets no automatic price (requiresAdminPricing)', () => {
   const settings: BusinessSettings = {
     organizationId: 'org-1',
     trackCostPerMeterAgorot: S.trackCostPerMeterAgorot,
@@ -78,7 +79,7 @@ test('height above 500cm gets no automatic price (requiresAdminPricing)', () => 
   ];
   const win: WindowUnit = {
     id: 'w1', organizationId: 'org-1', projectId: 'pr1', roomId: 'rm1',
-    name: 'شباك عالٍ', widthCm: 200, heightCm: 520,
+    name: 'شباك عالٍ', widthCm: 200, heightCm: 820,
     hasLining: true, track: 'standard', fullness: 3,
     fabricVariantId: 'v1', liningVariantId: null, quantity: 1,
     notes: '', measuredAt: null, measuredBy: null,

@@ -43,6 +43,12 @@ declare
   v_units integer;
   v_pw_price bigint;
   v_pw_cost bigint;
+  -- زيادة الارتفاع ≥500: المضاعف بأجزاء المئة (130.00% ← 13000). الاسم ليس
+  -- v_surcharge - ذاك زيادةُ لون البطانة.
+  v_oversize_mul bigint;
+  -- القياس والتركيب صار يعتمد على الارتفاع، فيلزم أصلٌ ثابت ونسخةٌ لكلّ
+  -- شبّاك. ★ لولا الفصل لتسرّبت الزيادة إلى كلّ شبّاكٍ تالٍ في المشروع.
+  v_mi_base bigint;
 begin
   if p_ctx is null or p_ctx->'settings' is null or p_ctx->'rules' is null then
     raise exception 'سياق تسعير ناقص - المحرك يقرأ من اللقطة الملتقطة حصرًا.'
@@ -51,7 +57,7 @@ begin
 
   v_track          := (p_ctx->'settings'->>'track_cost_per_meter_agorot')::bigint;
   v_delivery       := (p_ctx->'settings'->>'delivery_cost_per_meter_agorot')::bigint;
-  v_mi             := (p_ctx->'settings'->>'measure_install_cost_per_meter_agorot')::bigint;
+  v_mi_base        := (p_ctx->'settings'->>'measure_install_cost_per_meter_agorot')::bigint;
   v_lining_default := (p_ctx->'settings'->>'lining_cost_per_meter_agorot')::bigint;
   v_mt_cost      := coalesce((p_ctx->'settings'->>'motorized_track_cost_per_meter_agorot')::bigint, 0);
   v_mt_price     := coalesce((p_ctx->'settings'->>'motorized_track_price_per_meter_agorot')::bigint, 0);
@@ -59,6 +65,10 @@ begin
   v_motor_price  := coalesce((p_ctx->'settings'->>'motor_price_agorot')::bigint, 0);
   v_remote_cost  := coalesce((p_ctx->'settings'->>'remote_cost_agorot')::bigint, 0);
   v_remote_price := coalesce((p_ctx->'settings'->>'remote_price_agorot')::bigint, 0);
+  -- المفتاح غائبٌ في اللقطات القديمة فيقرأ صفرًا، والمضاعف 10000 = هويّة
+  -- حسابية تُعيد كل نسخةٍ مقفلة تسعيرَ نفسها حرفًا بحرف (§10)
+  v_oversize_mul := 10000 + (pg_catalog.round(coalesce(
+      (p_ctx->'settings'->>'oversize_surcharge_percent')::numeric, 0) * 100))::bigint;
 
   for w in
     select win.id, win.name, win.width_cm, win.height_cm, win.quantity,
@@ -80,8 +90,8 @@ begin
   loop
     v_sort := v_sort + 1;
 
-    if w.height_cm > 500 then
-      raise exception 'الشباك "%" ارتفاعه % سم - فوق 500 سم يلزم تسعيرة خاصة من الأدمن، لا تسعير تلقائي.',
+    if w.height_cm > 800 then
+      raise exception 'الشباك "%" ارتفاعه % سم - فوق 800 سم يلزم تسعيرة خاصة من الأدمن، لا تسعير تلقائي.',
         w.name, w.height_cm using errcode = 'BD422';
     end if;
     if w.fabric_variant_id is null or w.fabric_cost is null then
@@ -106,6 +116,27 @@ begin
     if v_price is null then
       raise exception 'لا قاعدة تسعير للفئة % والارتفاع % - راجع إعدادات التسعير.',
         v_cat, v_band using errcode = 'BD422';
+    end if;
+
+    -- ★ زيادة الارتفاع الكبير (قرار المالك 22.8.2026): من 500 سم فأكثر -
+    -- شاملًا الـ500 - تُزاد ثلاثة معدّلات: سعر الزبون للمتر، وأجرة الخياط،
+    -- والقياس والتركيب. القماش والبطانة والمسار والتوصيل والماتور وزيادةُ
+    -- لون البطانة لا تُمسّ.
+    --
+    -- تُزاد **المعدّلات** لا المجاميع: الإسقاط إلى الشيكل يسبق الضربَ لو
+    -- زِيد المجموع، فيضيع شيكلٌ من الشبابيك الضيّقة (51سم×500: 298 مقابل 297).
+    --
+    -- (x*m + 5000)/10000 قسمةٌ صحيحة تبتر، وهي مع x ≥ 0 و m ≥ 10000 تقريبٌ
+    -- إلى الأغورة الأقرب بعيدًا عن الصفر - مرآةُ divRoundHalfAway حرفًا.
+    -- ولا يدخلها عائمٌ إطلاقًا: bigint في bigint على bigint.
+    if w.height_cm >= 500 then
+      v_price  := (v_price   * v_oversize_mul + 5000) / 10000;
+      v_tailor := (v_tailor  * v_oversize_mul + 5000) / 10000;
+      v_mi     := (v_mi_base * v_oversize_mul + 5000) / 10000;
+    else
+      -- ★ إلزامي: v_mi يعيش خارج الحلقة، فبلا هذا السطر يحمل شبّاكٌ عاديٌّ
+      -- تالٍ زيادةَ الشبّاك العالي الذي سبقه في المشروع نفسه.
+      v_mi     := v_mi_base;
     end if;
 
     v_rm := pg_catalog.round(w.width_cm / 100 * w.quantity, 3);

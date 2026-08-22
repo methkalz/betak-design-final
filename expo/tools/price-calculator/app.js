@@ -24,6 +24,16 @@
     return sign * (r * 2 >= denom ? q + 1 : q);
   }
   /** قاعدة المالك: الكسر يُسقَط لا يُقرَّب - فلا يدفع الزبون فوق الحسبة. */
+
+  /**
+   * زيادة الارتفاع الكبير - مرآةُ oversizeRateAgorot في التطبيق ومحرّك SQL.
+   * أعدادٌ صحيحة بحتة، فلا يلمس عائمٌ رقمًا ماليًّا.
+   */
+  function oversizeRate(rate, heightCm) {
+    if (heightCm < 500) return rate;
+    return divRoundHalfAway(rate * (10000 + Math.round(S.oversizePct * 100)), 10000);
+  }
+
   function floorToShekel(agorot) { return Math.floor(agorot / 100) * 100; }
   function rmTh(widthCm, quantity) {
     return divRoundHalfAway(Math.round(widthCm * 100) * quantity, 10);
@@ -31,6 +41,8 @@
 
   var S = {
     trackCost: 1000, deliveryCost: 1000, installCost: 1500,
+    // زيادة الارتفاع الكبير: من 500 سم فأكثر (قرار المالك 22.8.2026)
+    oversizePct: 30,
     motorTrackCost: 10000, motorTrackPrice: 20000,
     motorCost: 40000, motorPrice: 90000,
     remoteCost: 10000, remotePrice: 20000,
@@ -76,7 +88,7 @@
     var hasLining = lining.id !== 'none';
     // يتغيّر السعر عند 320 سم (تصحيح المالك 10.8.2026)
     var band = o.heightCm >= 320 ? 'tall' : 'standard';
-    var overMax = o.heightCm > 500;
+    var overMax = o.heightCm > 800;
     var cat = (fabric.kind === 'crepe' ? 'crepe' : 'other') + (hasLining ? '_with_lining' : '_without_lining');
     var rule = RULES[band][cat];
 
@@ -87,7 +99,11 @@
     var perWinCost  = motor ? (S.motorCost  + S.remoteCost)  * units : 0;
 
     var surcharge = hasLining ? lining.surcharge : 0;
-    var unitPrice = rule[0] + surcharge + trackPrice;
+    // ثلاثةٌ وحدها تُزاد؛ زيادةُ لون البطانة وسعرُ المسار تُجمعان بعدها
+    var customerRate = oversizeRate(rule[0], o.heightCm);
+    var tailorRate = oversizeRate(rule[1], o.heightCm);
+    var installRate = oversizeRate(S.installCost, o.heightCm);
+    var unitPrice = customerRate + surcharge + trackPrice;
 
     var rt = rmTh(o.widthCm, units);
     var fullTh = Math.round(o.fullness * 1000);
@@ -103,7 +119,7 @@
     var perRmMilli =
       fabric.cost * fullTh +
       (hasLining ? lining.cost * liningMulTh : 0) +
-      (rule[1] + trackCost + S.deliveryCost + S.installCost) * 1000;
+      (tailorRate + trackCost + S.deliveryCost + installRate) * 1000;
     var metersCost = floorToShekel(divRoundHalfAway(perRmMilli * rt, 1000000));
     var internalCost = metersCost + perWinCost;
 
@@ -130,13 +146,13 @@
         amount: whole(lining.cost * liningMulTh)
       });
     }
-    items.push({ label: 'الخياط', work: (rule[1] / 100) + perM, amount: whole(rule[1] * 1000) });
+    items.push({ label: 'الخياط', work: (tailorRate / 100) + perM, amount: whole(tailorRate * 1000) });
     items.push({ label: motor ? 'مسار كهربائي' : 'مسار عادي',
       work: (trackCost / 100) + perM, amount: whole(trackCost * 1000) });
     items.push({ label: 'التوصيل', work: (S.deliveryCost / 100) + perM,
       amount: whole(S.deliveryCost * 1000) });
     items.push({ label: 'القياس والتركيب', work: (S.installCost / 100) + perM,
-      amount: whole(S.installCost * 1000) });
+      amount: whole(installRate * 1000) });
     if (motor) {
       items.push({ label: 'ماتور', work: (S.motorCost / 100) + ' × ' + units + ' ستارة',
         amount: S.motorCost * units });

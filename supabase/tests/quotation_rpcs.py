@@ -137,7 +137,7 @@ insert into core.pricing_rules (organization_id,band,category,customer_price_per
  ('{ORG}','tall','crepe_without_lining',43000,7000),
  ('{ORG}','tall','other_without_lining',45000,7000),
  ('{ORG}','tall','other_with_lining',51000,7000);
-""" + project_fixture('PA','QR-A') + project_fixture('PB','QR-B', height='520') \
+""" + project_fixture('PA','QR-A') + project_fixture('PB','QR-B', height='820') \
     + project_fixture('PC','QR-C') + project_fixture('PD','QR-D') \
     + project_fixture('PE','QR-E') + project_fixture('PF','QR-F') \
     + project_fixture('PG','QR-G') + project_fixture('PH','QR-H') \
@@ -240,7 +240,7 @@ out = create(TAILOR, 'PD', K['a9'])
 check('15 الخياط لا ينشئ عروضًا BD403', 'BD403' in out or 'دورك' in out, out)
 
 out = create(SALES, 'PB', K['b1'])
-check('16 فوق 500 سم BD422 بلا تسعير تلقائي', 'BD422' in out or 'تسعيرة خاصة' in out, out)
+check('16 فوق 800 سم BD422 بلا تسعير تلقائي', 'BD422' in out or 'تسعيرة خاصة' in out, out)
 
 out = create(SALES, 'PM', K['b2'])
 check('17 شباك بلا قماش محدد BD422', 'BD422' in out or 'بلا قماش' in out, out)

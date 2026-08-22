@@ -1294,8 +1294,8 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       }
       if (!(input.widthCm > 0) || !(input.heightCm > 0))
         return failWith('العرض والارتفاع يجب أن يكونا أكبر من صفر.', 'validation');
-      if (input.heightCm > 500)
-        return failWith('الارتفاع أكبر من 500 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
+      if (input.heightCm > 800)
+        return failWith('الارتفاع أكبر من 800 سم - يحتاج تسعيرة خاصة من الأدمن.', 'validation');
       if (input.fullness < 1.5 || input.fullness > 4)
         return failWith('المضاعف يجب أن يكون بين 1.5 و 4.', 'validation');
       // القماش لم يعد اختياريًا: الحجز صار يجري تلقائيًا عند اعتماد العرض،
@@ -3831,6 +3831,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         patch.vatPercent,
         patch.employeeDiscountLimitPercent,
         patch.adminDiscountLimitPercent,
+        patch.oversizeSurchargePercent,
       ];
       if (pct.some((v) => v != null && v > 100)) return failWith('النسب بين 0 و100.', 'validation');
       if (patch.quotationValidityDays != null && patch.quotationValidityDays <= 0)
@@ -3860,6 +3861,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             p_motor_price_agorot: patch.motorPriceAgorot ?? null,
             p_remote_cost_agorot: patch.remoteCostAgorot ?? null,
             p_remote_price_agorot: patch.remotePriceAgorot ?? null,
+            p_oversize_surcharge_percent: patch.oversizeSurchargePercent ?? null,
           });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);

@@ -30,7 +30,7 @@ const CATEGORY_LABELS: Record<PricingCategory, string> = {
 
 const BAND_LABELS: Record<HeightBand, string> = {
   standard: 'ارتفاع أقل من 320 سم',
-  tall: 'ارتفاع 320–500 سم',
+  tall: 'ارتفاع 320 سم فأكثر',
 };
 
 /**
@@ -62,15 +62,28 @@ export default function PricingRulesScreen() {
   const [tailor, setTailor] = useState<string>('');
   const [info, setInfo] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
+  // ★ مسوّدةٌ منفصلة عمدًا: كل مفتاحٍ في `draft` مبلغٌ بالشيكل يُضرب بمئة
+  // ليصير أغورة. والنسبة نسبةٌ - لو انضمّت إليهم لصارت 30٪ ثلاثةَ آلاف بالمئة.
+  const [pctDraft, setPctDraft] = useState<string | null>(null);
 
   const shekel = (k: string) =>
     draft[k] ?? String(Math.round((db.settings[k as keyof typeof db.settings] as number) / 100));
+  const dirty = Object.keys(draft).length > 0 || pctDraft !== null;
   const saveNumbers = async () => {
     const patch: Record<string, number> = {};
     for (const [k, v] of Object.entries(draft)) patch[k] = Math.round(parseFloat(v || '0')) * 100;
+    if (pctDraft !== null) {
+      const pct = parseFloat(pctDraft || '0');
+      // العمود numeric(5,2) بقيدٍ بين صفر ومئة - نُمسك الخطأ هنا قبل الرحلة.
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        return setInfo({ text: 'نسبة الزيادة رقمٌ بين 0 و100.', tone: 'warning' });
+      }
+      patch.oversizeSurchargePercent = Math.round(pct * 100) / 100;
+    }
     const res = await updateSettings(patch);
     if (!res.ok) return setInfo({ text: res.error, tone: 'warning' });
     setDraft({});
+    setPctDraft(null);
     setInfo({ text: 'حُفظت التسعيرة. تسري على العروض الجديدة وحدها.', tone: 'success' });
   };
 
@@ -137,7 +150,33 @@ export default function PricingRulesScreen() {
         </View>
       </Card>
 
-      {Object.keys(draft).length > 0 && (
+      <Card>
+        <SectionHeader
+          title="الستائر العالية"
+          subtitle="من 500 سم فأكثر - تُزاد على سعر الزبون وأجرة الخياط والقياس والتركيب"
+        />
+        <View style={{ gap: spacing.md }}>
+          <Field
+            label="نسبة الزيادة"
+            value={pctDraft ?? String(db.settings.oversizeSurchargePercent)}
+            onChangeText={(t) => {
+              // نقطةٌ واحدة على الأكثر: «3.0.5» يبتلعها parseFloat فيقرؤها 3
+              // صامتةً - فتُطوى النقطة الثانية أمام عين المالك وهو يكتب.
+              const [head, ...rest] = t.replace(/[^\d.]/g, '').split('.');
+              setPctDraft(rest.length ? `${head}.${rest.join('')}` : head);
+            }}
+            keyboardType="numeric"
+            suffix="%"
+          />
+          <AppText variant="caption" color={palette.muted}>
+            تظهر للزبون رقمًا عاديًّا في سعر المتر - لا سطرَ ولا نسبةَ في العرض.
+            القماش والبطانة والمسار والتوصيل والماتور لا تُزاد. وفوق 800 سم تلزم
+            تسعيرة خاصة.
+          </AppText>
+        </View>
+      </Card>
+
+      {dirty && (
         <Button label="حفظ التسعيرة" full loading={busy === 'save-settings'} onPress={saveNumbers} />
       )}
 

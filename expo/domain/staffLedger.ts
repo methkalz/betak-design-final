@@ -14,13 +14,21 @@
  * فيهبط الرصيد تحت الصفر، وهذا هو «بالسالب لصالح المحل» بلا حالة إضافية.
  */
 import type { Database } from '@/data/seed';
-import { findRule, floorToShekel, resolveBand, resolveCategory, round3 } from '@/domain/pricing';
+import {
+  findRule,
+  floorToShekel,
+  oversizeRateAgorot,
+  resolveBand,
+  resolveCategory,
+  round3,
+  TALL_BAND_MAX_CM,
+} from '@/domain/pricing';
 import type { Role, UUID } from '@/types/domain';
 
 /** مستحق الخياط عن شباك واحد: أجرته للمتر (حسب الشريحة والفئة) × أمتاره. */
 export function windowTailorFeeAgorot(db: Database, windowId: UUID): number {
   const w = db.windows.find((x) => x.id === windowId);
-  if (!w || w.heightCm > 500) return 0; // فوق 500: تسعير خاص بلا قاعدة
+  if (!w || w.heightCm > TALL_BAND_MAX_CM) return 0; // فوق 800: تسعير خاص بلا قاعدة
   const product = db.fabricProducts.find(
     (p) => p.id === db.fabricVariants.find((v) => v.id === w.fabricVariantId)?.productId,
   );
@@ -28,7 +36,11 @@ export function windowTailorFeeAgorot(db: Database, windowId: UUID): number {
   const rule = findRule(db.pricingRules, resolveBand(w.heightCm), resolveCategory(kind, w.hasLining));
   if (!rule) return 0;
   const rm = round3((w.widthCm / 100) * w.quantity);
-  return floorToShekel(Math.round(rm * rule.tailorCostPerMeterAgorot));
+  // ★ الخياط يقبض بالمعدَّل المُزاد نفسه الذي دخل تكلفة الشباك - وإلا خاط
+  //   ارتفاعًا يُحاسَب المحلُّ عليه بزيادة ويقبض هو بلا زيادة.
+  const tailorRate = oversizeRateAgorot(
+    rule.tailorCostPerMeterAgorot, w.heightCm, db.settings.oversizeSurchargePercent ?? 0);
+  return floorToShekel(Math.round(rm * tailorRate));
 }
 
 export type TailorAccrual = {
