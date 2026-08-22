@@ -1,9 +1,54 @@
 -- ════════════════════════════════════════════════════════════════════
--- api.update_business_settings + api.update_pricing_rule
--- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
--- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
--- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
+-- زيادة الارتفاع الكبير: الإعداد وحده (بلا أثرٍ ماليّ)
+--
+-- المالك: «عندما يكون المقاس 500 سم وأكثر فيزيد السعر 30% من سعر المنتج
+-- + كلفة الخياط + القياس». وهذه أوّل خطوتين: العمود ووصولُه إلى اللقطة.
+--
+-- **لا أثر ماليًّا في هذا الترحيل**: المحرّك لا يقرأ المفتاح بعد. فالمتجهات
+-- الذهبية ترجع بتّيًّا كما هي - وهذا إثباتٌ آليّ لا مراجعةُ عين. التسعير
+-- نفسه يأتي في الترحيل التالي.
+--
+-- الافتراضي 30 لا 0: رفعُ السقف (500←800) ليس إعدادًا، فلو كان صفرًا
+-- لانفتح بيعُ 500-800 بلا الزيادة - أسوأ من الحالتين. والتعرّض مقيسٌ صفرًا:
+-- لا شبّاك عند 500 أو فوقه في القاعدة (أطولها 471).
+--
+-- ⚠️ التوقيع: إضافة وسيطٍ بقيمةٍ افتراضية تُنشئ **تحميلًا زائدًا** لا
+-- استبدالًا، فيعجز PostgREST عن التمييز وتفشل كلّ تعديلات الإعدادات. لذا
+-- يُسقَط التوقيع القديم (١٧ وسيطًا) أوّلًا.
 -- ════════════════════════════════════════════════════════════════════
+
+-- ── العمود: نسبةٌ كبقيّة النِسب (numeric(5,2) بحدّين) ────────────────────
+alter table core.business_settings
+  add column if not exists oversize_surcharge_percent numeric(5,2) not null default 30;
+
+alter table core.business_settings
+  drop constraint if exists business_settings_oversize_surcharge_percent_check;
+alter table core.business_settings
+  add constraint business_settings_oversize_surcharge_percent_check
+  check (oversize_surcharge_percent >= 0 and oversize_surcharge_percent <= 100);
+
+comment on column core.business_settings.oversize_surcharge_percent is
+  'نسبة الزيادة على الشبابيك بارتفاع 500 سم فأكثر - تُطبَّق على سعر الزبون للمتر وأجرة الخياط والقياس والتركيب. قابلة للتعديل من الأدمن.';
+
+-- ── العرض غير المحجوب: النسبة تقود سعر زبونٍ يعاينه المبيعات والميدان ────
+-- (الجديد في الذيل حصرًا - الإحلال لا يُدرج في الوسط)
+create or replace view api.business_settings
+  with (security_invoker = on) as
+SELECT business_settings.organization_id,
+    business_settings.min_margin_percent,
+    business_settings.employee_discount_limit_percent,
+    business_settings.admin_discount_limit_percent,
+    business_settings.quotation_validity_days,
+    business_settings.vat_percent,
+    business_settings.currency,
+    business_settings.motorized_track_price_per_meter_agorot,
+    business_settings.motor_price_agorot,
+    business_settings.remote_price_agorot,
+    business_settings.oversize_surcharge_percent
+   FROM core.business_settings;
+
+-- ── RPC الكتابة: توقيعٌ جديد، فيُسقَط القديم أوّلًا ──────────────────────
+drop function if exists api.update_business_settings(uuid, bigint, bigint, bigint, bigint, numeric, numeric, numeric, integer, numeric, bigint, bigint, bigint, bigint, bigint, bigint, bigint);
 
 CREATE OR REPLACE FUNCTION api.update_business_settings(p_idempotency_key uuid, p_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_delivery_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_measure_install_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_lining_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_min_margin_percent numeric DEFAULT NULL::numeric, p_employee_discount_limit_percent numeric DEFAULT NULL::numeric, p_admin_discount_limit_percent numeric DEFAULT NULL::numeric, p_quotation_validity_days integer DEFAULT NULL::integer, p_vat_percent numeric DEFAULT NULL::numeric, p_field_visit_wage_agorot bigint DEFAULT NULL::bigint, p_motorized_track_cost_per_meter_agorot bigint DEFAULT NULL::bigint, p_motorized_track_price_per_meter_agorot bigint DEFAULT NULL::bigint, p_motor_cost_agorot bigint DEFAULT NULL::bigint, p_motor_price_agorot bigint DEFAULT NULL::bigint, p_remote_cost_agorot bigint DEFAULT NULL::bigint, p_remote_price_agorot bigint DEFAULT NULL::bigint, p_oversize_surcharge_percent numeric DEFAULT NULL::numeric)
  RETURNS jsonb
@@ -143,98 +188,12 @@ begin
   return v_result;
 end $function$;
 
-CREATE OR REPLACE FUNCTION api.update_pricing_rule(p_band text, p_category text, p_customer_price_per_meter_agorot bigint, p_tailor_cost_per_meter_agorot bigint, p_idempotency_key uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-declare
-  v_uid uuid; v_org uuid; v_rule_id uuid;
-  v_payload jsonb; v_prior core.client_operations%rowtype; v_result jsonb;
-begin
-  v_uid := private.current_uid();
-  if v_uid is null then
-    raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
-  end if;
-  if p_idempotency_key is null then
-    raise exception 'idempotency_key إلزامي.' using errcode = 'BD400';
-  end if;
-  if p_band not in ('standard', 'tall') then
-    raise exception 'شريحة ارتفاع غير معروفة.' using errcode = 'BD400';
-  end if;
-  if p_category not in ('crepe_with_lining', 'crepe_without_lining',
-                        'other_with_lining', 'other_without_lining') then
-    raise exception 'فئة تسعير غير معروفة.' using errcode = 'BD400';
-  end if;
-  if p_customer_price_per_meter_agorot is null or p_customer_price_per_meter_agorot <= 0 then
-    raise exception 'سعر الزبون يجب أن يكون أكبر من صفر.' using errcode = 'BD400';
-  end if;
-  if p_tailor_cost_per_meter_agorot is null or p_tailor_cost_per_meter_agorot < 0 then
-    raise exception 'تكلفة الخياط يجب أن تكون رقمًا غير سالب.' using errcode = 'BD400';
-  end if;
+-- نقل ملكية دالةٍ أُعيد إنشاؤها (أُسقط توقيعها القديم) يحتاج CREATE على المخطط
+grant create on schema api to baytak_rpc_owner;
+alter function api.update_business_settings(uuid, bigint, bigint, bigint, bigint, numeric, numeric, numeric, integer, numeric, bigint, bigint, bigint, bigint, bigint, bigint, bigint, numeric) owner to baytak_rpc_owner;
+revoke all on function api.update_business_settings(uuid, bigint, bigint, bigint, bigint, numeric, numeric, numeric, integer, numeric, bigint, bigint, bigint, bigint, bigint, bigint, bigint, numeric) from public, anon;
+grant execute on function api.update_business_settings(uuid, bigint, bigint, bigint, bigint, numeric, numeric, numeric, integer, numeric, bigint, bigint, bigint, bigint, bigint, bigint, bigint, numeric) to authenticated;
 
-  select om.organization_id into v_org
-  from core.organization_members om
-  where om.user_id = v_uid and om.role = 'admin' and om.is_active
-  order by om.organization_id
-  limit 1;
-  if v_org is null then
-    raise exception 'تعديل التسعيرة صلاحية الأدمن وحده.' using errcode = 'BD403';
-  end if;
+revoke create on schema api from baytak_rpc_owner;
 
-  v_payload := jsonb_build_object(
-    'op', 'update_pricing_rule', 'user_id', v_uid,
-    'band', p_band, 'category', p_category,
-    'customer_price', p_customer_price_per_meter_agorot,
-    'tailor_cost', p_tailor_cost_per_meter_agorot);
-
-  select * into v_prior from core.client_operations o
-  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
-  if found then
-    if v_prior.payload is distinct from v_payload then
-      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
-        using errcode = 'BD400';
-    end if;
-    return v_prior.result || jsonb_build_object('was_replayed', true);
-  end if;
-
-  update core.pricing_rules
-     set customer_price_per_meter_agorot = p_customer_price_per_meter_agorot,
-         tailor_cost_per_meter_agorot    = p_tailor_cost_per_meter_agorot,
-         updated_at                      = now()
-   where organization_id = v_org
-     and band = p_band::core.height_band
-     and category = p_category::core.pricing_category
-  returning id into v_rule_id;
-  if v_rule_id is null then
-    raise exception 'قاعدة التسعير غير موجودة - راجع إعدادات المعرض.' using errcode = 'BD404';
-  end if;
-
-  -- إعادة البحث بعد قفل التحديث الضمني تصطاد سباق النقر المزدوج: المتزامن
-  -- الثاني ينتظر على الصف ثم يجد عملية الأول مسجلة فيستعيدها بدل 23505
-  select * into v_prior from core.client_operations o
-  where o.organization_id = v_org and o.idempotency_key = p_idempotency_key;
-  if found then
-    if v_prior.payload is distinct from v_payload then
-      raise exception 'مفتاح idempotency مستخدم سابقًا بمدخلات مختلفة.'
-        using errcode = 'BD400';
-    end if;
-    return v_prior.result || jsonb_build_object('was_replayed', true);
-  end if;
-
-  insert into core.audit_logs
-    (organization_id, actor_id, action, entity, entity_id, summary, payload)
-  values (v_org, v_uid, 'pricing.update', 'pricing_rule', v_rule_id::text,
-          'تعديل قاعدة تسعير', v_payload);
-
-  v_result := jsonb_build_object('rule_id', v_rule_id, 'was_replayed', false);
-
-  insert into core.client_operations
-    (organization_id, user_id, client_operation_id, idempotency_key,
-     kind, entity_id, state, payload, result, synced_at)
-  values (v_org, v_uid, p_idempotency_key, p_idempotency_key,
-          'update_pricing_rule', v_rule_id::text, 'synced', v_payload, v_result, now());
-
-  return v_result;
-end $function$;
+notify pgrst, 'reload schema';

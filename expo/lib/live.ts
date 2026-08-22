@@ -140,6 +140,8 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     motorPriceAgorot: n(st.motor_price_agorot),
     remoteCostAgorot: n(stCosts.remote_cost_agorot),
     remotePriceAgorot: n(st.remote_price_agorot),
+    // من العرض غير المحجوب: النسبة تقود سعر زبونٍ يعاينه المبيعات والميدان
+    oversizeSurchargePercent: n(st.oversize_surcharge_percent),
   };
 
   const profiles: Profile[] = members.map((m) => ({

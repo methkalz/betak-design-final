@@ -48,7 +48,8 @@ SELECT business_settings.organization_id,
     business_settings.currency,
     business_settings.motorized_track_price_per_meter_agorot,
     business_settings.motor_price_agorot,
-    business_settings.remote_price_agorot
+    business_settings.remote_price_agorot,
+    business_settings.oversize_surcharge_percent
    FROM core.business_settings;
 
 create or replace view api.business_settings_costs

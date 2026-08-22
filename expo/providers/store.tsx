@@ -3831,6 +3831,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         patch.vatPercent,
         patch.employeeDiscountLimitPercent,
         patch.adminDiscountLimitPercent,
+        patch.oversizeSurchargePercent,
       ];
       if (pct.some((v) => v != null && v > 100)) return failWith('النسب بين 0 و100.', 'validation');
       if (patch.quotationValidityDays != null && patch.quotationValidityDays <= 0)
@@ -3860,6 +3861,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             p_motor_price_agorot: patch.motorPriceAgorot ?? null,
             p_remote_cost_agorot: patch.remoteCostAgorot ?? null,
             p_remote_price_agorot: patch.remotePriceAgorot ?? null,
+            p_oversize_surcharge_percent: patch.oversizeSurchargePercent ?? null,
           });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);

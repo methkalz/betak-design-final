@@ -107,6 +107,7 @@ begin
         'motor_price_agorot',                    bs.motor_price_agorot,
         'remote_cost_agorot',                    bs.remote_cost_agorot,
         'remote_price_agorot',                   bs.remote_price_agorot,
+        'oversize_surcharge_percent',            bs.oversize_surcharge_percent,
         'timezone',                              bs.timezone),
     'rules', coalesce((
         select jsonb_agg(jsonb_build_object(
