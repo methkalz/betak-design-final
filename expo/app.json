@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "بيتك ديزاين",
-    "slug": "betak-design",
+    "slug": "qinova",
     "version": "1.0.0",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -25,7 +25,12 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.betakd.app"
+      "package": "com.betakd.app",
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
@@ -46,12 +51,25 @@
         "expo-image-picker",
         {
           "photosPermission": "يستخدم التطبيق صورك لإرفاق صور القياس والتركيب وصور الشيكات بمشاريعها.",
-          "cameraPermission": "يستخدم التطبيق الكاميرا لتصوير القياسات والتركيب وصور الشيكات."
+          "cameraPermission": "يستخدم التطبيق الكاميرا لتصوير القياسات والتركيب وصور الشيكات.",
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://betakd.com"
+      },
+      "eas": {
+        "projectId": "ee2f9955-f081-4a83-a503-c36e805a0508"
+      }
+    },
+    "owner": "qinovas-team",
+    "updates": {
+      "url": "https://u.expo.dev/ee2f9955-f081-4a83-a503-c36e805a0508"
     }
   }
 }
