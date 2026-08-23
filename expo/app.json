@@ -1,11 +1,14 @@
 {
   "expo": {
-    "name": "Baytak Design",
-    "slug": "72xauvl81ef7xdo88xgur",
+    "name": "بيتك ديزاين",
+    "slug": "betak-design",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "baytakdesign",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,14 +18,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.72xauvl81ef7xdo88xgur"
+      "bundleIdentifier": "com.betakd.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.72xauvl81ef7xdo88xgur"
+      "package": "com.betakd.app"
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
