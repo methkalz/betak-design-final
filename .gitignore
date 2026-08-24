@@ -29,3 +29,6 @@ logs/
 
 # مضغوطُ الحاسبة - مبنيٌّ من expo/tools/price-calculator/ لا مصدر
 expo/tools/price-calculator.zip
+
+# مخرجات أداة الفحص البصريّ للوثيقة - لا تُلتزم
+.quote-preview/
