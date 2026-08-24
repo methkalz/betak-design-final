@@ -56,6 +56,7 @@ import { font, gradients, layout, palette, radius, spacing } from '@/constants/t
 import {
   ATTACHMENT_KIND_LABELS,
   PROJECT_STATUS_HINTS,
+  ROOM_SUGGESTIONS,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_ORDER,
   TAILOR_STAGE_LABELS,
@@ -76,16 +77,6 @@ import type { ProjectStatus } from '@/types/domain';
 
 type Tab = 'overview' | 'rooms' | 'quote' | 'production' | 'money' | 'media';
 
-/** أسماء غرف شائعة في البيوت هنا - اقتراح لا حصر. */
-const ROOM_SUGGESTIONS = [
-  'الصالون',
-  'غرفة الأهل',
-  'غرفة الأولاد',
-  'غرفة البنات',
-  'غرفة الضيوف',
-  'المطبخ',
-  'المكتب',
-] as const;
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'overview', label: 'نظرة عامة' },

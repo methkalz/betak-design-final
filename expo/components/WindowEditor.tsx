@@ -1,4 +1,4 @@
-import { Calculator, Check, Plus, Save, Trash2 } from 'lucide-react-native';
+import { Calculator, Check, DoorOpen, Plus, Save, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -17,13 +17,16 @@ import {
   type ScrollScreenHandle,
   SectionHeader,
   SegmentedControl,
+  Sheet,
   Swatch,
 } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
-import { TRACK_LABELS } from '@/domain/labels';
+import { ROOM_SUGGESTIONS, TRACK_LABELS } from '@/domain/labels';
 import { priceWindow, resolveBand, TALL_BAND_MAX_CM } from '@/domain/pricing';
 import { meters, money, percent } from '@/lib/format';
 import { useGoBack } from '@/lib/nav';
+import { useRouter } from 'expo-router';
+
 import { useStore } from '@/providers/store';
 import type { FabricVariant, TrackType, WindowUnit } from '@/types/domain';
 
@@ -66,8 +69,19 @@ interface Props {
 }
 
 export function WindowEditor({ projectId, roomId, existing }: Props) {
-  const { db, role, saveWindow, deleteWindow } = useStore();
+  const { db, role, saveWindow, deleteWindow, addRoom } = useStore();
   const goBack = useGoBack('/projects');
+  const router = useRouter();
+  /** غرف هذا المشروع - تُستبعَد من الاقتراحات فلا يُقترح اسمٌ موجود. */
+  const usedRoomNames = useMemo(
+    () => new Set(db.rooms.filter((r) => r.projectId === projectId).map((r) => r.name)),
+    [db.rooms, projectId],
+  );
+  /** أوّل اقتراحٍ لم يُستعمل - يملأ الحقل سلفًا فتصير الغرفة ضغطةً واحدة. */
+  const freshRoomSuggestion = useMemo(
+    () => ROOM_SUGGESTIONS.find((r) => !usedRoomNames.has(r)) ?? '',
+    [usedRoomNames],
+  );
   const scroller = useRef<ScrollScreenHandle>(null);
 
   const roomCount = db.windows.filter((w) => w.roomId === roomId).length;
@@ -89,6 +103,10 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
   const [notes, setNotes] = useState<string>(existing?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
+  // ورقة «غرفة جديدة»: تُفتح بعد الحفظ فيُختار الاسم بضغطةٍ لا يُكتب
+  const [roomSheet, setRoomSheet] = useState(false);
+  const [roomName, setRoomName] = useState('');
+  const [roomBusy, setRoomBusy] = useState(false);
 
   const fabricProducts = db.fabricProducts.filter((p) => p.kind !== 'lining');
   const fabricVariants = db.fabricVariants.filter((v) => {
@@ -241,8 +259,50 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
     scroller.current?.scrollToTop();
   };
 
+  /**
+   * ★ المسار الثالث: الغرفة التالية بنفس سهولة الشباك التالي.
+   *
+   * كان الانتقال إلى غرفةٍ جديدة يكلّف: حفظ وإغلاق ← الرجوع للمشروع ←
+   * تبويب الغرف ← كتابة الاسم ← إضافة ← إضافة شباك. ستّ خطوات مقابل ضغطةٍ
+   * واحدة للشباك التالي - وهو ما جعل الميدان يُدخل غرفةً واحدة ثم يخرج.
+   *
+   * ولماذا اسمٌ لا ترقيمٌ تلقائيّ: اسم الغرفة **يُطبع في وثيقة الزبون**
+   * (`i.roomName - i.windowName`). «غرفة 2» في عرضٍ موقَّع أسوأ من ضغطةٍ
+   * إضافية - والشرائح تجعلها ضغطةً لا كتابة.
+   *
+   * و`replace` لا `push`: كلّ غرفةٍ تُضاف طبقةً في رزمة الرجوع، فيصير زرّ
+   * الرجوع بعد خمس غرفٍ رحلةً عكسيّة عبر محرّراتٍ فارغة.
+   */
+  const submitAndNewRoom = async (targetName: string) => {
+    const clean = targetName.trim();
+    if (!clean) return;
+    setRoomBusy(true);
+    try {
+      // ★ الحفظ **قبل** إنشاء الغرفة عمدًا: `saveWindow` يرفض شبّاكًا جديدًا
+      //   بعد اعتماد مقترح، بينما `addRoom` لا حارسَ فيه. العكس يُنشئ غرفةً
+      //   يتيمة في مشروعٍ مقفل ثمّ يفشل الحفظ.
+      if (!(await save())) return;
+      const res = await addRoom(projectId, clean, '');
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setRoomSheet(false);
+      setRoomName('');
+      router.replace({
+        pathname: '/window/new',
+        params: { projectId, roomId: res.data },
+      });
+    } finally {
+      setRoomBusy(false);
+    }
+  };
+
   return (
     <ScrollScreen ref={scroller}>
+      {/* ★ في الرأس لا في الذيل: `submitAndNext` يمرّر إلى الأعلى فور الحفظ،
+          فلافتةُ نجاحٍ أسفل نموذجٍ طويل **لا يراها أحد أبدًا**. */}
+      {!!savedFlash && <Banner tone="success" title={savedFlash} />}
       <Card>
         <AppText variant="heading">القياس</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.md }}>
@@ -453,7 +513,6 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
       </Card>
 
       {!!error && <Banner tone="danger" title="تعذر الحفظ" body={error} />}
-      {!!savedFlash && <Banner tone="success" title={savedFlash} />}
 
       {existing ? (
         <Button
@@ -468,20 +527,39 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           {/* الإدخال المتتابع هو الحالة الغالبة (غرفة = عدة شبابيك)،
               فزرّه هو الأساسي والإغلاق يليه */}
           <Button
-            label="حفظ وإضافة التالي"
-          loading={saving}
+            label="حفظ + شباك في نفس الغرفة"
+            loading={saving}
             full
             icon={<Plus size={18} color={palette.ivory} />}
             onPress={submitAndNext}
           />
-          <Button
-            label="حفظ وإغلاق"
-          loading={saving}
-            variant="secondary"
-            full
-            icon={<Save size={17} color={palette.oliveDark} />}
-            onPress={submit}
-          />
+          {/* صفٌّ من اثنين لا زرّان ممتدّان: ثلاثة أزرارٍ بعرض الشاشة كومةٌ
+              تُقرأ كقائمةٍ لا كخيارات، والأساسيّ فوقها يبقى واضحًا وحده. */}
+          <Row gap={spacing.sm}>
+            <Button
+              label="حفظ + غرفة جديدة"
+              loading={saving}
+              variant="secondary"
+              small
+              style={{ flex: 1 }}
+              icon={<DoorOpen size={16} color={palette.oliveDark} />}
+              onPress={() => {
+                setError(null);
+                // اسمٌ مقترَح جاهز: أوّل ما لم يُستعمل في هذا المشروع
+                setRoomName(freshRoomSuggestion);
+                setRoomSheet(true);
+              }}
+            />
+            <Button
+              label="حفظ وإغلاق"
+              loading={saving}
+              variant="secondary"
+              small
+              style={{ flex: 1 }}
+              icon={<Save size={16} color={palette.oliveDark} />}
+              onPress={submit}
+            />
+          </Row>
         </>
       )}
 
@@ -494,6 +572,40 @@ export function WindowEditor({ projectId, roomId, existing }: Props) {
           onPress={() => setConfirmDelete(true)}
         />
       )}
+      {/* ★ الاسم يُختار بضغطةٍ لا يُكتب: شرائح الاقتراحات تُسقط لوحة
+          المفاتيح من المسار كلّه، والحقل يبقى لمن يريد اسمًا خاصًّا. */}
+      <Sheet
+        visible={roomSheet}
+        title="غرفة جديدة"
+        subtitle="يُحفظ الشباك الحالي أولًا، ثم يفتح محرّر شباك في الغرفة الجديدة"
+        onClose={() => setRoomSheet(false)}
+      >
+        <Field
+          label="اسم الغرفة"
+          value={roomName}
+          onChangeText={setRoomName}
+          placeholder="الصالون"
+        />
+        <Row gap={spacing.xs} wrap style={{ marginTop: spacing.sm }}>
+          {ROOM_SUGGESTIONS.filter((r) => !usedRoomNames.has(r)).map((r) => (
+            <Pressable key={r} onPress={() => setRoomName(r)} style={suggestChip}>
+              <AppText variant="caption" color={palette.oliveDark}>
+                {r}
+              </AppText>
+            </Pressable>
+          ))}
+        </Row>
+        <Button
+          label="حفظ وافتح الغرفة"
+          full
+          loading={roomBusy || saving}
+          disabled={!roomName.trim()}
+          icon={<DoorOpen size={17} color={palette.ivory} />}
+          style={{ marginTop: spacing.md }}
+          onPress={() => submitAndNewRoom(roomName)}
+        />
+      </Sheet>
+
       {!!existing && (
         <ConfirmSheet
           visible={confirmDelete}
