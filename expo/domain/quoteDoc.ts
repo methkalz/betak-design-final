@@ -13,6 +13,7 @@
  */
 import { CAIRO_BOLD_B64, CAIRO_REGULAR_B64 } from '@/constants/cairoFont';
 import { HEEBO_BOLD_B64, HEEBO_REGULAR_B64 } from '@/constants/heeboFont';
+import { translateTerm } from '@/domain/quoteGlossary';
 import { quoteLogoSvg } from '@/domain/quoteLogo';
 import { BRAND_WORDMARK, QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
 import {
@@ -100,6 +101,8 @@ export function buildQuoteHtml(data: QuoteDocData): string {
   const t = QUOTE_STRINGS[lang];
   const isHe = lang === 'he';
   const e = escapeHtml;
+  /** المفردات التي يولّدها التطبيق تُترجم؛ وما لا يعرفه المعجم يمرّ كما هو. */
+  const tr = (v: string) => translateTerm(v, lang);
 
   /**
    * ★ الخطّان معًا في كلّ وثيقة، لا خطّ اللغة وحده.
@@ -149,7 +152,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       <tr>
         <td class="idx num">${idx + 1}</td>
         <td>
-          <span class="item-name">${e(i.roomName)} - ${e(i.windowName)}</span>
+          <span class="item-name">${e(tr(i.roomName))} - ${e(tr(i.windowName))}</span>
           ${sub ? `<span class="item-desc">${sub}</span>` : ''}
         </td>
         <td class="num">
@@ -166,7 +169,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
     })
     .join('');
 
-  const contact = [e(orgAddress), e(orgPhone)].filter(Boolean).join(' • ');
+  const contact = [e(tr(orgAddress)), e(orgPhone)].filter(Boolean).join(' • ');
 
   /** كتلة العلامة - تتكرّر في الهياكل الثلاثة بنفس البنية ولونٍ مختلف. */
   const brandBlock = (onAccent: boolean) => `
@@ -174,7 +177,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       <span class="logo${onAccent ? ' on-accent' : ''}">${quoteLogoSvg(theme.skeleton === 'banner' ? 38 : 34)}</span>
       <span>
         <span class="brand">${BRAND_WORDMARK}</span>
-        <span class="brand-sub">${e(orgName)}</span>
+        <span class="brand-sub">${e(tr(orgName))}</span>
         <span class="brand-contact">${contact}</span>
       </span>
     </div>`;
@@ -367,11 +370,11 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       <div class="box">
         <h3>${t.customer}</h3>
         <div class="big">${e(customerName)}</div>
-        <div class="muted">${e(customerPhone)}${customerCity ? ' • ' + e(customerCity) : ''}</div>
+        <div class="muted">${e(customerPhone)}${customerCity ? ' • ' + e(tr(customerCity)) : ''}</div>
       </div>
       <div class="box">
         <h3>${t.project}</h3>
-        <div class="big">${e(projectTitle)}</div>
+        <div class="big">${e(tr(projectTitle))}</div>
         <div class="muted">${t.itemsCount(version.items.length)}</div>
       </div>
     </div>
@@ -410,7 +413,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       ${t.terms}
       <div class="sign">
         <div>${t.customer}</div>
-        <div>${e(orgName)}</div>
+        <div>${BRAND_WORDMARK}</div>
       </div>
       <div class="thanks">${BRAND_WORDMARK} — ${t.thanks}</div>
     </div>
