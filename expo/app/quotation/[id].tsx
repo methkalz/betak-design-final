@@ -533,8 +533,10 @@ export default function QuotationScreen() {
         </Row>
       </Card>
 
+      {/* «معاينة» لا «مشاركة»: الشاشة تعرض الوثيقة ولا تُرسل شيئًا. الإرسال
+          فعلٌ صريح داخلها - فلا يظنّ البائع أن الضغط هنا أرسل للزبون. */}
       <Button
-        label="معاينة ومشاركة PDF"
+        label="معاينة الوثيقة"
         variant="secondary"
         full
         icon={<Share2 size={18} color={palette.oliveDark} />}
