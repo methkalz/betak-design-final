@@ -246,18 +246,55 @@ test('الشعار متجهيّ ويرث لون القالب - لا صورة و�
 });
 
 test('asTemplate يصمد أمام قيمةٍ من نسخةٍ أحدث أو خرابٍ في الخادم', () => {
-  expect(asTemplate('warm')).toBe('warm');
+  expect(asTemplate('mosaic')).toBe('mosaic');
   expect(asTemplate('من-المستقبل')).toBe(DEFAULT_TEMPLATE);
   expect(asTemplate(null)).toBe(DEFAULT_TEMPLATE);
   expect(asTemplate(undefined)).toBe(DEFAULT_TEMPLATE);
   expect(asTemplate(7)).toBe(DEFAULT_TEMPLATE);
 });
 
-test('القالب المضغوط أقصر فعلًا - الكثافة ليست تسميةً', () => {
-  const long = (tpl: QuoteTemplate) =>
-    buildQuoteHtml(data({ template: tpl })).length;
-  // نقيس على الرموز لا على الطول (حمولة الخطّ تُغرق الفرق)
-  expect(QUOTE_THEMES.compact.density).toBe('tight');
-  expect(QUOTE_THEMES.modern.density).toBe('normal');
-  expect(long('compact')).toBeGreaterThan(0);
+test('قالب الدفتر مضغوطٌ فعلًا - الكثافة ليست تسميةً', () => {
+  expect(QUOTE_THEMES.ledger.density).toBe('tight');
+  expect(QUOTE_THEMES.arc.density).toBe('normal');
+});
+
+/**
+ * ★ الحارس الذي وُلد من نقد المالك: «تغييرٌ بالألوان بالأساس».
+ *
+ * لا يكفي أن تختلف الألوان - يجب أن يختلف **التركيب**. هذا يؤكّد أن لكلّ
+ * قالبٍ تخطيطًا خاصًّا به لا يشاركه فيه غيره، وأن أكثر من طريقةٍ لعرض البنود
+ * مستعملةٌ فعلًا.
+ */
+test('★ لكلّ قالبٍ تخطيطٌ خاصّ - لا تركيبَ مشترك بين اثنين', () => {
+  const layouts = QUOTE_TEMPLATES.map((t) => QUOTE_THEMES[t].layout);
+  expect(new Set(layouts).size).toBe(QUOTE_TEMPLATES.length);
+
+  // وطرق عرض البنود أكثر من واحدة فعلًا
+  const styles = new Set(QUOTE_TEMPLATES.map((t) => QUOTE_THEMES[t].itemStyle));
+  expect(styles.size).toBeGreaterThan(1);
+  expect(styles.has('cards')).toBe(true);
+});
+
+test('★ الأشكال الهندسيّة موجودةٌ في الناتج لا في النيّة', () => {
+  // القوس: دائرة · القطر: clip-path · الفسيفساء: شبكة مربّعات ·
+  // المثلّثات: clip-path مثلّث · العمود: تدرّجٌ على الجسم · المخطّط: شبكة
+  const has = (tpl: QuoteTemplate, needle: string) =>
+    buildQuoteHtml(data({ template: tpl })).includes(needle);
+
+  expect(has('arc', 'border-radius: 50%')).toBe(true);
+  expect(has('diagonal', 'clip-path: polygon')).toBe(true);
+  expect(has('mosaic', 'grid-template-columns: repeat(3')).toBe(true);
+  expect(has('triangles', 'clip-path: polygon(0 0, 100% 0, 50% 100%)')).toBe(true);
+  expect(has('column', 'linear-gradient(to left, var(--accent)')).toBe(true);
+  expect(has('blueprint', 'var(--grid) 1px')).toBe(true);
+});
+
+test('البطاقات تحلّ محلّ الجدول في قالب الفسيفساء وحده', () => {
+  const mosaic = buildQuoteHtml(data({ template: 'mosaic' }));
+  expect(mosaic).toContain('class="qcards"');
+  expect(mosaic).not.toContain('<table>');
+
+  const arc = buildQuoteHtml(data({ template: 'arc' }));
+  expect(arc).toContain('<table>');
+  expect(arc).not.toContain('class="qcards"');
 });

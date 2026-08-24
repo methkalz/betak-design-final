@@ -1,24 +1,26 @@
 /**
- * قوالب وثيقة عرض السعر - ثمانية مظاهر من هيكلٍ واحد.
+ * قوالب وثيقة عرض السعر - **ثمانية تراكيب**، لا ثمانية ألوان.
  *
- * **لماذا رموزٌ لا ثماني وثائق**: ثماني نسخٍ من HTML تعني ثماني نقاط تعطُّب،
- * وثماني مرّاتٍ يُصلَح فيها كلّ عيبٍ مستقبليّ. هنا الاختلاف **بياناتٌ** لا
- * شيفرة: كلّ قالبٍ كائنُ رموزٍ صغير، والوثيقة واحدة تقرؤه.
+ * أوّل محاولةٍ جعلت الاختلاف رموزًا لونيّة فوق هيكلٍ واحد، فخرجت ثماني ورقاتٍ
+ * متطابقة البنية - وهو ما رآه المالك بحقّ «تغييرًا بالألوان بالأساس». الآن
+ * لكلّ قالبٍ **تخطيطُه** (`layout`) و**طريقةُ عرض بنوده** (`itemStyle`)،
+ * والأشكال الهندسيّة جزءٌ من التركيب لا زينةٌ فوقه.
  *
  * والألوان تُشتقّ من `constants/theme.ts` لا تُكتب سداسيًّا: الوثيقة كانت
- * تُكرّر ألوان اللوحة حرفيًّا (#4F46E5 هو `palette.olive`)، فكان أيّ تغييرٍ
- * في هويّة التطبيق ينحرف عن الورقة صامتًا.
+ * تُكرّر ألوان اللوحة حرفيًّا، فكان أيّ تغييرٍ في هويّة التطبيق ينحرف عن
+ * الورقة صامتًا.
  */
 import { palette } from '@/constants/theme';
+import type { ItemStyle, LayoutId } from '@/domain/quoteLayouts';
 
 export const QUOTE_TEMPLATES = [
-  'classic', 'modern', 'minimal', 'sidebar',
-  'bold', 'executive', 'warm', 'compact',
+  'arc', 'diagonal', 'mosaic', 'triangles',
+  'column', 'classic', 'blueprint', 'ledger',
 ] as const;
 
 export type QuoteTemplate = (typeof QUOTE_TEMPLATES)[number];
 
-export const DEFAULT_TEMPLATE: QuoteTemplate = 'modern';
+export const DEFAULT_TEMPLATE: QuoteTemplate = 'arc';
 
 /** يقبل أيّ نصّ ويعيد قالبًا صالحًا - الخادم قد يحمل قيمةً من نسخةٍ أحدث. */
 export function asTemplate(value: unknown): QuoteTemplate {
@@ -27,26 +29,17 @@ export function asTemplate(value: unknown): QuoteTemplate {
     : DEFAULT_TEMPLATE;
 }
 
-/**
- * ثلاثة هياكل بنيويّة:
- * - `letterhead` رأسٌ نصّيّ فوق سطرٍ فاصل، بلا كتلٍ لونية - الأرخص حبرًا
- * - `banner`     شريطٌ لونيّ ممتدّ يحمل العلامة والشارة
- * - `edge`       شريطٌ لونيّ على حافّة الورقة **يتكرّر على كلّ صفحة**
- */
-export type Skeleton = 'letterhead' | 'banner' | 'edge';
-
 export interface QuoteTheme {
   id: QuoteTemplate;
   labelAr: string;
   labelHe: string;
-  skeleton: Skeleton;
-  /** اللون القائد: الشارة والخطوط والإجمالي. */
+  /** التركيب: شكل الرأس وهندسته. */
+  layout: LayoutId;
+  /** كيف تُعرض البنود: جدولٌ أو بطاقاتٌ أو دفتر. */
+  itemStyle: ItemStyle;
   accent: string;
-  /** أغمق منه - للعناوين فوق الأبيض. */
   accentDeep: string;
-  /** تظليلٌ خفيف: رأس الجدول والصناديق. */
   accentSoft: string;
-  /** لونٌ ثانٍ اختياريّ (الذهب في «تنفيذيّ»). */
   second: string | null;
   ink: string;
   inkMuted: string;
@@ -54,9 +47,7 @@ export interface QuoteTheme {
   surface: string;
   onAccent: string;
   radius: number;
-  /** مضاعف حجم اسم المحلّ في الرأس. */
   brandScale: number;
-  /** `tight` يضغط الحشوات فتتّسع الصفحة لبنودٍ أكثر. */
   density: 'normal' | 'tight';
   zebra: boolean;
   table: 'boxed' | 'ruled' | 'plain';
@@ -65,92 +56,92 @@ export interface QuoteTheme {
 const T = (t: QuoteTheme): QuoteTheme => t;
 
 export const QUOTE_THEMES: Record<QuoteTemplate, QuoteTheme> = {
-  /** رسميّ: بلا كتلٍ لونية إطلاقًا - يليق بالبنوك والمكاتب، وأرخص طباعةً. */
-  classic: T({
-    id: 'classic', labelAr: 'كلاسيكي', labelHe: 'קלאסי',
-    skeleton: 'letterhead',
-    accent: palette.oliveDeepest, accentDeep: palette.oliveDeepest,
-    accentSoft: '#FFFFFF', second: null,
-    ink: palette.charcoal, inkMuted: palette.muted, line: '#D8D9E6',
-    surface: '#FFFFFF', onAccent: '#FFFFFF',
-    radius: 0, brandScale: 1, density: 'normal', zebra: false, table: 'ruled',
-  }),
-
-  /** عصريّ: لوحة رأسٍ ملوّنة وبطاقات مستديرة - أقرب ما يكون لهويّة التطبيق. */
-  modern: T({
-    id: 'modern', labelAr: 'عصري', labelHe: 'מודרני',
-    skeleton: 'banner',
+  /** ربعُ دائرةٍ ملوّن يملأ ركن الورقة والعلامة داخله. */
+  arc: T({
+    id: 'arc', labelAr: 'قوس', labelHe: 'קשת',
+    layout: 'arc', itemStyle: 'table',
     accent: palette.olive, accentDeep: palette.oliveDeepest,
     accentSoft: palette.sand, second: null,
     ink: palette.charcoal, inkMuted: '#5C6280', line: '#E2E3F2',
     surface: palette.ivory, onAccent: '#FFFFFF',
-    radius: 12, brandScale: 1, density: 'normal', zebra: true, table: 'boxed',
+    radius: 14, brandScale: 1.05, density: 'normal', zebra: true, table: 'boxed',
   }),
 
-  /** مبسّط: أبيضُ ومساحات - الأناقة في الفراغ لا في الحبر. */
-  minimal: T({
-    id: 'minimal', labelAr: 'مبسّط', labelHe: 'מינימלי',
-    skeleton: 'letterhead',
-    accent: palette.charcoal, accentDeep: '#000000',
-    accentSoft: '#FFFFFF', second: null,
-    ink: '#2C3150', inkMuted: '#8A90A8', line: '#E8E9F1',
-    surface: '#FFFFFF', onAccent: '#FFFFFF',
-    radius: 0, brandScale: 0.92, density: 'normal', zebra: false, table: 'plain',
-  }),
-
-  /** جانبيّ: شريطٌ لونيّ على حافّة الورقة يتكرّر على كلّ صفحة. */
-  sidebar: T({
-    id: 'sidebar', labelAr: 'جانبي', labelHe: 'צדי',
-    skeleton: 'edge',
+  /** كتلةٌ لونيّة يشقّها قطرٌ حادّ. */
+  diagonal: T({
+    id: 'diagonal', labelAr: 'قطري', labelHe: 'אלכסון',
+    layout: 'diagonal', itemStyle: 'table',
     accent: palette.oliveDark, accentDeep: palette.oliveDeepest,
-    accentSoft: palette.ivory, second: null,
-    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E2E3F2',
-    surface: palette.ivory, onAccent: '#FFFFFF',
-    radius: 10, brandScale: 1, density: 'normal', zebra: false, table: 'ruled',
+    accentSoft: '#EEEFFE', second: null,
+    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E0E1F0',
+    surface: '#FFFFFF', onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1.12, density: 'normal', zebra: false, table: 'ruled',
   }),
 
-  /** جريء: كتلةٌ لونية كبيرة وعناوين ضخمة - يُرى من آخر الغرفة. */
-  bold: T({
-    id: 'bold', labelAr: 'جريء', labelHe: 'נועז',
-    skeleton: 'banner',
-    accent: palette.olive, accentDeep: palette.oliveDeepest,
-    accentSoft: palette.sand, second: null,
-    ink: palette.charcoal, inkMuted: '#5C6280', line: '#DCDDEE',
-    surface: palette.ivory, onAccent: '#FFFFFF',
-    radius: 18, brandScale: 1.5, density: 'normal', zebra: true, table: 'boxed',
+  /** تسع مربّعاتٍ متدرّجة، والبنود **بطاقاتٌ لا صفوف**. */
+  mosaic: T({
+    id: 'mosaic', labelAr: 'فسيفساء', labelHe: 'פסיפס',
+    layout: 'mosaic', itemStyle: 'cards',
+    accent: '#0F766E', accentDeep: '#0B4F49',
+    accentSoft: '#ECF7F5', second: null,
+    ink: '#1C2B29', inkMuted: '#5F7C78', line: '#D6E7E4',
+    surface: '#F5FBFA', onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1, density: 'normal', zebra: false, table: 'plain',
   }),
 
-  /** تنفيذيّ: فحميّ ولمسةُ ذهب - رصانةٌ بلا برودة. */
-  executive: T({
-    id: 'executive', labelAr: 'تنفيذي', labelHe: 'ניהולי',
-    skeleton: 'letterhead',
-    accent: '#2C3150', accentDeep: '#1B1F32',
-    accentSoft: '#F7F5F0', second: '#B08D57',
-    ink: '#22263C', inkMuted: '#6E7288', line: '#DAD6CC',
-    surface: '#FAF8F4', onAccent: '#FFFFFF',
-    radius: 4, brandScale: 1.06, density: 'normal', zebra: false, table: 'ruled',
-  }),
-
-  /** دافئ: ترابيّ - يليق بمحلّ أقمشةٍ ومفروشات بيوت. */
-  warm: T({
-    id: 'warm', labelAr: 'دافئ', labelHe: 'חמים',
-    skeleton: 'banner',
+  /** شريطٌ متعرّج من مثلّثات يفصل الرأس عن المتن. */
+  triangles: T({
+    id: 'triangles', labelAr: 'مثلثات', labelHe: 'משולשים',
+    layout: 'triangles', itemStyle: 'table',
     accent: '#A8503A', accentDeep: '#7A3325',
     accentSoft: '#FBF1EC', second: null,
     ink: '#3A2A24', inkMuted: '#8A6E63', line: '#EAD9D1',
     surface: '#FDF7F4', onAccent: '#FFFFFF',
-    radius: 14, brandScale: 1, density: 'normal', zebra: true, table: 'boxed',
+    radius: 10, brandScale: 1.08, density: 'normal', zebra: true, table: 'boxed',
   }),
 
-  /** مضغوط: كثافةٌ أعلى - لعروضٍ كثيرة البنود، يوفّر صفحاتٍ وحبرًا. */
-  compact: T({
-    id: 'compact', labelAr: 'مضغوط', labelHe: 'דחוס',
-    skeleton: 'letterhead',
+  /** عمودٌ لونيّ رأسيّ يمتدّ على كلّ صفحة. */
+  column: T({
+    id: 'column', labelAr: 'عمود', labelHe: 'עמוד',
+    layout: 'column', itemStyle: 'table',
+    accent: '#3F3D8F', accentDeep: '#26254F',
+    accentSoft: '#EFEFF9', second: null,
+    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E2E3F2',
+    surface: '#F7F7FC', onAccent: '#FFFFFF',
+    radius: 8, brandScale: 1, density: 'normal', zebra: false, table: 'ruled',
+  }),
+
+  /** موسَّطٌ رسميّ - ثلاثة خطوطٍ تحت العلامة، بلا كتلٍ لونية. */
+  classic: T({
+    id: 'classic', labelAr: 'كلاسيكي', labelHe: 'קלאסי',
+    layout: 'stack', itemStyle: 'table',
+    accent: '#2C3150', accentDeep: '#1B1F32',
+    accentSoft: '#F7F5F0', second: '#B08D57',
+    ink: '#22263C', inkMuted: '#6E7288', line: '#DAD6CC',
+    surface: '#FAF8F4', onAccent: '#FFFFFF',
+    radius: 2, brandScale: 1.16, density: 'normal', zebra: false, table: 'ruled',
+  }),
+
+  /** شبكةُ مخطّطٍ هندسيّ وعلاماتُ ركن - يليق بمحلّ قياسات. */
+  blueprint: T({
+    id: 'blueprint', labelAr: 'مخطط', labelHe: 'שרטוט',
+    layout: 'blueprint', itemStyle: 'table',
+    accent: '#1D4ED8', accentDeep: '#16367F',
+    accentSoft: '#EAF0FE', second: null,
+    ink: '#1B2337', inkMuted: '#5B6780', line: '#D5DEF4',
+    surface: '#F6F9FE', onAccent: '#FFFFFF',
+    radius: 0, brandScale: .95, density: 'normal', zebra: false, table: 'plain',
+  }),
+
+  /** دفترٌ كثيف - كلّ المساحة للبنود، لعروضٍ طويلة. */
+  ledger: T({
+    id: 'ledger', labelAr: 'دفتر', labelHe: 'פנקס',
+    layout: 'ledger', itemStyle: 'ledger',
     accent: palette.oliveDeepest, accentDeep: palette.oliveDeepest,
     accentSoft: '#F2F2FA', second: null,
     ink: palette.charcoal, inkMuted: '#6B7191', line: '#DFE0EC',
     surface: '#FFFFFF', onAccent: '#FFFFFF',
-    radius: 6, brandScale: 0.86, density: 'tight', zebra: true, table: 'ruled',
+    radius: 4, brandScale: .82, density: 'tight', zebra: true, table: 'ruled',
   }),
 };
 
