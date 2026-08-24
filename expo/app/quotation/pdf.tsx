@@ -49,6 +49,8 @@ export default function QuotationPdfScreen() {
     if (!version || !quotation) return '';
     return buildQuoteHtml({
       version,
+      orgName: db.organization.name,
+      orgAddress: db.organization.address,
       orgPhone: db.organization.phone,
       number: quotation.number,
       customerName: customer?.fullName ?? '',
