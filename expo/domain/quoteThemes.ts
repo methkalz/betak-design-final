@@ -1,26 +1,31 @@
 /**
- * قوالب وثيقة عرض السعر - **ثمانية تراكيب**، لا ثمانية ألوان.
+ * قوالب وثيقة عرض السعر - ثمانية تصاميم على أسس التصميم التجاريّ المحترف.
  *
- * أوّل محاولةٍ جعلت الاختلاف رموزًا لونيّة فوق هيكلٍ واحد، فخرجت ثماني ورقاتٍ
- * متطابقة البنية - وهو ما رآه المالك بحقّ «تغييرًا بالألوان بالأساس». الآن
- * لكلّ قالبٍ **تخطيطُه** (`layout`) و**طريقةُ عرض بنوده** (`itemStyle`)،
- * والأشكال الهندسيّة جزءٌ من التركيب لا زينةٌ فوقه.
+ * ## المرجعيّة
  *
- * والألوان تُشتقّ من `constants/theme.ts` لا تُكتب سداسيًّا: الوثيقة كانت
- * تُكرّر ألوان اللوحة حرفيًّا، فكان أيّ تغييرٍ في هويّة التطبيق ينحرف عن
- * الورقة صامتًا.
+ * بعد نقدَي المالك (الأوّل: «تغييرٌ بالألوان»، والثاني: «لا تمتّ للاحترافيّة»)
+ * بُنيت هذه على أفضل ممارسات تصميم الفواتير وعروض الأسعار المنشورة، وخلاصتها:
+ *
+ * - **لونٌ واحد يُستعمل باعتدال**: في العلامة والتسميات والإجمالي - والباقي
+ *   حبرٌ داكن على أبيض.
+ * - **الإجمالي أكبرُ رقمٍ في الورقة** - هو بطل الصفحة.
+ * - **خطوطٌ شعريّة ومساحات، لا صناديق**: الفخامة من الفراغ لا من الأُطر.
+ * - **الشخصيّة من إيماءةٍ واحدة**: شريطٌ داكن، أو لوحٌ جانبيّ، أو رقمٌ
+ *   طباعيّ كبير - لا زخارف متراكمة.
+ *
+ * ما سقط عمدًا من المحاولة السابقة: المثلّثات والفسيفساء وعلامات الأركان -
+ * زخارف تُضعف الثقة ولا تبنيها.
  */
 import { palette } from '@/constants/theme';
-import type { ItemStyle, LayoutId } from '@/domain/quoteLayouts';
+import type { LayoutId } from '@/domain/quoteLayouts';
 
 export const QUOTE_TEMPLATES = [
-  'arc', 'diagonal', 'mosaic', 'triangles',
-  'column', 'classic', 'blueprint', 'ledger',
+  'onyx', 'swiss', 'panel', 'linen', 'ink', 'azure', 'atelier', 'ledger',
 ] as const;
 
 export type QuoteTemplate = (typeof QUOTE_TEMPLATES)[number];
 
-export const DEFAULT_TEMPLATE: QuoteTemplate = 'arc';
+export const DEFAULT_TEMPLATE: QuoteTemplate = 'onyx';
 
 /** يقبل أيّ نصّ ويعيد قالبًا صالحًا - الخادم قد يحمل قيمةً من نسخةٍ أحدث. */
 export function asTemplate(value: unknown): QuoteTemplate {
@@ -33,115 +38,127 @@ export interface QuoteTheme {
   id: QuoteTemplate;
   labelAr: string;
   labelHe: string;
-  /** التركيب: شكل الرأس وهندسته. */
   layout: LayoutId;
-  /** كيف تُعرض البنود: جدولٌ أو بطاقاتٌ أو دفتر. */
-  itemStyle: ItemStyle;
+  /** اللون القائد - يُستعمل باعتدال: علامة، تسميات، إجمالي. */
   accent: string;
   accentDeep: string;
+  /** تظليلٌ هادئ لرأس الجدول أو صفوفه. */
   accentSoft: string;
+  /** لونٌ ثانٍ نادر الاستعمال (ذهب «أونيكس»). */
   second: string | null;
   ink: string;
   inkMuted: string;
   line: string;
-  surface: string;
+  /** خلفيّة الورقة كلّها - أبيض أو عاجيّ دافئ. */
+  paper: string;
   onAccent: string;
   radius: number;
   brandScale: number;
   density: 'normal' | 'tight';
   zebra: boolean;
-  table: 'boxed' | 'ruled' | 'plain';
+  /** الإجمالي: كتلةٌ مصمتة بلون القائد، أو طباعةٌ كبيرة فوق خطّ. */
+  totalStyle: 'block' | 'type';
+  /** رأس الجدول: خطٌّ سفليّ حازم، أو تعبئةٌ هادئة. */
+  tableHead: 'rule' | 'fill';
 }
 
 const T = (t: QuoteTheme): QuoteTheme => t;
 
 export const QUOTE_THEMES: Record<QuoteTemplate, QuoteTheme> = {
-  /** ربعُ دائرةٍ ملوّن يملأ ركن الورقة والعلامة داخله. */
-  arc: T({
-    id: 'arc', labelAr: 'قوس', labelHe: 'קשת',
-    layout: 'arc', itemStyle: 'table',
-    accent: palette.olive, accentDeep: palette.oliveDeepest,
-    accentSoft: palette.sand, second: null,
-    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E2E3F2',
-    surface: palette.ivory, onAccent: '#FFFFFF',
-    radius: 14, brandScale: 1.05, density: 'normal', zebra: true, table: 'boxed',
+  /** لوحُ رأسٍ فحميّ وخيطُ ذهب - فخامةُ المكاتب الراقية. */
+  onyx: T({
+    id: 'onyx', labelAr: 'أونيكس', labelHe: 'אוניקס',
+    layout: 'band',
+    accent: '#1F2233', accentDeep: '#14161F', accentSoft: '#F4F2ED',
+    second: '#B08D57',
+    ink: '#22242E', inkMuted: '#75798A', line: '#E4E2DB', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
   }),
 
-  /** كتلةٌ لونيّة يشقّها قطرٌ حادّ. */
-  diagonal: T({
-    id: 'diagonal', labelAr: 'قطري', labelHe: 'אלכסון',
-    layout: 'diagonal', itemStyle: 'table',
-    accent: palette.oliveDark, accentDeep: palette.oliveDeepest,
-    accentSoft: '#EEEFFE', second: null,
-    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E0E1F0',
-    surface: '#FFFFFF', onAccent: '#FFFFFF',
-    radius: 0, brandScale: 1.12, density: 'normal', zebra: false, table: 'ruled',
+  /** سويسريّ: بياضٌ ومقياسٌ طباعيّ - رقمُ العرض عنوانٌ ضخم. */
+  swiss: T({
+    id: 'swiss', labelAr: 'سويسري', labelHe: 'שוויצרי',
+    layout: 'display',
+    accent: palette.olive, accentDeep: palette.oliveDeepest, accentSoft: '#EFEFFC',
+    second: null,
+    ink: '#14161F', inkMuted: '#787E9B', line: '#E6E7EF', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 0.92, density: 'normal', zebra: false,
+    totalStyle: 'type', tableHead: 'rule',
   }),
 
-  /** تسع مربّعاتٍ متدرّجة، والبنود **بطاقاتٌ لا صفوف**. */
-  mosaic: T({
-    id: 'mosaic', labelAr: 'فسيفساء', labelHe: 'פסיפס',
-    layout: 'mosaic', itemStyle: 'cards',
-    accent: '#0F766E', accentDeep: '#0B4F49',
-    accentSoft: '#ECF7F5', second: null,
-    ink: '#1C2B29', inkMuted: '#5F7C78', line: '#D6E7E4',
-    surface: '#F5FBFA', onAccent: '#FFFFFF',
-    radius: 0, brandScale: 1, density: 'normal', zebra: false, table: 'plain',
+  /** لوحٌ جانبيّ نيليّ عميق يحمل العلامة ويمتدّ على كلّ صفحة. */
+  panel: T({
+    id: 'panel', labelAr: 'لوح', labelHe: 'פאנל',
+    layout: 'panel',
+    accent: '#232159', accentDeep: '#191740', accentSoft: '#F0F0F8',
+    second: null,
+    ink: palette.charcoal, inkMuted: '#787E9B', line: '#E4E4EF', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 0.95, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
   }),
 
-  /** شريطٌ متعرّج من مثلّثات يفصل الرأس عن المتن. */
-  triangles: T({
-    id: 'triangles', labelAr: 'مثلثات', labelHe: 'משולשים',
-    layout: 'triangles', itemStyle: 'table',
-    accent: '#A8503A', accentDeep: '#7A3325',
-    accentSoft: '#FBF1EC', second: null,
-    ink: '#3A2A24', inkMuted: '#8A6E63', line: '#EAD9D1',
-    surface: '#FDF7F4', onAccent: '#FFFFFF',
-    radius: 10, brandScale: 1.08, density: 'normal', zebra: true, table: 'boxed',
+  /** كتّان: ورقٌ دافئ وتوسيطٌ رسميّ ولمسة تراكوتّا - يليق بمحلّ مفروشات. */
+  linen: T({
+    id: 'linen', labelAr: 'كتّان', labelHe: 'פשתן',
+    layout: 'centered',
+    accent: '#A8503A', accentDeep: '#7A3325', accentSoft: '#F6EEE6',
+    second: null,
+    ink: '#33302B', inkMuted: '#8A8073', line: '#E7DFD3', paper: '#FBF8F3',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1.06, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
   }),
 
-  /** عمودٌ لونيّ رأسيّ يمتدّ على كلّ صفحة. */
-  column: T({
-    id: 'column', labelAr: 'عمود', labelHe: 'עמוד',
-    layout: 'column', itemStyle: 'table',
-    accent: '#3F3D8F', accentDeep: '#26254F',
-    accentSoft: '#EFEFF9', second: null,
-    ink: palette.charcoal, inkMuted: '#5C6280', line: '#E2E3F2',
-    surface: '#F7F7FC', onAccent: '#FFFFFF',
-    radius: 8, brandScale: 1, density: 'normal', zebra: false, table: 'ruled',
+  /** حبر: أحاديّ اللون، قاعدةٌ سوداء حازمة - لمن يريد أقصى الرسميّة. */
+  ink: T({
+    id: 'ink', labelAr: 'حبر', labelHe: 'דיו',
+    layout: 'rule',
+    accent: '#111318', accentDeep: '#000000', accentSoft: '#F3F3F5',
+    second: null,
+    ink: '#1B1D24', inkMuted: '#6E7280', line: '#DDDEE4', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
   }),
 
-  /** موسَّطٌ رسميّ - ثلاثة خطوطٍ تحت العلامة، بلا كتلٍ لونية. */
-  classic: T({
-    id: 'classic', labelAr: 'كلاسيكي', labelHe: 'קלאסי',
-    layout: 'stack', itemStyle: 'table',
-    accent: '#2C3150', accentDeep: '#1B1F32',
-    accentSoft: '#F7F5F0', second: '#B08D57',
-    ink: '#22263C', inkMuted: '#6E7288', line: '#DAD6CC',
-    surface: '#FAF8F4', onAccent: '#FFFFFF',
-    radius: 2, brandScale: 1.16, density: 'normal', zebra: false, table: 'ruled',
+  /** سماويّ: شريطٌ علويّ نحيل وأزرق مؤسّساتيّ هادئ. */
+  azure: T({
+    id: 'azure', labelAr: 'سماوي', labelHe: 'תכלת',
+    layout: 'strip',
+    accent: '#2563EB', accentDeep: '#173E8F', accentSoft: '#EFF4FD',
+    second: null,
+    ink: '#1E2A3D', inkMuted: '#64748B', line: '#DCE4F2', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 6, brandScale: 0.95, density: 'normal', zebra: true,
+    totalStyle: 'block', tableHead: 'fill',
   }),
 
-  /** شبكةُ مخطّطٍ هندسيّ وعلاماتُ ركن - يليق بمحلّ قياسات. */
-  blueprint: T({
-    id: 'blueprint', labelAr: 'مخطط', labelHe: 'שרטוט',
-    layout: 'blueprint', itemStyle: 'table',
-    accent: '#1D4ED8', accentDeep: '#16367F',
-    accentSoft: '#EAF0FE', second: null,
-    ink: '#1B2337', inkMuted: '#5B6780', line: '#D5DEF4',
-    surface: '#F6F9FE', onAccent: '#FFFFFF',
-    radius: 0, brandScale: .95, density: 'normal', zebra: false, table: 'plain',
+  /** مشغل: رقمُ العرض ظلًّا طباعيًّا خلف الرأس - أناقةُ المجلّات. */
+  atelier: T({
+    id: 'atelier', labelAr: 'مشغل', labelHe: 'סטודיו',
+    layout: 'ghost',
+    accent: '#5B21B6', accentDeep: '#3B1478', accentSoft: '#F4EFFC',
+    second: null,
+    ink: '#211F2E', inkMuted: '#7A768C', line: '#E6E3F0', paper: '#FDFDFF',
+    onAccent: '#FFFFFF',
+    radius: 0, brandScale: 1.02, density: 'normal', zebra: false,
+    totalStyle: 'type', tableHead: 'rule',
   }),
 
-  /** دفترٌ كثيف - كلّ المساحة للبنود، لعروضٍ طويلة. */
+  /** دفتر: نحيلٌ كثيف لعروضٍ طويلة - كلّ المساحة للبنود. */
   ledger: T({
     id: 'ledger', labelAr: 'دفتر', labelHe: 'פנקס',
-    layout: 'ledger', itemStyle: 'ledger',
-    accent: palette.oliveDeepest, accentDeep: palette.oliveDeepest,
-    accentSoft: '#F2F2FA', second: null,
-    ink: palette.charcoal, inkMuted: '#6B7191', line: '#DFE0EC',
-    surface: '#FFFFFF', onAccent: '#FFFFFF',
-    radius: 4, brandScale: .82, density: 'tight', zebra: true, table: 'ruled',
+    layout: 'slim',
+    accent: palette.oliveDeepest, accentDeep: palette.oliveDeepest, accentSoft: '#F2F2FA',
+    second: null,
+    ink: palette.charcoal, inkMuted: '#6B7191', line: '#DFE0EC', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 2, brandScale: 0.82, density: 'tight', zebra: true,
+    totalStyle: 'block', tableHead: 'fill',
   }),
 };
 

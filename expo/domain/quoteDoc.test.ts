@@ -199,18 +199,16 @@ test('السعر المشطوب يظهر حين وُجدت زيادة تسويق
 /**
  * ★ الحارس الأهمّ: **التصميم لا يمسّ المال**.
  *
- * ثمانية قوالب تعني ثماني فرصٍ لأن ينزلق رقمٌ في أحدها. هذا الاختبار يستخرج
- * كلّ الأرقام النقدية من متن الوثيقة ويؤكّد أنها **متطابقة حرفًا بحرف** في
- * الثمانية - فما يختلف هو اللون والحشوة والخطّ لا شيءَ آخر.
+ * ثمانية قوالب تعني ثماني فرصٍ لأن ينزلق رقمٌ في أحدها. يستخرج هذا كلّ
+ * الأرقام النقدية من متن الوثيقة ويؤكّد تطابقها **حرفًا بحرف** في الثمانية.
  */
 test('★ الأرقام نفسها في القوالب الثمانية - يختلف التصميم لا المال', () => {
   const moneyOf = (tpl: QuoteTemplate) => {
     const html = body(buildQuoteHtml(data({ template: tpl, showVat: true })));
-    // نُسقط الوسوم ثمّ نلتقط كلّ ما يحمل رمز الشيكل
     const text = html.replace(/<[^>]+>/g, ' ');
     return (text.match(/₪[\d,]+/g) ?? []).join('|');
   };
-  const reference = moneyOf('classic');
+  const reference = moneyOf('onyx');
   expect(reference.length).toBeGreaterThan(0);
   for (const tpl of QUOTE_TEMPLATES) {
     expect(`${tpl}:${moneyOf(tpl)}`).toBe(`${tpl}:${reference}`);
@@ -228,25 +226,39 @@ test('الثمانية تُبنى كلّها بلغتين، ووثيقةٌ مغ�
   }
 });
 
-test('كلّ قالبٍ يحمل لونه ولا يتشابه اثنان في الهويّة كلّها', () => {
-  const fingerprints = QUOTE_TEMPLATES.map((tpl) => {
-    const th = QUOTE_THEMES[tpl];
-    return `${th.accent}|${th.skeleton}|${th.table}|${th.zebra}|${th.density}|${th.brandScale}`;
-  });
-  expect(new Set(fingerprints).size).toBe(QUOTE_TEMPLATES.length);
+/**
+ * ★ حارس نقد المالك الثاني («لا تمتّ للاحترافيّة»): البنية أولًا.
+ * لكلّ قالبٍ تخطيطُ رأسٍ خاصّ لا يشاركه فيه غيره، والإيماءةُ المميّزة لكلّ
+ * تخطيطٍ حاضرةٌ في الناتج فعلًا لا في النيّة.
+ */
+test('★ لكلّ قالبٍ تخطيطٌ خاصّ - لا تركيبَ مشترك بين اثنين', () => {
+  const layouts = QUOTE_TEMPLATES.map((t2) => QUOTE_THEMES[t2].layout);
+  expect(new Set(layouts).size).toBe(QUOTE_TEMPLATES.length);
 });
 
-test('الشعار متجهيّ ويرث لون القالب - لا صورة ولا لونٌ مثبَّت', () => {
-  const html = buildQuoteHtml(data());
-  expect(html).toContain('<svg');
-  expect(html).toContain('currentColor');
-  // لا صورةٌ نقطيّة مضمَّنة: تُثقل الوثيقة وتبهت عند الطباعة
-  expect(html).not.toContain('data:image/png');
-  expect(html).not.toContain('data:image/jpeg');
+test('★ إيماءةُ كلّ قالبٍ حاضرة في الناتج', () => {
+  const has = (tpl: QuoteTemplate, needle: string) =>
+    buildQuoteHtml(data({ template: tpl })).includes(needle);
+
+  expect(has('onyx', 'hd-band')).toBe(true);        // لوحٌ فحميّ
+  expect(has('onyx', '--second: #B08D57')).toBe(true); // خيط الذهب
+  expect(has('swiss', 'doc-display')).toBe(true);   // الرقم عنوانٌ ضخم
+  expect(has('panel', 'linear-gradient(to left, var(--accent) 0 58mm')).toBe(true); // لوحٌ يتكرّر
+  expect(has('linen', 'dbl-rule')).toBe(true);      // خطٌّ مزدوج رسميّ
+  expect(has('ink', 'rule-top')).toBe(true);        // قاعدةٌ سوداء
+  expect(has('azure', 'class="strip"')).toBe(true); // شريطٌ نحيل
+  expect(has('atelier', 'class="ghost"')).toBe(true); // ظلٌّ طباعيّ
+  expect(has('ledger', 'hd-slim')).toBe(true);      // رأسٌ نحيل
+});
+
+test('الإجمالي بطل الورقة - بمعالجتيه', () => {
+  // كتلةٌ مصمتة في أونيكس، وطباعةٌ كبيرة في السويسريّ
+  expect(buildQuoteHtml(data({ template: 'onyx' }))).toContain('grand-block');
+  expect(buildQuoteHtml(data({ template: 'swiss' }))).toContain('grand-type');
 });
 
 test('asTemplate يصمد أمام قيمةٍ من نسخةٍ أحدث أو خرابٍ في الخادم', () => {
-  expect(asTemplate('mosaic')).toBe('mosaic');
+  expect(asTemplate('linen')).toBe('linen');
   expect(asTemplate('من-المستقبل')).toBe(DEFAULT_TEMPLATE);
   expect(asTemplate(null)).toBe(DEFAULT_TEMPLATE);
   expect(asTemplate(undefined)).toBe(DEFAULT_TEMPLATE);
@@ -255,46 +267,12 @@ test('asTemplate يصمد أمام قيمةٍ من نسخةٍ أحدث أو خر
 
 test('قالب الدفتر مضغوطٌ فعلًا - الكثافة ليست تسميةً', () => {
   expect(QUOTE_THEMES.ledger.density).toBe('tight');
-  expect(QUOTE_THEMES.arc.density).toBe('normal');
+  expect(QUOTE_THEMES.onyx.density).toBe('normal');
 });
 
-/**
- * ★ الحارس الذي وُلد من نقد المالك: «تغييرٌ بالألوان بالأساس».
- *
- * لا يكفي أن تختلف الألوان - يجب أن يختلف **التركيب**. هذا يؤكّد أن لكلّ
- * قالبٍ تخطيطًا خاصًّا به لا يشاركه فيه غيره، وأن أكثر من طريقةٍ لعرض البنود
- * مستعملةٌ فعلًا.
- */
-test('★ لكلّ قالبٍ تخطيطٌ خاصّ - لا تركيبَ مشترك بين اثنين', () => {
-  const layouts = QUOTE_TEMPLATES.map((t) => QUOTE_THEMES[t].layout);
-  expect(new Set(layouts).size).toBe(QUOTE_TEMPLATES.length);
-
-  // وطرق عرض البنود أكثر من واحدة فعلًا
-  const styles = new Set(QUOTE_TEMPLATES.map((t) => QUOTE_THEMES[t].itemStyle));
-  expect(styles.size).toBeGreaterThan(1);
-  expect(styles.has('cards')).toBe(true);
-});
-
-test('★ الأشكال الهندسيّة موجودةٌ في الناتج لا في النيّة', () => {
-  // القوس: دائرة · القطر: clip-path · الفسيفساء: شبكة مربّعات ·
-  // المثلّثات: clip-path مثلّث · العمود: تدرّجٌ على الجسم · المخطّط: شبكة
-  const has = (tpl: QuoteTemplate, needle: string) =>
-    buildQuoteHtml(data({ template: tpl })).includes(needle);
-
-  expect(has('arc', 'border-radius: 50%')).toBe(true);
-  expect(has('diagonal', 'clip-path: polygon')).toBe(true);
-  expect(has('mosaic', 'grid-template-columns: repeat(3')).toBe(true);
-  expect(has('triangles', 'clip-path: polygon(0 0, 100% 0, 50% 100%)')).toBe(true);
-  expect(has('column', 'linear-gradient(to left, var(--accent)')).toBe(true);
-  expect(has('blueprint', 'var(--grid) 1px')).toBe(true);
-});
-
-test('البطاقات تحلّ محلّ الجدول في قالب الفسيفساء وحده', () => {
-  const mosaic = buildQuoteHtml(data({ template: 'mosaic' }));
-  expect(mosaic).toContain('class="qcards"');
-  expect(mosaic).not.toContain('<table>');
-
-  const arc = buildQuoteHtml(data({ template: 'arc' }));
-  expect(arc).toContain('<table>');
-  expect(arc).not.toContain('class="qcards"');
+test('لا صناديق حول بيانات الزبون - تسمياتٌ فوق قيم وخطوطٌ شعريّة', () => {
+  const html = body(buildQuoteHtml(data()));
+  expect(html).toContain('class="info"');
+  // البنية القديمة (بطاقتا box) سقطت عمدًا - الفخامة من الفراغ لا من الأُطر
+  expect(html).not.toContain('class="box"');
 });
