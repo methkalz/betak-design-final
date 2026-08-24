@@ -8,6 +8,8 @@ export type Role = 'admin' | 'sales' | 'field' | 'tailor';
 
 export type UUID = string;
 
+import type { QuoteTemplate } from '@/domain/quoteThemes';
+
 export interface Organization {
   id: UUID;
   name: string;
@@ -331,6 +333,11 @@ export interface BusinessSettings {
    * مقترح كبقية الأسعار، فالمقفول لا يتغيّر.
    */
   oversizeSurchargePercent: number;
+  /**
+   * قالب وثيقة عرض السعر - تصميمٌ للمحل كله يختاره الأدمن.
+   * عرضٌ بحت: لا يمسّ رقمًا ولا يدخل لقطة التسعير.
+   */
+  quoteTemplate: QuoteTemplate;
   /** IANA timezone — drives the year in document numbering (Q-YYYY-####). */
   timezone?: string;
 }

@@ -385,6 +385,35 @@ out = as_user(SALES, f"""select api.update_business_settings(
   '{key(61)}'::uuid, p_motor_price_agorot => 1)::text;""")
 check('42 التسعيرة للأدمن وحده → BD403', 'BD403' in out or 'الأدمن وحده' in out, out)
 
+# ── قالب وثيقة عرض السعر ────────────────────────────────────────────────────
+# ★ نصٌّ من قائمةٍ مغلقة: حارسه مستقلّ عن سلاسل النسب (coalesce(x,0)) - النصّ
+#   لا صفرَ له، فلو انضمّ إليها لمرّ أيّ خرابٍ بلا فحص.
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(70)}'::uuid, p_quote_template => 'weave')::text;""")
+probe = sql(f"""select 'TPL=' || quote_template || '|M=' || motor_price_agorot
+ from core.business_settings where organization_id = '{ORG}';""", quiet=False)
+check('47 قالب الوثيقة يُحفظ ولا يمسّ سواه',
+      'ERROR' not in out and 'TPL=weave|M=95000' in probe, out + probe)
+
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(71)}'::uuid, p_quote_template => 'قالبٌ-لا-وجود-له')::text;""")
+check('48 قالب غير معروف → BD400', 'BD400' in out or 'غير معروف' in out, out)
+
+out = as_user(SALES, f"""select api.update_business_settings(
+  '{key(72)}'::uuid, p_quote_template => 'ink')::text;""")
+check('49 القالب للأدمن وحده → BD403', 'BD403' in out or 'الأدمن وحده' in out, out)
+
+# الإعادة بنفس المفتاح ونفس الحمولة تُرجع النتيجة المسجّلة لا تكرارًا
+out = as_user(ADMIN, f"""select api.update_business_settings(
+  '{key(70)}'::uuid, p_quote_template => 'weave')::text;""")
+check('50 إعادة القالب بنفس المفتاح → was_replayed', 'was_replayed' in out and 'true' in out, out)
+
+# والقالب مكشوفٌ في العرض **غير المحجوب**: من يعاين الوثيقة يقرؤه، ولو وُضع
+# في العرض المحجوب لقرأه غيرُ الأدمن فارغًا فسقط إلى الافتراضي صامتًا
+probe = as_user(SALES, """select 'S=' || coalesce(quote_template,'∅')
+ from api.business_settings;""")
+check('51 غير الأدمن يقرأ القالب من العرض غير المحجوب', 'S=weave' in probe, probe)
+
 out = as_user(ADMIN, f"""select api.update_business_settings(
   '{key(62)}'::uuid, p_employee_discount_limit_percent => 50,
   p_admin_discount_limit_percent => 10)::text;""")

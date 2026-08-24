@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- التعليقات (64)
+-- التعليقات (65)
 -- مُولَّد من القاعدة الحية (pg_get_functiondef / pg_get_viewdef / pg_dump)
 -- هذا الملف مصدر الحقيقة التصريحي. عدّله ثم ولّد migration بـ db diff.
 -- ⚠️ الملكية والمنح و RLS لا يلتقطها db diff — مكانها migrations يدوية.
@@ -14,6 +14,7 @@ COMMENT ON TABLE core.profiles IS 'بيانات المستخدم العامة. �
 COMMENT ON COLUMN core.business_settings.vat_percent IS 'نسبة ض.ق.م. مصدر الحقيقة الوحيد — لا تكرر على core.organizations.';
 COMMENT ON COLUMN core.business_settings.timezone IS 'المنطقة الزمنية للمؤسسة (اسم IANA). تُستعمل لاشتقاق سنة ترقيم المستندات؛ اسم غير صالح يُفشل عملية الترقيم بخطأ صريح من at time zone.';
 COMMENT ON COLUMN core.business_settings.oversize_surcharge_percent IS 'نسبة الزيادة على الشبابيك بارتفاع 500 سم فأكثر - تُطبَّق على سعر الزبون للمتر وأجرة الخياط والقياس والتركيب. قابلة للتعديل من الأدمن.';
+COMMENT ON COLUMN core.business_settings.quote_template IS 'قالب وثيقة عرض السعر - تصميمٌ للمحل كله يختاره الأدمن. عرضٌ بحت: لا يمس رقمًا ولا يدخل لقطة التسعير.';
 COMMENT ON TABLE core.client_operations IS 'دفتر الـidempotency. يقرأ في مستهل كل RPC حساس قبل تنفيذ أي أثر جانبي.';
 COMMENT ON COLUMN core.client_operations.result IS 'يعاد حرفيا عند تكرار نفس idempotency_key بدل إعادة تنفيذ العملية.';
 COMMENT ON COLUMN core.client_operations.payload IS 'بصمة مدخلات الطلب. إعادة استخدام المفتاح ببصمة مختلفة تُرفض بـBD400.';

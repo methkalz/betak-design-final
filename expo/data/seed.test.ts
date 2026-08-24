@@ -44,3 +44,12 @@ test('كل قماش غير البطانة بلا زيادة - لا سعر يرت
   const others = db.fabricVariants.filter((v) => v.productId !== lining);
   expect(others.every((v) => v.customerSurchargePerMeterAgorot === 0)).toBe(true);
 });
+
+/**
+ * ★ قالب الوثيقة: إعدادٌ جديد يمسّ البذرة والنوع والمخزن والخادم.
+ * غيابُ أيّ طرفٍ يجعل الميزة صامتةً لا معطوبة - فتُفحص السلسلة كاملة.
+ */
+test('البذرة تحمل قالبًا صالحًا', async () => {
+  const { QUOTE_TEMPLATES } = await import('@/domain/quoteThemes');
+  expect(QUOTE_TEMPLATES).toContain(db.settings.quoteTemplate);
+});

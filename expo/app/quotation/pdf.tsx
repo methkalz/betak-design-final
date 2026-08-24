@@ -60,6 +60,8 @@ export default function QuotationPdfScreen() {
       vatPercent: db.settings.vatPercent,
       showVat,
       lang,
+      // قالب المحل من الإعدادات - عرضٌ بحت لا يمسّ رقمًا
+      template: db.settings.quoteTemplate,
     });
   }, [version, quotation, customer, project, db.organization, db.settings.vatPercent, showVat, lang]);
 
