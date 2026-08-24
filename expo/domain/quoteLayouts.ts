@@ -151,9 +151,80 @@ const headSlim = (c: LayoutContext) => `
     </div>
   </header>`;
 
+/* علامةٌ مائيّة: شعارٌ كبير خافت خلف متن الصفحة الأولى - عُرف الوثائق الفاخرة */
+const headSeal = (c: LayoutContext) => `
+  <header class="hd hd-seal">
+    <span class="wm" aria-hidden="true">${c.logo(430)}</span>
+    <div class="seal-row">
+      <div>
+        <span class="logo">${c.logo(30)}</span>
+        <span class="brand">${c.brandName}</span>
+        <span class="org">${c.orgLine}</span>
+      </div>
+      <div class="seal-meta">
+        <span class="doc-label">${c.quoteLabel}</span>
+        <span class="doc-number">${c.number}</span>
+        ${c.metaHtml}
+      </div>
+    </div>
+  </header>`;
+
+/* نسيج: الشعار متكرّرًا خلف الورقة كلّها كطباعة الورق الفاخر - الخلفيّة على body */
+const headWeave = (c: LayoutContext) => `
+  <header class="hd hd-weave">
+    <div class="weave-brand">
+      <span class="logo">${c.logo(32)}</span>
+      <span>
+        <span class="brand">${c.brandName}</span>
+        <span class="org">${c.orgLine}</span>
+      </span>
+    </div>
+    <div class="weave-meta">
+      <span class="doc-label">${c.quoteLabel}</span>
+      <span class="doc-number">${c.number}</span>
+      ${c.metaHtml}
+    </div>
+  </header>`;
+
+/* موجة: دائرتان ناعمتان خافتتان خلف ركن الرأس - عمقٌ بلا ضجيج */
+const headCurve = (c: LayoutContext) => `
+  <header class="hd hd-curve">
+    <div class="orb-clip" aria-hidden="true"><div class="orb orb-a"></div><div class="orb orb-b"></div></div>
+    <div class="curve-row">
+      <div>
+        <span class="logo">${c.logo(34)}</span>
+        <span class="brand">${c.brandName}</span>
+        <span class="org">${c.orgLine}</span>
+      </div>
+      <div class="curve-meta">
+        <span class="doc-label">${c.quoteLabel}</span>
+        <span class="doc-number">${c.number}</span>
+        ${c.metaHtml}
+      </div>
+    </div>
+  </header>`;
+
+/* طيّات: خطوطٌ رأسيّة خافتة على الورقة كلّها - طيّاتُ ستارةٍ لمحلّ ستائر */
+const headFolds = (c: LayoutContext) => `
+  <header class="hd hd-folds">
+    <div class="folds-row">
+      <div>
+        <span class="logo">${c.logo(32)}</span>
+        <span class="brand">${c.brandName}</span>
+        <span class="org">${c.orgLine}</span>
+      </div>
+      <div class="folds-meta">
+        <span class="doc-label">${c.quoteLabel}</span>
+        <span class="doc-number">${c.number}</span>
+        ${c.metaHtml}
+      </div>
+    </div>
+  </header>`;
+
 export type LayoutId =
   | 'band' | 'display' | 'panel' | 'centered'
-  | 'rule' | 'strip' | 'ghost' | 'slim';
+  | 'rule' | 'strip' | 'ghost' | 'slim'
+  | 'seal' | 'weave' | 'curve' | 'folds';
 
 export const HEADERS: Record<LayoutId, (c: LayoutContext) => string> = {
   band: headBand,
@@ -164,4 +235,8 @@ export const HEADERS: Record<LayoutId, (c: LayoutContext) => string> = {
   strip: headStrip,
   ghost: headGhost,
   slim: headSlim,
+  seal: headSeal,
+  weave: headWeave,
+  curve: headCurve,
+  folds: headFolds,
 };

@@ -21,6 +21,7 @@ import type { LayoutId } from '@/domain/quoteLayouts';
 
 export const QUOTE_TEMPLATES = [
   'onyx', 'swiss', 'panel', 'linen', 'ink', 'azure', 'atelier', 'ledger',
+  'seal', 'weave', 'curve', 'folds',
 ] as const;
 
 export type QuoteTemplate = (typeof QUOTE_TEMPLATES)[number];
@@ -158,6 +159,54 @@ export const QUOTE_THEMES: Record<QuoteTemplate, QuoteTheme> = {
     ink: palette.charcoal, inkMuted: '#6B7191', line: '#DFE0EC', paper: '#FFFFFF',
     onAccent: '#FFFFFF',
     radius: 2, brandScale: 0.82, density: 'tight', zebra: true,
+    totalStyle: 'block', tableHead: 'fill',
+  }),
+
+  /** علامةٌ مائيّة: شعارٌ كبير خافت خلف المتن - عُرف الوثائق الفاخرة. */
+  seal: T({
+    id: 'seal', labelAr: 'ختم', labelHe: 'חותם',
+    layout: 'seal',
+    accent: '#1E3A5F', accentDeep: '#132741', accentSoft: '#EEF3F9',
+    second: null,
+    ink: '#1C2736', inkMuted: '#64748B', line: '#DCE3EE', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 2, brandScale: 1, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
+  }),
+
+  /** نسيج: الشعار متكرّرًا كطباعة الورق الفاخر - على كلّ صفحة. */
+  weave: T({
+    id: 'weave', labelAr: 'نسيج', labelHe: 'אריג',
+    layout: 'weave',
+    accent: '#8A6844', accentDeep: '#5E4630', accentSoft: '#F6F1E9',
+    second: null,
+    ink: '#332B22', inkMuted: '#8B8071', line: '#E6DCCB', paper: '#FDFBF7',
+    onAccent: '#FFFFFF',
+    radius: 2, brandScale: 1, density: 'normal', zebra: false,
+    totalStyle: 'block', tableHead: 'rule',
+  }),
+
+  /** موجة: دائرتان ناعمتان خلف الرأس - حداثةٌ بلا ضجيج. */
+  curve: T({
+    id: 'curve', labelAr: 'موجة', labelHe: 'גל',
+    layout: 'curve',
+    accent: '#4F46E5', accentDeep: '#211D63', accentSoft: '#EFEFFC',
+    second: null,
+    ink: '#1B1F32', inkMuted: '#787E9B', line: '#E6E7EF', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 10, brandScale: 1.02, density: 'normal', zebra: false,
+    totalStyle: 'type', tableHead: 'rule',
+  }),
+
+  /** طيّات: خطوطٌ رأسيّة خافتة كطيّات ستارة - هويّةُ المحلّ في الورقة. */
+  folds: T({
+    id: 'folds', labelAr: 'طيّات', labelHe: 'קפלים',
+    layout: 'folds',
+    accent: '#0F766E', accentDeep: '#0B4F49', accentSoft: '#ECF6F4',
+    second: null,
+    ink: '#1C2B29', inkMuted: '#5F7C78', line: '#D9E7E4', paper: '#FFFFFF',
+    onAccent: '#FFFFFF',
+    radius: 4, brandScale: 1, density: 'normal', zebra: false,
     totalStyle: 'block', tableHead: 'fill',
   }),
 };

@@ -249,6 +249,31 @@ test('★ إيماءةُ كلّ قالبٍ حاضرة في الناتج', () => 
   expect(has('azure', 'class="strip"')).toBe(true); // شريطٌ نحيل
   expect(has('atelier', 'class="ghost"')).toBe(true); // ظلٌّ طباعيّ
   expect(has('ledger', 'hd-slim')).toBe(true);      // رأسٌ نحيل
+  // الأربعة الخلفيّة - جماليّات المالك الثالثة: خلفيّاتٌ فنّيّة مضبوطة
+  expect(has('seal', 'class="wm"')).toBe(true);     // علامةٌ مائيّة ضخمة
+  expect(has('weave', 'data:image/svg+xml')).toBe(true); // شعارٌ متكرّر نسيجًا
+  expect(has('curve', 'orb-clip')).toBe(true);      // دوائر ناعمة محصورة بالورقة
+  expect(has('folds', 'repeating-linear-gradient')).toBe(true); // طيّات ستارة
+});
+
+/**
+ * ★ الخلفيّات الفنّيّة مضبوطة الشفافيّة: نقشٌ فوق ~6% يزاحم النصّ على
+ * انتباه القارئ فيسقط من «خلفيّة» إلى «ضجيج». الأرقام هنا عقدُ التصميم.
+ */
+test('★ شفافيّة الخلفيّات لا تتجاوز حدّ القراءة', () => {
+  const seal = buildQuoteHtml(data({ template: 'seal' }));
+  expect(seal).toContain('opacity: .045');
+  const weave = buildQuoteHtml(data({ template: 'weave' }));
+  expect(weave).toContain('fill-opacity%3D%220.05%22');
+  const folds = buildQuoteHtml(data({ template: 'folds' }));
+  expect(folds).toContain('0.035');
+});
+
+test('نسيج الشعار والطيّات على body - فتتكرّران على كلّ صفحة', () => {
+  const weave = buildQuoteHtml(data({ template: 'weave' }));
+  expect(weave).toMatch(/body \{ background: url\("data:image\/svg/);
+  const folds = buildQuoteHtml(data({ template: 'folds' }));
+  expect(folds).toMatch(/body \{ background: repeating-linear-gradient/);
 });
 
 test('الإجمالي بطل الورقة - بمعالجتيه', () => {
