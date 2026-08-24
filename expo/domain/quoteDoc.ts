@@ -279,7 +279,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
   .thanks { color: var(--accent); font-weight: 700; margin-top: 8px; }
 
   /* ───────── هندسة الرأس ───────── */
-${layoutCss(theme.layout)}
+${layoutCss(theme.layout, theme)}
 </style>
 </head>
 <body class="lay-${theme.layout} tpl-${theme.id} th-${theme.tableHead}${theme.zebra ? ' zebra' : ''}">

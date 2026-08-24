@@ -10,7 +10,16 @@
  * ★ ما يجب أن يتكرّر على كلّ صفحةٍ مطبوعة يُرسَم خلفيّةً على body -
  * العنصر في التدفّق يظهر مرّةً واحدة مهما طالت الوثيقة.
  */
+import { quoteLogoTileUri } from '@/domain/quoteLogo';
 import type { LayoutId } from '@/domain/quoteLayouts';
+import type { QuoteTheme } from '@/domain/quoteThemes';
+
+/** ‏#RRGGBB → rgba: خلفيّات CSS لا تقرأ var() داخل تدرّجاتها فيُخبز اللون. */
+function rgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
 
 const SHARED = `
   .hd { position: relative; }
@@ -120,11 +129,55 @@ const CSS: Record<LayoutId, string> = {
   .slim-brand .org { margin: 0 8px 0 0; }
   .slim-meta { display: flex; align-items: baseline; gap: 10px; }
   .slim-meta .meta { margin: 0; }`,
+
+  /* ── علامةٌ مائيّة: شعارٌ ضخم خافت خلف متن الصفحة الأولى.
+     z-index سالب فيُرسَم فوق أرضيّة الورقة وتحت كلّ محتوًى - النصوص
+     والتعبئات تُطبع فوقه، وهذا سلوك العلامة المائيّة الصحيح. */
+  seal: `
+  .hd-seal { padding: 12mm 14mm 0; }
+  .seal-row { display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 6mm; border-bottom: 1.5px solid var(--accent); }
+  .seal-meta { text-align: start; }
+  .wm { position: absolute; z-index: -1; left: 50%; transform: translateX(-50%);
+    top: 52mm; color: var(--accent); opacity: .045; pointer-events: none; }`,
+
+  /* ── نسيج: الشعار متكرّرًا على الورقة كلّها (خلفيّة body فيتكرّر على كلّ
+     صفحة) - كطباعة الورق الفاخر. الرأس نحيلٌ هادئ فلا يزاحم النقش. */
+  weave: `
+  .hd-weave { padding: 11mm 14mm 5mm; display: flex; justify-content: space-between;
+    align-items: center; border-bottom: 1.5px solid var(--accent); }
+  .weave-brand { display: flex; align-items: center; gap: 11px; }
+  .weave-meta { text-align: start; }`,
+
+  /* ── موجة: دائرتان ناعمتان خلف ركن الرأس - عمقٌ بلا ضجيج.
+     داخل الرأس فتخصّان الصفحة الأولى ولا تطفوان فوق جداول التالية. */
+  curve: `
+  .hd-curve { padding: 13mm 14mm 0; }
+  /* قاصٌّ بحدود الورقة: الدائرة تمتدّ خارج الحافّة فتوسّع الصفحة أفقيًّا
+     لولاه - وبعض محرّكات الطباعة تفتح لذلك صفحةً أفقيّة ثانية */
+  .orb-clip { position: absolute; z-index: -1; left: 0; right: 0; top: 0;
+    height: 96mm; overflow: hidden; pointer-events: none; }
+  .orb { position: absolute; border-radius: 50%; background: var(--accent); }
+  .orb-a { width: 118mm; height: 118mm; top: -58mm; inset-inline-end: -38mm; opacity: .055; }
+  .orb-b { width: 64mm; height: 64mm; top: -14mm; inset-inline-end: 26mm; opacity: .085; }
+  .curve-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .curve-meta { text-align: start; }`,
+
+  /* ── طيّات: خطوطٌ رأسيّة خافتة على كلّ صفحة - طيّاتُ ستارةٍ (خلفيّة body) */
+  folds: `
+  .hd-folds { padding: 12mm 14mm 0; }
+  .folds-row { display: flex; justify-content: space-between; align-items: flex-start;
+    padding-bottom: 6mm; border-bottom: 2px solid var(--accent); }
+  .folds-meta { text-align: start; }`,
 };
 
-/** خلفيّاتٌ على body - وحدها تتكرّر على كلّ صفحةٍ مطبوعة. */
-const BODY_BG: Partial<Record<LayoutId, string>> = {
-  panel: `linear-gradient(to left, var(--accent) 0 58mm, var(--paper) 58mm)`,
+/** خلفيّاتٌ على body - وحدها تتكرّر على كلّ صفحةٍ مطبوعة. دوالٌّ لأن
+    التدرّجات وأنسجة SVG لا تقرأ var() فتُخبز ألوان القالب فيها. */
+const BODY_BG: Partial<Record<LayoutId, (t: QuoteTheme) => string>> = {
+  panel: () => `linear-gradient(to left, var(--accent) 0 58mm, var(--paper) 58mm)`,
+  weave: (t) => `${quoteLogoTileUri(t.accent, 0.05)} repeat`,
+  folds: (t) =>
+    `repeating-linear-gradient(90deg, ${rgba(t.accent, 0.035)} 0 5mm, transparent 5mm 15mm)`,
 };
 
 /** حشوةٌ تفسح للخلفيّة حيث اقتطعت جزءًا من عرض الورقة. */
@@ -132,13 +185,13 @@ const BODY_PAD: Partial<Record<LayoutId, string>> = {
   panel: 'padding-inline-start: 58mm;',
 };
 
-export function layoutCss(id: LayoutId): string {
+export function layoutCss(id: LayoutId, theme: QuoteTheme): string {
   const bg = BODY_BG[id];
   const pad = BODY_PAD[id];
   return [
     SHARED,
     CSS[id],
-    bg ? `  body { background: ${bg}; }` : '',
+    bg ? `  body { background: ${bg(theme)} var(--paper); }` : '',
     pad ? `  body { ${pad} }` : '',
   ]
     .filter(Boolean)
