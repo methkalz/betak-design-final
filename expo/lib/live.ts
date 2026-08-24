@@ -8,6 +8,7 @@
  * الكتابة إلى الخادم (RPC) شريحةٌ تالية — هذه الشريحة قراءة موثوقة + دخول
  * حقيقي + جلسات مشفرة.
  */
+import { asTemplate } from '@/domain/quoteThemes';
 import type { Database } from '@/data/seed';
 import { supabase } from '@/lib/supabase';
 import type {
@@ -142,6 +143,9 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     remotePriceAgorot: n(st.remote_price_agorot),
     // من العرض غير المحجوب: النسبة تقود سعر زبونٍ يعاينه المبيعات والميدان
     oversizeSurchargePercent: n(st.oversize_surcharge_percent),
+    // من العرض غير المحجوب: الميدان والمبيعات يعاينون الوثيقة أيضًا.
+    // asTemplate يحرس ضد قيمةٍ من نسخةٍ أحدث أو حقلٍ غائب.
+    quoteTemplate: asTemplate(st.quote_template),
   };
 
   const profiles: Profile[] = members.map((m) => ({

@@ -1,9 +1,14 @@
-import { Building2, ShieldCheck } from 'lucide-react-native';
-import React from 'react';
+import { Building2, FileText, ShieldCheck } from 'lucide-react-native';
+import React, { useState } from 'react';
 import { View } from 'react-native';
 
-import { AppText, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader } from '@/components/ui';
+import { QuoteTemplateCard } from '@/components/QuoteTemplateCard';
+import {
+  AppText, Banner, Button, Card, Divider, He, Pill, Row, ScrollScreen, SectionHeader,
+} from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
+import { can } from '@/domain/permissions';
+import { QUOTE_TEMPLATES, QUOTE_THEMES, type QuoteTemplate } from '@/domain/quoteThemes';
 import {
   CAPABILITY_LABELS,
   LEVEL_LABELS,
@@ -19,7 +24,22 @@ const ROLES: Role[] = ['admin', 'sales', 'field', 'tailor'];
 const CAPS = Object.keys(CAPABILITY_LABELS) as Capability[];
 
 export default function SettingsScreen() {
-  const { db, role } = useStore();
+  const { db, role, busy, updateSettings } = useStore();
+  // مسوّدةٌ محلّية: الاختيار يُرى فورًا، والحفظ فعلٌ صريح
+  const [draft, setDraft] = useState<QuoteTemplate | null>(null);
+  const [info, setInfo] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null);
+
+  const current = draft ?? db.settings.quoteTemplate;
+  // الخادم يرفض غير الأدمن بـBD403، فبوّابةٌ في الواجهة تمنع زرًّا يُخفق دائمًا
+  const canEdit = can(role, 'edit_pricing_rules');
+
+  const saveTemplate = async () => {
+    if (!draft) return;
+    const res = await updateSettings({ quoteTemplate: draft });
+    if (!res.ok) return setInfo({ text: res.error, tone: 'warning' });
+    setDraft(null);
+    setInfo({ text: `قالب «${QUOTE_THEMES[draft].labelAr}» صار قالب عروضك.`, tone: 'success' });
+  };
 
   return (
     <ScrollScreen>
@@ -66,6 +86,57 @@ export default function SettingsScreen() {
         ) : (
           <AppText variant="caption" color={palette.muted}>
             التكاليف الداخلية غير متاحة لدورك.
+          </AppText>
+        )}
+      </Card>
+
+      <Card>
+        <SectionHeader
+          title="قالب عرض السعر"
+          subtitle="تصميم الوثيقة التي يستلمها الزبون - قالبٌ للمحل كله"
+        />
+        {!!info && <Banner tone={info.tone} title={info.text} />}
+        {canEdit ? (
+          <>
+            <View
+              style={{
+                flexDirection: 'row-reverse',
+                flexWrap: 'wrap',
+                justifyContent: 'flex-start',
+                gap: spacing.xs,
+                marginTop: spacing.sm,
+              }}
+            >
+              {QUOTE_TEMPLATES.map((id) => (
+                <QuoteTemplateCard
+                  key={id}
+                  id={id}
+                  active={current === id}
+                  onPress={() => {
+                    setInfo(null);
+                    setDraft(id === db.settings.quoteTemplate ? null : id);
+                  }}
+                />
+              ))}
+            </View>
+            <AppText variant="caption" color={palette.muted} style={{ marginTop: spacing.sm }}>
+              المصغّرة رسمٌ تخطيطيّ للشكل واللون. المعاينة الكاملة من شاشة العرض
+              قبل الإرسال. والتغيير يسري على العروض الجديدة - المقفولة تبقى كما أُرسلت.
+            </AppText>
+            {!!draft && (
+              <Button
+                label="حفظ القالب"
+                full
+                icon={<FileText size={17} color={palette.ivory} />}
+                loading={busy === 'save-settings'}
+                onPress={saveTemplate}
+                style={{ marginTop: spacing.md }}
+              />
+            )}
+          </>
+        ) : (
+          <AppText variant="body" color={palette.muted}>
+            القالب الحالي: {QUOTE_THEMES[current].labelAr}. تغييره من صلاحيات الأدمن.
           </AppText>
         )}
       </Card>

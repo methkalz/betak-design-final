@@ -19,6 +19,7 @@ import {
 } from '@/domain/labels';
 import type { AssignmentKind } from '@/domain/assignment';
 import { can, CAPABILITY_LABELS, ROLE_LABELS, type Capability } from '@/domain/permissions';
+import { QUOTE_TEMPLATES } from '@/domain/quoteThemes';
 import {
   computeTotals,
   computeTotalsFromDiscountAgorot,
@@ -3834,6 +3835,10 @@ export const [StoreProvider, useStore] = createContextHook(() => {
         patch.oversizeSurchargePercent,
       ];
       if (pct.some((v) => v != null && v > 100)) return failWith('النسب بين 0 و100.', 'validation');
+      // القالب نصٌّ من قائمةٍ مغلقة: حارس الأرقام أعلاه لا يراه، ولو مرّ
+      // خرابٌ لرفضه الخادم بـBD400 - لكن الرفض المحلي أسرع وأوضح.
+      if (patch.quoteTemplate != null && !QUOTE_TEMPLATES.includes(patch.quoteTemplate))
+        return failWith('قالب وثيقة غير معروف.', 'validation');
       if (patch.quotationValidityDays != null && patch.quotationValidityDays <= 0)
         return failWith('صلاحية العرض بالأيام يجب أن تكون أكبر من صفر.', 'validation');
 
@@ -3862,6 +3867,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
             p_remote_cost_agorot: patch.remoteCostAgorot ?? null,
             p_remote_price_agorot: patch.remotePriceAgorot ?? null,
             p_oversize_surcharge_percent: patch.oversizeSurchargePercent ?? null,
+            p_quote_template: patch.quoteTemplate ?? null,
           });
           settleIdemKey(slot, error);
           if (error) return liveFail(error);
