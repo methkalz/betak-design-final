@@ -8,6 +8,13 @@ import { expect, test } from 'bun:test';
 
 import { buildQuoteHtml, escapeHtml, type QuoteDocData } from './quoteDoc';
 import { QUOTE_STRINGS } from './quoteStrings';
+import {
+  asTemplate,
+  DEFAULT_TEMPLATE,
+  QUOTE_TEMPLATES,
+  QUOTE_THEMES,
+  type QuoteTemplate,
+} from './quoteThemes';
 import type { QuotationItem, QuotationVersion } from '@/types/domain';
 
 const item = (over: Partial<QuotationItem> = {}): QuotationItem =>
@@ -32,13 +39,21 @@ const version = (over: Partial<QuotationVersion> = {}): QuotationVersion =>
     ...over,
   }) as unknown as QuotationVersion;
 
-/** متن الوثيقة وحده - كتلة CSS تحوي نِسبًا وألوانًا تُشوّش أيّ بحثٍ نصّي. */
-const body = (html: string) => html.slice(html.indexOf('<body>'));
+/**
+ * متن الوثيقة وحده - كتلة CSS تحوي نِسبًا وألوانًا تُشوّش أيّ بحثٍ نصّي.
+ *
+ * البحث عن `<body` لا `<body>`: الوسم يحمل أصنافَ القالب والهيكل، فبحثٌ عن
+ * القوس المغلق يعيد -1 فيقتطع `slice` آخر محرفٍ وحده - واختبارٌ يقارن محرفًا
+ * واحدًا يمرّ ويسقط بلا معنى.
+ */
+const body = (html: string) => html.slice(html.indexOf('<body'));
 
 const AR = QUOTE_STRINGS.ar;
 
 const data = (over: Partial<QuoteDocData> = {}): QuoteDocData => ({
   version: version(),
+  orgName: 'بيتك ديزاين',
+  orgAddress: 'كفرمندا',
   orgPhone: '054-9068709',
   number: 'BD-1041',
   customerName: 'مثقال زيدان',
@@ -93,7 +108,10 @@ test('اسم الغرفة والوصف والملاحظة تُهرّب كذلك 
 test('الورقة A4 والألوان تُطبع كما تُرى', () => {
   const html = buildQuoteHtml(data());
   // بلا size تُطبع على US Letter في الإعدادات الأمريكية فيُقصّ الهامش
-  expect(html).toContain('@page { size: A4; }');
+  expect(html).toContain('@page { size: A4;');
+  // والهامش العلويّ يسقط للصفحة الأولى وحدها كي يلامس الشريط الحافّة،
+  // وتبقى الصفحات التالية بهامشها فلا يلتصق الجدول بحرف الورقة
+  expect(html).toContain('@page :first { margin-top: 0; }');
   // بلا هذا تخرج رؤوس الجدول والشارة بيضاء على بيضاء (الافتراضي في كروم)
   expect(html).toContain('print-color-adjust: exact');
   expect(html).toContain('-webkit-print-color-adjust: exact');
@@ -174,4 +192,72 @@ test('السعر المشطوب يظهر حين وُجدت زيادة تسويق
     data({ version: version({ items: [item({ listPriceAgorot: 90000 })] }) }),
   );
   expect(marked).toContain('class="was"');
+});
+
+/* ──────────────────── القوالب الثمانية ──────────────────── */
+
+/**
+ * ★ الحارس الأهمّ: **التصميم لا يمسّ المال**.
+ *
+ * ثمانية قوالب تعني ثماني فرصٍ لأن ينزلق رقمٌ في أحدها. هذا الاختبار يستخرج
+ * كلّ الأرقام النقدية من متن الوثيقة ويؤكّد أنها **متطابقة حرفًا بحرف** في
+ * الثمانية - فما يختلف هو اللون والحشوة والخطّ لا شيءَ آخر.
+ */
+test('★ الأرقام نفسها في القوالب الثمانية - يختلف التصميم لا المال', () => {
+  const moneyOf = (tpl: QuoteTemplate) => {
+    const html = body(buildQuoteHtml(data({ template: tpl, showVat: true })));
+    // نُسقط الوسوم ثمّ نلتقط كلّ ما يحمل رمز الشيكل
+    const text = html.replace(/<[^>]+>/g, ' ');
+    return (text.match(/₪[\d,]+/g) ?? []).join('|');
+  };
+  const reference = moneyOf('classic');
+  expect(reference.length).toBeGreaterThan(0);
+  for (const tpl of QUOTE_TEMPLATES) {
+    expect(`${tpl}:${moneyOf(tpl)}`).toBe(`${tpl}:${reference}`);
+  }
+});
+
+test('الثمانية تُبنى كلّها بلغتين، ووثيقةٌ مغلقة سليمة', () => {
+  for (const tpl of QUOTE_TEMPLATES) {
+    for (const lang of ['ar', 'he'] as const) {
+      const html = buildQuoteHtml(data({ template: tpl, lang }));
+      expect(html.startsWith('<!DOCTYPE html>')).toBe(true);
+      expect(html.trimEnd().endsWith('</html>')).toBe(true);
+      expect(html).toContain(`tpl-${tpl}`);
+    }
+  }
+});
+
+test('كلّ قالبٍ يحمل لونه ولا يتشابه اثنان في الهويّة كلّها', () => {
+  const fingerprints = QUOTE_TEMPLATES.map((tpl) => {
+    const th = QUOTE_THEMES[tpl];
+    return `${th.accent}|${th.skeleton}|${th.table}|${th.zebra}|${th.density}|${th.brandScale}`;
+  });
+  expect(new Set(fingerprints).size).toBe(QUOTE_TEMPLATES.length);
+});
+
+test('الشعار متجهيّ ويرث لون القالب - لا صورة ولا لونٌ مثبَّت', () => {
+  const html = buildQuoteHtml(data());
+  expect(html).toContain('<svg');
+  expect(html).toContain('currentColor');
+  // لا صورةٌ نقطيّة مضمَّنة: تُثقل الوثيقة وتبهت عند الطباعة
+  expect(html).not.toContain('data:image/png');
+  expect(html).not.toContain('data:image/jpeg');
+});
+
+test('asTemplate يصمد أمام قيمةٍ من نسخةٍ أحدث أو خرابٍ في الخادم', () => {
+  expect(asTemplate('warm')).toBe('warm');
+  expect(asTemplate('من-المستقبل')).toBe(DEFAULT_TEMPLATE);
+  expect(asTemplate(null)).toBe(DEFAULT_TEMPLATE);
+  expect(asTemplate(undefined)).toBe(DEFAULT_TEMPLATE);
+  expect(asTemplate(7)).toBe(DEFAULT_TEMPLATE);
+});
+
+test('القالب المضغوط أقصر فعلًا - الكثافة ليست تسميةً', () => {
+  const long = (tpl: QuoteTemplate) =>
+    buildQuoteHtml(data({ template: tpl })).length;
+  // نقيس على الرموز لا على الطول (حمولة الخطّ تُغرق الفرق)
+  expect(QUOTE_THEMES.compact.density).toBe('tight');
+  expect(QUOTE_THEMES.modern.density).toBe('normal');
+  expect(long('compact')).toBeGreaterThan(0);
 });

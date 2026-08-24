@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { buildQuoteHtml, type QuoteDocData } from '../domain/quoteDoc';
+import { QUOTE_TEMPLATES } from '../domain/quoteThemes';
 import type { QuotationItem, QuotationVersion } from '../types/domain';
 
 const OUT = process.argv[2] ?? join(process.cwd(), '.quote-preview');
@@ -59,8 +60,10 @@ function version(n: number): QuotationVersion {
   } as unknown as QuotationVersion;
 }
 
-const base = (n: number): Omit<QuoteDocData, 'lang'> => ({
+const base = (n: number): Omit<QuoteDocData, 'lang' | 'template'> => ({
   version: version(n),
+  orgName: 'بيتك ديزاين',
+  orgAddress: 'كفرمندا',
   orgPhone: '054-9068709',
   number: 'BD-1041',
   customerName: 'مثقال زيدان',
@@ -73,13 +76,27 @@ const base = (n: number): Omit<QuoteDocData, 'lang'> => ({
 
 mkdirSync(OUT, { recursive: true });
 const made: string[] = [];
-for (const lang of ['ar', 'he'] as const) {
-  // قصيرٌ لصفحةٍ واحدة، وطويلٌ يُجبر القصّ فيُفحص تكرار الرأس
-  for (const [tag, n] of [['short', 4], ['long', 16]] as const) {
-    const name = `quote-${lang}-${tag}.html`;
-    writeFileSync(join(OUT, name), buildQuoteHtml({ ...base(n), lang }), 'utf8');
-    made.push(name);
+for (const template of QUOTE_TEMPLATES) {
+  for (const lang of ['ar', 'he'] as const) {
+    // قصيرٌ لصفحةٍ واحدة، وطويلٌ يُجبر القصّ فيُفحص تكرار الرأس وحافّة الصفحة
+    for (const [tag, n] of [['short', 4], ['long', 16]] as const) {
+      const name = `${template}-${lang}-${tag}.html`;
+      writeFileSync(join(OUT, name), buildQuoteHtml({ ...base(n), lang, template }), 'utf8');
+      made.push(name);
+    }
   }
 }
+
+// فهرسٌ يعرض الثمانية جنبًا إلى جنب - المقارنة بالعين لا بفتح ملفٍّ ملفّ
+const links = QUOTE_TEMPLATES.map(
+  (tpl) => `<li><b>${tpl}</b> ` +
+    ['ar', 'he'].flatMap((l) => ['short', 'long'].map(
+      (s) => `<a href="${tpl}-${l}-${s}.html">${l}/${s}</a>`)).join(' · ') +
+    '</li>').join('\n');
+writeFileSync(join(OUT, 'index.html'),
+  `<!DOCTYPE html><html dir="rtl"><meta charset="utf-8"><title>قوالب العرض</title>
+<style>body{font:15px system-ui;padding:24px;line-height:2}a{margin-inline-end:10px}</style>
+<h1>قوالب وثيقة عرض السعر</h1><ul>${links}</ul></html>`, 'utf8');
+
 console.log('OUT =', OUT);
-made.forEach((m) => console.log('  ', m));
+console.log('  ملفات:', made.length + 1);
