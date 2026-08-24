@@ -6,14 +6,15 @@ import React, { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppText, Banner, Button, Card, Divider, EmptyState, Row, ScrollScreen } from '@/components/ui';
-import { palette, radius, spacing } from '@/constants/theme';
+import { DocumentPreview } from '@/components/DocumentPreview';
+import { AppText, Banner, Button, EmptyState, Row, ScrollScreen } from '@/components/ui';
+import { palette, spacing } from '@/constants/theme';
 import { exportHtmlDocument } from '@/lib/exportDoc';
-import { cm, formatDate, meters, money, percent } from '@/lib/format';
+import { formatDate, money } from '@/lib/format';
 import { buildQuoteHtml } from '@/domain/quoteDoc';
-import { BRAND_WORDMARK, QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
+import { QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
+import { templateLabel } from '@/domain/quoteThemes';
 import { useStore } from '@/providers/store';
-import type { QuotationVersion } from '@/types/domain';
 
 /**
  * شاشة معاينة/تصدير عرض السعر.
@@ -118,128 +119,16 @@ export default function QuotationPdfScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <Card style={{ backgroundColor: palette.white }}>
-          <Row justify="space-between" align="flex-start">
-            <View>
-              <AppText variant="title" color={palette.oliveDeepest}>
-                {BRAND_WORDMARK}
-              </AppText>
-              <AppText variant="caption" color={palette.olive}>
-                {t.city}
-              </AppText>
-              <AppText variant="caption" color={palette.muted}>
-                {db.organization.phone}
-              </AppText>
-            </View>
-            <View style={{ alignItems: 'flex-start', gap: 4 }}>
-              <View style={{ backgroundColor: palette.sand, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 5 }}>
-                <AppText variant="caption" color={palette.oliveDark}>
-                  {quotation.number}
-                </AppText>
-              </View>
-              <AppText variant="caption" color={palette.muted}>
-                {t.version} {version.versionNumber}
-              </AppText>
-              <AppText variant="caption" color={palette.muted}>
-                {t.validUntil} {formatDate(version.validUntil)}
-              </AppText>
-            </View>
-          </Row>
-
-          <Divider />
-
-          <Row gap={spacing.md}>
-            <View style={{ flex: 1 }}>
-              <AppText variant="caption" color={palette.muted}>
-                {t.customer}
-              </AppText>
-              <AppText variant="label">{customer?.fullName}</AppText>
-              <AppText variant="caption" color={palette.muted}>
-                {customer?.phone} • {customer?.city}
-              </AppText>
-            </View>
-            <View style={{ flex: 1 }}>
-              <AppText variant="caption" color={palette.muted}>
-                {t.project}
-              </AppText>
-              <AppText variant="label">{project?.title}</AppText>
-              <AppText variant="caption" color={palette.muted}>
-                {t.itemsCount(version.items.length)} •{' '}
-                {meters(
-                  Math.round(version.items.reduce((s, i) => s + i.runningMeters, 0) * 1000) / 1000,
-                )}
-              </AppText>
-            </View>
-          </Row>
-
-          <Divider />
-
-          {version.items.map((i, idx) => (
-            <Row key={i.id} justify="space-between" align="flex-start" style={{ paddingVertical: 6 }}>
-              <View style={{ flex: 1 }}>
-                <AppText variant="label">
-                  {idx + 1}. {i.roomName} - {i.windowName}
-                </AppText>
-                <AppText variant="caption" color={palette.muted}>
-                  {i.description} • {cm(i.widthCm)} × {cm(i.heightCm)} • {meters(i.runningMeters)}
-                </AppText>
-              </View>
-              <AppText variant="label">{money(i.lineTotalAgorot)}</AppText>
-            </Row>
-          ))}
-
-          <Divider />
-
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.muted}>
-              {t.subtotal}
-            </AppText>
-            <AppText variant="label">{money(version.subtotalAgorot)}</AppText>
-          </Row>
-          <Row justify="space-between">
-            <AppText variant="caption" color={palette.muted}>
-              {t.discount} ({percent(version.discountPercent)})
-            </AppText>
-            <AppText variant="label" color={palette.terracotta}>
-              - {money(version.discountAgorot)}
-            </AppText>
-          </Row>
-          {showVat && (
-            <>
-              {version.discountAgorot > 0 && (
-                <Row justify="space-between">
-                  <AppText variant="caption" color={palette.muted}>
-                    {t.afterDiscount}
-                  </AppText>
-                  <AppText variant="label">
-                    {money(version.totalAgorot - version.vatAgorot)}
-                  </AppText>
-                </Row>
-              )}
-              <Row justify="space-between">
-                <AppText variant="caption" color={palette.muted}>
-                  {t.vat} {db.settings.vatPercent}%
-                </AppText>
-                <AppText variant="label">+ {money(version.vatAgorot)}</AppText>
-              </Row>
-            </>
-          )}
-          <Divider />
-          <Row justify="space-between">
-            <AppText variant="heading">
-              {showVat ? t.grandInclVat : t.grand}
-            </AppText>
-            <AppText variant="numberLarge" color={palette.olive}>
-              {money(showVat ? version.totalAgorot : version.totalAgorot - version.vatAgorot)}
-            </AppText>
-          </Row>
-        </Card>
+        {/* ★ الوثيقة نفسها لا تقريبٌ لها: مصدرٌ واحد يقطع احتمال أن يرى
+            البائع شيئًا ويستلم الزبون غيره. */}
+        <DocumentPreview html={html} />
 
         {!!error && <Banner tone="danger" title="تعذر التنفيذ" body={error} />}
         {!!info && <Banner tone="success" title={info} />}
 
         <AppText variant="caption" color={palette.muted} align="center">
-          يُنشأ ملف PDF عربي حقيقي من نفس بيانات النسخة المحفوظة - لا يمكن تعديل نسخة مرسلة.
+          هذه الوثيقة نفسها التي ستُطبع وتُرسل - بقالب «{templateLabel(db.settings.quoteTemplate, lang)}».
+          لا شيء يُرسل من هذه الشاشة حتى تضغط «إرسال للزبون».
         </AppText>
       </ScrollView>
 
@@ -251,14 +140,14 @@ export default function QuotationPdfScreen() {
       >
         <Row gap={spacing.sm}>
           <Button
-            label="تصدير PDF ومشاركة"
+            label="تصدير PDF"
             style={{ flex: 1 }}
             loading={busy !== null}
             icon={<Share2 size={18} color={palette.ivory} />}
             onPress={exportPdf}
           />
           <Button
-            label="واتساب"
+            label="إرسال للزبون"
             variant="accent"
             icon={<MessageCircle size={18} color={palette.white} />}
             onPress={whatsapp}
