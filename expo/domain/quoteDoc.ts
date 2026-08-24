@@ -13,6 +13,9 @@
  */
 import { CAIRO_BOLD_B64, CAIRO_REGULAR_B64 } from '@/constants/cairoFont';
 import { HEEBO_BOLD_B64, HEEBO_REGULAR_B64 } from '@/constants/heeboFont';
+import { translateTerm } from '@/domain/quoteGlossary';
+import { HEADERS, type LayoutContext } from '@/domain/quoteLayouts';
+import { layoutCss } from '@/domain/quoteLayoutCss';
 import { quoteLogoSvg } from '@/domain/quoteLogo';
 import { BRAND_WORDMARK, QUOTE_STRINGS, type QuoteLang } from '@/domain/quoteStrings';
 import {
@@ -84,6 +87,7 @@ function themeVars(theme: QuoteTheme): string {
     --surface: ${theme.surface};
     --on-accent: ${theme.onAccent};
     --radius: ${theme.radius}px;
+    --grid: ${theme.line};
     --brand-scale: ${theme.brandScale};
     --base: ${m.base}px;
     --cell: ${m.cell};
@@ -100,6 +104,8 @@ export function buildQuoteHtml(data: QuoteDocData): string {
   const t = QUOTE_STRINGS[lang];
   const isHe = lang === 'he';
   const e = escapeHtml;
+  /** المفردات التي يولّدها التطبيق تُترجم؛ وما لا يعرفه المعجم يمرّ كما هو. */
+  const tr = (v: string) => translateTerm(v, lang);
 
   /**
    * ★ الخطّان معًا في كلّ وثيقة، لا خطّ اللغة وحده.
@@ -149,7 +155,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       <tr>
         <td class="idx num">${idx + 1}</td>
         <td>
-          <span class="item-name">${e(i.roomName)} - ${e(i.windowName)}</span>
+          <span class="item-name">${e(tr(i.roomName))} - ${e(tr(i.windowName))}</span>
           ${sub ? `<span class="item-desc">${sub}</span>` : ''}
         </td>
         <td class="num">
@@ -166,29 +172,68 @@ export function buildQuoteHtml(data: QuoteDocData): string {
     })
     .join('');
 
-  const contact = [e(orgAddress), e(orgPhone)].filter(Boolean).join(' • ');
+  const contact = [e(tr(orgAddress)), e(orgPhone)].filter(Boolean).join(' • ');
 
-  /** كتلة العلامة - تتكرّر في الهياكل الثلاثة بنفس البنية ولونٍ مختلف. */
-  const brandBlock = (onAccent: boolean) => `
-    <div class="brand-row">
-      <span class="logo${onAccent ? ' on-accent' : ''}">${quoteLogoSvg(theme.skeleton === 'banner' ? 38 : 34)}</span>
-      <span>
-        <span class="brand">${BRAND_WORDMARK}</span>
-        <span class="brand-sub">${e(orgName)}</span>
-        <span class="brand-contact">${contact}</span>
-      </span>
-    </div>`;
+  /**
+   * ★ ثلاث طرقٍ لعرض البنود - لا جدولٌ واحدٌ بألوان.
+   *
+   * `cards` تكسر الجدول إلى بطاقاتٍ في عمودين: قراءةٌ مختلفة تمامًا، تليق
+   * بعرضٍ قصيرٍ يُقرأ على مهل. و`ledger` تضغطه إلى دفترٍ نحيل لعرضٍ طويل.
+   */
+  const cardsHtml = version.items
+    .map((i, idx) => {
+      const cat = t.category[i.category] ?? '';
+      return `
+      <article class="qcard">
+        <span class="qc-n">${idx + 1}</span>
+        <h4>${e(tr(i.roomName))} - ${e(tr(i.windowName))}</h4>
+        ${cat ? `<p class="qc-cat">${cat}</p>` : ''}
+        ${i.description ? `<p class="qc-desc">${e(i.description)}</p>` : ''}
+        <dl>
+          <div><dt>${t.colSize}</dt><dd>${i.widthCm} × ${i.heightCm} ${t.sizeUnit}</dd></div>
+          <div><dt>${t.metersUnit}</dt><dd>${i.runningMeters}</dd></div>
+          <div><dt>${t.colUnit}</dt><dd>${money(i.unitPriceAgorot)}</dd></div>
+        </dl>
+        <div class="qc-total">${
+          i.listPriceAgorot > i.lineTotalAgorot
+            ? `<span class="was">${money(i.listPriceAgorot)}</span>`
+            : ''
+        }<b>${money(i.lineTotalAgorot)}</b></div>
+      </article>`;
+    })
+    .join('');
 
-  const metaBlock = `
-    <div class="meta-block">
-      <span class="badge">${t.quote} ${e(number)}</span>
-      <span class="meta">${t.version} ${version.versionNumber}<br/>${t.issuedOn}: ${formatDate(version.createdAt)}<br/><b>${t.validUntil}: ${formatDate(version.validUntil)}</b></span>
-    </div>`;
+  const tableHtml = `
+    <table>
+      <colgroup>
+        <col class="c-idx" /><col class="c-item" /><col class="c-size" />
+        <col class="c-unit" /><col class="c-total" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>${t.colIndex}</th><th>${t.colRoom}</th><th>${t.colSize}</th>
+          <th>${t.colUnit}</th><th>${t.colTotal}</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 
-  const header =
-    theme.skeleton === 'banner'
-      ? `<header class="banner">${brandBlock(true)}${metaBlock}</header>`
-      : `<header class="letterhead">${brandBlock(false)}${metaBlock}</header>`;
+  const itemsHtml =
+    theme.itemStyle === 'cards' ? `<div class="qcards">${cardsHtml}</div>` : tableHtml;
+
+
+  const metaHtml = `<span class="meta">${t.version} ${version.versionNumber}<br/>${t.issuedOn}: ${formatDate(version.createdAt)}<br/><b>${t.validUntil}: ${formatDate(version.validUntil)}</b></span>`;
+
+  const ctx: LayoutContext = {
+    brandName: BRAND_WORDMARK,
+    orgLine: [e(tr(orgName)), contact].filter(Boolean).join(' — '),
+    logo: (size) => quoteLogoSvg(size),
+    quoteLabel: t.quote,
+    number: e(number),
+    metaHtml,
+    theme,
+  };
+  const header = HEADERS[theme.layout](ctx);
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="${lang}">
@@ -250,30 +295,6 @@ export function buildQuoteHtml(data: QuoteDocData): string {
     line-height: 1.8; margin-top: 7px; }
   .meta b { color: var(--accent-deep); }
   .meta-block { text-align: left; }
-
-  /* ───────── الهياكل الثلاثة ───────── */
-  header { display: flex; justify-content: space-between; align-items: flex-start; }
-
-  /* رأسٌ نصّيّ فوق سطرٍ فاصل - بلا كتلٍ لونية */
-  .letterhead { padding: 14mm 14mm 0; padding-bottom: 16px; margin-bottom: 18px;
-    border-bottom: 2px solid var(--accent); }
-
-  /* شريطٌ لونيّ ممتدّ إلى حافّة الورقة */
-  .banner { background: var(--accent); color: var(--on-accent);
-    padding: 13mm 14mm 11mm; margin-bottom: 18px; }
-  .banner .brand { color: var(--on-accent); }
-  .banner .brand-sub { color: var(--on-accent); opacity: .82; }
-  .banner .brand-contact { color: var(--on-accent); opacity: .74; }
-  .banner .badge { background: rgba(255,255,255,.16); color: var(--on-accent); }
-  .banner .meta { color: var(--on-accent); opacity: .82; }
-  .banner .meta b { color: var(--on-accent); }
-
-  /* ★ شريطٌ على حافّة الورقة **يتكرّر على كلّ صفحة**: خلفيّةُ الجسم تُعاد
-     رسمها لكلّ صفحةٍ مطبوعة، بخلاف أيّ عنصرٍ في التدفّق. */
-  body.sk-edge { background:
-    linear-gradient(to left, var(--accent) 0 9mm, #FFFFFF 9mm); }
-  body.sk-edge .pad { padding-inline-end: 20mm; }
-  body.sk-edge .letterhead { padding-inline-end: 20mm; }
 
   /* ───────── بطاقتا الزبون والمشروع ───────── */
   .grid { display: flex; gap: 12px; margin-bottom: var(--gap); }
@@ -353,11 +374,32 @@ export function buildQuoteHtml(data: QuoteDocData): string {
   .sign div { flex: 1; border-top: 1px solid var(--line); padding-top: 6px;
     color: var(--ink-muted); font-size: calc(var(--base) * .84); }
 
-  /* لمسة القالب التنفيذيّ: خيطٌ ذهبيّ تحت الفاصل */
+  /* لمسة القالب الكلاسيكيّ: خيطٌ ذهبيّ تحت الفاصل */
   .second-rule { height: 2px; background: var(--second); width: 64px; margin-top: 10px; }
+
+  /* ───────── بطاقات البنود ───────── */
+  .qcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+  .qcard { position: relative; border: 1px solid var(--line); background: var(--surface);
+    padding: 11px 12px 10px; break-inside: avoid; page-break-inside: avoid; }
+  .qcard h4 { font-size: calc(var(--base) * 1.06); color: var(--accent-deep);
+    margin-inline-end: 22px; }
+  .qc-n { position: absolute; inset-inline-end: 0; top: 0; width: 20px; height: 20px;
+    background: var(--accent); color: var(--on-accent); font-size: calc(var(--base) * .8);
+    font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .qc-cat { color: var(--accent); font-size: calc(var(--base) * .84); margin-top: 2px; font-weight: 700; }
+  .qc-desc { color: var(--ink-muted); font-size: calc(var(--base) * .84); margin-top: 2px; }
+  .qcard dl { display: flex; gap: 10px; margin-top: 7px; flex-wrap: wrap; }
+  .qcard dt { color: var(--ink-muted); font-size: calc(var(--base) * .78); }
+  .qcard dd { font-size: calc(var(--base) * .92); font-variant-numeric: tabular-nums; }
+  .qc-total { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line);
+    text-align: start; font-size: calc(var(--base) * 1.1); color: var(--accent-deep);
+    font-variant-numeric: tabular-nums; }
+
+  /* ───────── هندسة التخطيط ───────── */
+${layoutCss(theme.layout)}
 </style>
 </head>
-<body class="sk-${theme.skeleton} tpl-${theme.id} t-${theme.table}${theme.zebra ? ' zebra' : ''}">
+<body class="lay-${theme.layout} tpl-${theme.id} t-${theme.table} it-${theme.itemStyle}${theme.zebra ? ' zebra' : ''}">
   ${header}
 
   <main class="pad">
@@ -367,28 +409,16 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       <div class="box">
         <h3>${t.customer}</h3>
         <div class="big">${e(customerName)}</div>
-        <div class="muted">${e(customerPhone)}${customerCity ? ' • ' + e(customerCity) : ''}</div>
+        <div class="muted">${e(customerPhone)}${customerCity ? ' • ' + e(tr(customerCity)) : ''}</div>
       </div>
       <div class="box">
         <h3>${t.project}</h3>
-        <div class="big">${e(projectTitle)}</div>
+        <div class="big">${e(tr(projectTitle))}</div>
         <div class="muted">${t.itemsCount(version.items.length)}</div>
       </div>
     </div>
 
-    <table>
-      <colgroup>
-        <col class="c-idx" /><col class="c-item" /><col class="c-size" />
-        <col class="c-unit" /><col class="c-total" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>${t.colIndex}</th><th>${t.colRoom}</th><th>${t.colSize}</th>
-          <th>${t.colUnit}</th><th>${t.colTotal}</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+    ${itemsHtml}
 
     <div class="totals">
       <div class="r"><span>${t.sumMeters}</span><span>${totalMeters} ${t.metersUnit}</span></div>
@@ -410,7 +440,7 @@ export function buildQuoteHtml(data: QuoteDocData): string {
       ${t.terms}
       <div class="sign">
         <div>${t.customer}</div>
-        <div>${e(orgName)}</div>
+        <div>${BRAND_WORDMARK}</div>
       </div>
       <div class="thanks">${BRAND_WORDMARK} — ${t.thanks}</div>
     </div>
