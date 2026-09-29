@@ -58,7 +58,10 @@ test('منتقي الصور لا يطلب ميكروفونًا: التطبيق �
 
 test('قناة التحديث اللاسلكيّ موصولةٌ وهويّة التطبيق ليست سقالة Rork', () => {
   expect(app.updates?.url).toContain('u.expo.dev/');
-  expect(app.runtimeVersion?.policy).toBe('appVersion');
+  // الغرض لا السياسة بعينها: المطلوب **وجودُ** حارسٍ يمنع تحديثًا لاسلكيًّا
+  // من الهبوط على بناءٍ لا يوافقه. أيُّ سياسةٍ تفي؛ وأيُّها مختارةٌ ولماذا
+  // يقفله `platformContract.test.ts` مع مقايضته الصريحة.
+  expect(app.runtimeVersion?.policy).toBeTruthy();
   expect(app.extra?.eas?.projectId).toBeTruthy();
 
   for (const id of [app.android?.package, app.ios?.bundleIdentifier]) {
