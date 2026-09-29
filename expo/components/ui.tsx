@@ -1045,7 +1045,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   sheetBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(15,18,34,0.45)',
   },
   sheetWrap: {

@@ -1459,7 +1459,7 @@ function MediaTab({ projectId }: { projectId: string }) {
 const styles = StyleSheet.create({
   /** حلقة ترحيب فوق البطاقة الجديدة - لا تزحزح التخطيط لأنها طبقة مطلقة. */
   newGlow: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: radius.xl,
     borderWidth: 2,
     borderColor: palette.olive,

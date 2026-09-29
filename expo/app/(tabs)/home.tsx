@@ -213,7 +213,7 @@ function GlassChip({ children }: { children: React.ReactNode }) {
       <BlurView
         intensity={40}
         tint="light"
-        experimentalBlurMethod="dimezisBlurView"
+        blurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.heroChipFill} />
@@ -258,7 +258,7 @@ function Glass({
       <BlurView
         intensity={36}
         tint="light"
-        experimentalBlurMethod="dimezisBlurView"
+        blurMethod="dimezisBlurView"
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.glassFill} />
@@ -1405,7 +1405,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   heroScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(40,32,110,0.22)',
   },
   /** زجاج حقيقي: تمويه داخلي + طبقة بيضاء + حدّ مضيء (glassmorphism). */
@@ -1422,7 +1422,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   heroChipFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // خفيف عمدًا: كل زيادة هنا تحجب الضوء المموَّه — الصلابة من البريق
     backgroundColor: 'rgba(255,255,255,0.34)',
   },
@@ -1457,7 +1457,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.9)',
   },
   glassFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // خفيف كي يمرّ الشفق المتحرك من خلفه — الصلابة من البريق والحافة
     backgroundColor: 'rgba(255,255,255,0.46)',
   },
