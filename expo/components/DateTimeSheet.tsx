@@ -247,7 +247,7 @@ export function DateTimeSheet({
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,18,34,0.45)' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(15,18,34,0.45)' },
   wrap: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: palette.white,

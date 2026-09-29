@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   sidebarTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(255,255,255,0.72)',
   },
   brand: {
