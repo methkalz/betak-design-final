@@ -51,6 +51,28 @@ test('★ expo ≥ 57.0.17 - تحتها تسرّبُ ذاكرةٍ مع worklets'
   expect(pkg.dependencies['react-native-reanimated']).toBeTruthy();
 });
 
+/**
+ * ★ سياسة runtimeVersion تحكم مَن يعمل: Expo Go أم الحارس الأقوى.
+ *
+ * `appVersion` تُنتج «1.0.0»، و**Expo Go يرفض أيّ runtime لا يبدأ بـ
+ * `exposdk:`** - فتظهر «there was a problem running the requested project»
+ * بلا سطرٍ واحد في سجلّ الخادم (البناء ينجح، والرفض عند العميل).
+ *
+ * `sdkVersion` تُنتج `exposdk:57.0.0` فيقبلها Expo Go، وتبقى حارسًا: تحديثٌ
+ * لاسلكيّ لا يعبر حدّ إصدار SDK.
+ *
+ * **والمقايضة صريحة**: الحارس صار على مستوى SDK لا على مستوى الإصدار. إضافةُ
+ * حزمةٍ أصليّة **داخل** SDK 57 لا تُبدّل الـruntime، فقد يهبط تحديثٌ على
+ * بناءٍ يفتقر إليها. اليوم لا ضرر - **لا بناءَ واحدًا موجودًا**. وقبل أوّل
+ * توزيعٍ حقيقيّ تُبدَّل إلى `fingerprint`: تجزّئ التبعيّات الأصليّة فتمسك
+ * هذا بالضبط، وتُغلق Expo Go عندئذٍ - وهو مقبولٌ حينها لأن الطاقم سيحمل
+ * بناءً حقيقيًّا لا Expo Go.
+ */
+test('★ runtimeVersion بسياسة يقبلها Expo Go', () => {
+  const rv = JSON.parse(read('app.json')).expo.runtimeVersion;
+  expect(rv).toEqual({ policy: 'sdkVersion' });
+});
+
 /** `eas update` يلزمه `--environment` منذ SDK 55، وإلا فشل أمرُ النشر. */
 test('أوامر التحديث اللاسلكيّ تحمل --environment', () => {
   const s = JSON.parse(read('package.json')).scripts;
