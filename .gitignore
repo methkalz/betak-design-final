@@ -32,3 +32,9 @@ expo/tools/price-calculator.zip
 
 # مخرجات أداة الفحص البصريّ للوثيقة - لا تُلتزم
 .quote-preview/
+
+# Ralabase MCP client keys - never commit
+*_mcp_key
+*_mcp_key.pub
+# بصمة خادم MCP - تكشف عنوانه، والمستودع عام
+known_hosts

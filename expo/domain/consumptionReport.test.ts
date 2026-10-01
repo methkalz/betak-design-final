@@ -1,11 +1,15 @@
 /**
  * تقرير الاستهلاك - المخطط مقابل الفعلي.
  *
- * سجلات استهلاكٍ مُركَّبة بتواريخ نسبية من اليوم، فتُختبر الدوال على أشهرها
- * الحقيقية: التجميع الشهري، والزيادة الموجبة وحدها، وترتيب الشواذ، ونافذة
- * الثلاثين يومًا التي تغذّي بلاطة المخزون.
+ * سجلات استهلاكٍ مُركَّبة بتواريخ نسبية من «الآن»، فتُختبر الدوال على أشهرها:
+ * التجميع الشهري، والزيادة الموجبة وحدها، وترتيب الشواذ، ونافذة الثلاثين يومًا
+ * التي تغذّي بلاطة المخزون.
+ *
+ * ★ الساعة مثبَّتة على منتصف شهر: الدوال تقرأ الشهر الجاري من الساعة، فلو بقيت
+ * حرّة لوقع «قبل يومين» في الشهر السابق كلّ أوّلِ شهر - وهكذا سقط CI في 1.10.2026.
+ * منتصف الشهر ظهرًا يُبقي كلّ تاريخٍ هنا في شهره بأيّ منطقةٍ زمنية.
  */
-import { test, expect } from 'bun:test';
+import { afterAll, beforeAll, expect, setSystemTime, test } from 'bun:test';
 
 import { buildSeed } from '@/data/seed';
 import { consumedInLastDays } from './inventory';
@@ -15,6 +19,9 @@ import {
   monthlyConsumption,
 } from './reports';
 import type { FabricUsage, StockMovement } from '@/types/domain';
+
+beforeAll(() => setSystemTime(new Date('2026-06-15T12:00:00.000Z')));
+afterAll(() => setSystemTime());
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
@@ -77,13 +84,11 @@ test('حسب الصنف: السجل يُنسب لصنف رولّه، هذا ال
     usage({ rollId: anyRoll.id, actualM: 60, createdAt: daysAgo(45) }), // شهرٌ آخر
   ];
   const rows = monthConsumptionByVariant(db);
-  // قد يقع daysAgo(1) في الشهر السابق أول الشهر - عندها يخلو الجاري
+  // الساعة مثبَّتة، فلا حاجة لاحتمال «الشهر الجاري فارغ» - الـ60 مترًا خارجه حتمًا
   const total = rows.reduce((s, r) => s + r.meters, 0);
-  expect(total === 7 || total === 0).toBe(true);
-  if (rows.length > 0) {
-    expect(rows[0].variantId).toBe(anyRoll.variantId);
-    expect(rows[0].name.length).toBeGreaterThan(0);
-  }
+  expect(total).toBe(7);
+  expect(rows[0].variantId).toBe(anyRoll.variantId);
+  expect(rows[0].name.length).toBeGreaterThan(0);
 });
 
 test('نافذة الثلاثين يومًا: يدخلها الاستهلاك والزيادة، ويخرج ما قبلها والحجز', () => {
