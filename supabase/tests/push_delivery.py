@@ -18,6 +18,7 @@ DB = os.environ.get('BAYTAK_DB_CONTAINER') or f'supabase-db-{IID}'
 ORG = 'ffffbbbb-0000-4000-8000-000000000001'
 A = 'ffffbbbb-0000-4000-8000-0000000000a1'   # أدمن
 B = 'ffffbbbb-0000-4000-8000-0000000000a2'   # خياط
+C = 'ffffbbbb-0000-4000-8000-0000000000a3'   # ميدانيّ أُوقف حسابه
 TOK_A = 'ExponentPushToken[push-suite-aaaa]'
 TOK_B = 'ExponentPushToken[push-suite-bbbb]'
 TOK_SHARED = 'ExponentPushToken[push-suite-shared]'
@@ -66,18 +67,21 @@ delete from core.push_deliveries      where organization_id = '{ORG}';
 delete from core.user_devices         where organization_id = '{ORG}'
    or expo_push_token like 'ExponentPushToken[push-suite-%';
 delete from core.notifications        where organization_id = '{ORG}';
+delete from core.field_visits         where organization_id = '{ORG}';
+delete from core.projects             where organization_id = '{ORG}';
+delete from core.customers            where organization_id = '{ORG}';
 delete from core.organization_members where organization_id = '{ORG}';
 delete from core.business_settings    where organization_id = '{ORG}';
 delete from core.organizations        where id = '{ORG}';
-delete from core.profiles             where id in ('{A}','{B}');
-delete from auth.users                where id in ('{A}','{B}');
+delete from core.profiles             where id in ('{A}','{B}','{C}');
+delete from auth.users                where id in ('{A}','{B}','{C}');
 set session_replication_role = origin;
 """
 
 print('=== seeding ===')
 users = ",\n ".join(
     f"('{u}','00000000-0000-0000-0000-000000000000','authenticated','authenticated',"
-    f"'push{i}@t.local','x',now(),now(),now())" for i, u in enumerate([A, B]))
+    f"'push{i}@t.local','x',now(),now(),now())" for i, u in enumerate([A, B, C]))
 out = sql(PURGE + f"""
 insert into core.organizations (id,name) values ('{ORG}','معرض الإشعارات');
 insert into core.business_settings (organization_id) values ('{ORG}');
@@ -85,9 +89,10 @@ insert into auth.users (id,instance_id,aud,role,email,encrypted_password,
                         email_confirmed_at,created_at,updated_at) values
  {users};
 insert into core.profiles (id,full_name,phone) values
- ('{A}','أدمن الإشعارات','054-0000101'), ('{B}','خياط الإشعارات','054-0000102');
+ ('{A}','أدمن الإشعارات','054-0000101'), ('{B}','خياط الإشعارات','054-0000102'),
+ ('{C}','ميدانيّ موقوف','054-0000103');
 insert into core.organization_members (organization_id,user_id,role,is_active) values
- ('{ORG}','{A}','admin',true), ('{ORG}','{B}','tailor',true);
+ ('{ORG}','{A}','admin',true), ('{ORG}','{B}','tailor',true), ('{ORG}','{C}','field',false);
 """)
 if 'ERROR' in out:
     print(out); sys.exit(1)
@@ -179,10 +184,12 @@ again, probe = scalar(f"""select coalesce(private.apply_push_ticket(d.id, 200, f
   from core.push_deliveries d where d.request_id = 990000001 and d.msg_index = 0;""")
 check('14 التذكرة تُقرأ مرّةً واحدة - إعادة المعالجة لا تغيّر شيئًا', again == 'null', probe)
 
-res, probe = scalar(f"""select private.apply_push_ticket(d.id, null, true, 'Timeout of 10000 ms reached', null)
+res, probe = scalar(f"""select coalesce(private.apply_push_ticket(d.id, null, true, 'Timeout of 10000 ms reached', null), 'null')
   from core.push_deliveries d join core.notifications n on n.id = d.notification_id
   where n.title = 'دفعة اختبار' and d.status = 'dry_run' limit 1;""")
-check('15 الدالّة لا تمسّ إلا ما في الطابور (dry_run يبقى كما هو)', res == '', probe)
+kept, _ = scalar(f"""select count(*) from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.title = 'دفعة اختبار' and d.status = 'dry_run' and d.error is null;""")
+check('15 الدالّة لا تمسّ إلا ما في الطابور (dry_run يبقى كما هو)', res == 'null' and kept == '1', probe + kept)
 
 pending, probe = scalar(f"""select string_agg(private.apply_push_receipt(d.id, '{{"data":{{}}}}'), ',')
   from core.push_deliveries d where d.ticket_id = 'push-suite-ticket-1';""")
@@ -205,6 +212,58 @@ check('20 المستخدم لا يشغّل معالجة النتائج', 'ERROR'
 
 job, probe = scalar("select schedule || '|' || command from cron.job where jobname = 'baytak-push-results';")
 check('21 المهمّة الدورية مجدولة كلّ دقيقة', job == '* * * * *|select private.process_push_results()', probe)
+
+# ── ٦) تذكير موعد الغد ───────────────────────────────────────────────
+TZ = 'Asia/Jerusalem'
+LOCAL_DAY = f"date_trunc('day', now() at time zone '{TZ}')"
+
+
+def at_local(offset):
+    """لحظةٌ بتوقيت المحلّ نسبةً إلى بداية يومه: '19 hours' أو '1 day 10 hours 30 minutes'."""
+    return f"(({LOCAL_DAY} + interval '{offset}') at time zone '{TZ}')"
+
+
+V1, V2, V3, V4 = (f'ffffbbbb-0000-4000-8000-0000000000c{i}' for i in range(1, 5))
+CUST, PRJ = 'ffffbbbb-0000-4000-8000-0000000000b1', 'ffffbbbb-0000-4000-8000-0000000000b2'
+out = sql(f"""
+insert into core.customers (id,organization_id,full_name,phone,city)
+values ('{CUST}','{ORG}','زبون التذكير','052-0000001','كفرمندا');
+insert into core.projects (id,organization_id,customer_id,code,title,status_code)
+values ('{PRJ}','{ORG}','{CUST}','BD-PUSH-1','بيت التذكير','measured');
+insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at) values
+ ('{V1}','{ORG}','{PRJ}','{B}','measurement','scheduled', {at_local('1 day 10 hours 30 minutes')}),
+ ('{V2}','{ORG}','{PRJ}','{B}','installation','completed', {at_local('1 day 12 hours')}),
+ ('{V3}','{ORG}','{PRJ}','{B}','installation','scheduled', {at_local('2 days 9 hours')}),
+ ('{V4}','{ORG}','{PRJ}','{C}','measurement','scheduled', {at_local('1 day 11 hours')});
+""", quiet=False)
+check('22 زرع زيارات الغد', 'ERROR' not in out, out)
+
+n, probe = scalar(f"select private.send_visit_reminders({at_local('15 hours')});")
+check('23 قبل السادسة مساءً بتوقيت المحلّ لا تذكير', n == '0', probe)
+
+n, probe = scalar(f"select private.send_visit_reminders({at_local('19 hours')});")
+row, _ = scalar(f"""select title || '|' || body || '|' || deep_link from core.notifications
+  where kind = 'appointment_tomorrow' and user_id = '{B}';""")
+check('24 مساءً: تذكيرٌ واحد لزيارة الغد المجدولة وحدها، لصاحبها، برابطها',
+      n == '1' and row == f'تذكير: زيارة قياس غدًا|بيت التذكير · الساعة 10:30 · كفرمندا|/visit/{V1}',
+      probe + row)
+
+none, probe = scalar(f"select count(*) from core.notifications where kind = 'appointment_tomorrow' and user_id = '{C}';")
+check('25 من أُوقف حسابه لا يُذكَّر، ولا المنتهية، ولا ما بعد الغد', none == '0', probe)
+
+n, probe = scalar(f"select private.send_visit_reminders({at_local('21 hours')});")
+check('26 الساعة التالية لا تكرّر التذكير', n == '0', probe)
+
+out = sql("select set_config('request.jwt.claims','',false) \\g /dev/null\n"
+          "set app.push_dry_run = 'on';\n"
+          f"update core.field_visits set scheduled_at = {at_local('1 day 16 hours')} where id = '{V3}';\n"
+          f"select private.send_visit_reminders({at_local('22 hours')});", quiet=False)
+row, probe = scalar(f"""select d.status from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.kind = 'appointment_tomorrow' and n.deep_link = '/visit/{V3}';""")
+check('27 زيارةٌ نُقلت إلى الغد مساءً يصل تذكيرها، ويذهب إلى هاتف صاحبها', row == 'dry_run', out + probe)
+
+job, probe = scalar("select schedule || '|' || command from cron.job where jobname = 'baytak-visit-reminders';")
+check('28 مهمّة التذكير مجدولة كلّ ساعة', job == '0 * * * *|select private.send_visit_reminders()', probe)
 
 print('\n=== cleanup ===')
 sql(PURGE)
