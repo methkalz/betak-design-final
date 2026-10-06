@@ -26,11 +26,7 @@ begin
     raise exception 'المنصّة يجب أن تكون ios أو android.' using errcode = 'BD400';
   end if;
 
-  select om.organization_id into v_org
-  from core.organization_members om
-  where om.user_id = v_uid and om.is_active
-  order by om.organization_id
-  limit 1;
+  v_org := private.current_org();
   if v_org is null then
     raise exception 'لست عضوًا فاعلًا في أيّ مؤسسة.' using errcode = 'BD403';
   end if;
@@ -325,14 +321,11 @@ begin
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
   end if;
 
-  select om.organization_id, om.role into v_org, v_role
-  from core.organization_members om
-  where om.user_id = v_uid and om.is_active
-  order by om.organization_id
-  limit 1;
+  v_org := private.current_org();
   if v_org is null then
     raise exception 'لست عضوًا فاعلًا في أيّ مؤسسة.' using errcode = 'BD403';
   end if;
+  v_role := private.role_in(v_org);
 
   select np.muted_kinds into v_muted from core.notification_prefs np where np.user_id = v_uid;
   select bs.visit_reminder_enabled, bs.visit_reminder_hour into v_enabled, v_hour
@@ -400,11 +393,7 @@ begin
     raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
   end if;
 
-  select om.organization_id into v_org
-  from core.organization_members om
-  where om.user_id = v_uid and om.is_active
-  order by om.organization_id
-  limit 1;
+  v_org := private.current_org();
   if v_org is null or not private.is_admin(v_org) then
     raise exception 'إعداد تذكير المواعيد للأدمن وحده.' using errcode = 'BD403';
   end if;

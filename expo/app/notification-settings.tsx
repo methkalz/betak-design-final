@@ -4,11 +4,13 @@
  * لكلّ مستخدم: مفتاحٌ لكلّ نوعٍ يصله، يُطفئ رنين الهاتف له وحده - الإشعار
  * يبقى في القائمة. وللأدمن: ساعة تذكير موعد الغد للمحلّ كلّه، أو إيقافه.
  *
- * الحفظ فوريّ عند اللمس، والشاشة تتقدّم الخادم: المفتاح ينقلب مباشرة ثم
- * يُرجَع إن رفض الخادم - فلا انتظار على كلّ لمسة ولا كذبة إن فشلت.
+ * الحفظ فوريّ عند اللمس والشاشة تتقدّم الخادم. والطلبات في طابورٍ واحد
+ * بترتيب اللمس، وكلٌّ منها يُرسل آخر ما أراده المستخدم لحظة تنفيذه: لمستان
+ * سريعتان لا يغلب فيهما طلبٌ قديم وصل متأخّرًا طلبًا أحدث. وعند الرفض يُعاد
+ * التحميل من الخادم، فهو مصدر الحقيقة.
  */
 import { BellRing, CalendarClock } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Switch, View } from 'react-native';
 
 import { PushPermissionHint } from '@/components/PushPermissionHint';
@@ -21,7 +23,8 @@ import {
   saveVisitReminder,
   type NotificationSettings,
 } from '@/lib/notificationSettings';
-import { useStore } from '@/providers/store';
+import { useStore, type Result } from '@/providers/store';
+import type { NotificationKind } from '@/types/domain';
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -40,17 +43,45 @@ export default function NotificationSettingsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // ما يريده المستخدم الآن - يقرؤه الحفظ لحظة تنفيذه لا لحظة اللمس
+  const desiredRef = useRef<{ muted: NotificationKind[]; enabled: boolean; hour: number } | null>(null);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+
   const load = useCallback(async () => {
     setLoading(true);
     const r = await fetchNotificationSettings();
     if (r.ok) {
-      setSettings(r.value);
+      setSettings(r.data);
+      desiredRef.current = {
+        muted: r.data.mutedKinds,
+        enabled: r.data.visitReminderEnabled,
+        hour: r.data.visitReminderHour,
+      };
       setError(null);
     } else {
-      setError(r.message);
+      setError(r.error);
     }
     setLoading(false);
   }, []);
+
+  const enqueue = useCallback(
+    (job: () => Promise<Result>) => {
+      queueRef.current = queueRef.current
+        .then(async () => {
+          const r = await job();
+          if (r.ok) {
+            setError(null);
+          } else {
+            // التحميل أوّلًا ثم الرسالة: التحميل الناجح يمحو الخطأ
+            await load();
+            setError(r.error);
+          }
+        })
+        // نداءٌ رمى استثناءً لا يوقف الطابور كلّه
+        .catch(() => setError('تعذّر الحفظ. تحقّق من الاتصال وأعد المحاولة.'));
+    },
+    [load],
+  );
 
   useEffect(() => {
     if (source === 'live') void load();
@@ -88,31 +119,24 @@ export default function NotificationSettingsScreen() {
     );
   }
 
-  const toggleKind = async (kind: keyof typeof KIND_INFO) => {
-    const before = settings.mutedKinds;
-    const next = toggleMuted(before, kind);
-    setSettings({ ...settings, mutedKinds: next });
-    const r = await saveMutedKinds(next);
-    if (!r.ok) {
-      setSettings((s) => (s ? { ...s, mutedKinds: before } : s));
-      setError(r.message);
-    } else {
-      setError(null);
-    }
+  const toggleKind = (kind: keyof typeof KIND_INFO) => {
+    const d = desiredRef.current;
+    if (!d) return;
+    d.muted = toggleMuted(d.muted, kind);
+    setSettings((st) => (st ? { ...st, mutedKinds: d.muted } : st));
+    enqueue(() => saveMutedKinds(desiredRef.current?.muted ?? d.muted));
   };
 
-  const setReminder = async (enabled: boolean, hour: number) => {
-    const before = { enabled: settings.visitReminderEnabled, hour: settings.visitReminderHour };
-    setSettings({ ...settings, visitReminderEnabled: enabled, visitReminderHour: hour });
-    const r = await saveVisitReminder(enabled, hour);
-    if (!r.ok) {
-      setSettings((s) =>
-        s ? { ...s, visitReminderEnabled: before.enabled, visitReminderHour: before.hour } : s,
-      );
-      setError(r.message);
-    } else {
-      setError(null);
-    }
+  const setReminder = (enabled: boolean, hour: number) => {
+    const d = desiredRef.current;
+    if (!d) return;
+    d.enabled = enabled;
+    d.hour = hour;
+    setSettings((st) => (st ? { ...st, visitReminderEnabled: enabled, visitReminderHour: hour } : st));
+    enqueue(() => {
+      const cur = desiredRef.current ?? d;
+      return saveVisitReminder(cur.enabled, cur.hour);
+    });
   };
 
   const kinds = kindsForRole(settings.role);
@@ -138,7 +162,7 @@ export default function NotificationSettingsScreen() {
                   {KIND_INFO[kind].description}
                 </AppText>
               </View>
-              <Toggle value={on} onChange={() => void toggleKind(kind)} />
+              <Toggle value={on} onChange={() => toggleKind(kind)} />
             </Row>
           );
         })}
@@ -158,7 +182,7 @@ export default function NotificationSettingsScreen() {
               </View>
               <Toggle
                 value={settings.visitReminderEnabled}
-                onChange={(v) => void setReminder(v, settings.visitReminderHour)}
+                onChange={(v) => setReminder(v, settings.visitReminderHour)}
               />
             </Row>
             {settings.visitReminderEnabled && (
@@ -175,7 +199,7 @@ export default function NotificationSettingsScreen() {
                       key={h}
                       label={formatHour(h)}
                       active={settings.visitReminderHour === h}
-                      onPress={() => void setReminder(true, h)}
+                      onPress={() => setReminder(true, h)}
                     />
                   ))}
                 </Row>

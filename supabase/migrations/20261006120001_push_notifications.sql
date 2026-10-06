@@ -46,6 +46,10 @@ create table if not exists core.push_deliveries (
     CONSTRAINT push_deliveries_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'dry_run'::text])))
 );
 
+-- المالك postgres صراحةً كبقية جداول core: المحفّز يملكه postgres ويكتب هنا،
+-- ومن يطبّق الترحيل (postgres في CI، وقد يكون غيره على الخادم) لا يقرّر ذلك
+alter table core.push_deliveries owner to postgres;
+
 ALTER TABLE ONLY core.push_deliveries
     ADD CONSTRAINT push_deliveries_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY core.push_deliveries
@@ -65,6 +69,20 @@ revoke all on core.push_deliveries from public, anon, authenticated;
 COMMENT ON TABLE core.push_deliveries IS 'سجلّ تسليم إشعارات الهاتف: رسالةٌ لكلّ (إشعار × جهاز). queued في طابور pg_net، sent بتذكرة Expo، delivered بإيصال Apple/Google، failed مع السبب. يُنظَّف بعد ثلاثين يومًا.';
 
 -- ── ٢) تسجيل الجهاز وإلغاؤه ──────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION private.current_org()
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  -- محلٌّ واحد اليوم؛ وإن تعدّدت العضويات فالاختيار ثابتٌ لا عشوائيّ
+  select om.organization_id
+  from core.organization_members om
+  where om.user_id = private.current_uid() and om.is_active
+  order by om.organization_id
+  limit 1;
+$function$;
 
 CREATE OR REPLACE FUNCTION api.register_device(p_token text, p_platform text)
  RETURNS jsonb
@@ -88,11 +106,7 @@ begin
     raise exception 'المنصّة يجب أن تكون ios أو android.' using errcode = 'BD400';
   end if;
 
-  select om.organization_id into v_org
-  from core.organization_members om
-  where om.user_id = v_uid and om.is_active
-  order by om.organization_id
-  limit 1;
+  v_org := private.current_org();
   if v_org is null then
     raise exception 'لست عضوًا فاعلًا في أيّ مؤسسة.' using errcode = 'BD403';
   end if;
@@ -374,6 +388,7 @@ CREATE TRIGGER notifications_push AFTER INSERT ON core.notifications FOR EACH RO
 
 -- المحفّز والمهمّة يملكهما postgres: يتجاوز RLS، وعضوٌ في
 -- supabase_functions_admin فيملك net.http_post وقراءة ردوده
+alter function private.current_org() owner to postgres;
 alter function private.try_jsonb(text) owner to postgres;
 alter function private.push_on_notification() owner to postgres;
 alter function private.apply_push_ticket(bigint, integer, boolean, text, text) owner to postgres;

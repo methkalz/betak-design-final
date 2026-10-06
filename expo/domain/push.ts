@@ -16,9 +16,14 @@ export function isExpoPushToken(s: unknown): s is string {
 /** شاشة الإشعارات: الوجهة حين يحمل الإشعار رابطًا لا نعرفه. */
 export const FALLBACK_ROUTE = '/notifications';
 
-// الوجهات التي تكتبها دوال القاعدة اليوم (deep_link)، وما يشبهها
+// شاشات التطبيق التي يصحّ أن يفتحها إشعار: ما تكتبه دوال القاعدة اليوم
+// (project، visit، tailor، stock، discounts)، وما تكتبه البيانات التجريبية
+// (roll)، وكلّ شاشة تفاصيل لها معرّف
 const ROUTE_EXACT = ['/discounts', '/payments', '/notifications'];
-const ROUTE_PREFIXES = ['/project/', '/visit/', '/tailor/', '/stock/', '/customer/', '/quotation/'];
+const ROUTE_PREFIXES = [
+  '/project/', '/visit/', '/tailor/', '/stock/', '/customer/', '/quotation/',
+  '/roll/', '/fabric/', '/window/', '/team/',
+];
 
 /**
  * الرابط الذي يفتحه لمسُ الإشعار.

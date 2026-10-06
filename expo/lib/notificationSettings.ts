@@ -6,6 +6,7 @@
  * الأدمن مهما أرسلت الشاشة.
  */
 import { supabase } from '@/lib/supabase';
+import type { Result } from '@/providers/store';
 import type { NotificationKind, Role } from '@/types/domain';
 
 export interface NotificationSettings {
@@ -16,15 +17,13 @@ export interface NotificationSettings {
   canManageReminders: boolean;
 }
 
-type Out<T> = { ok: true; value: T } | { ok: false; message: string };
-
-export async function fetchNotificationSettings(): Promise<Out<NotificationSettings>> {
+export async function fetchNotificationSettings(): Promise<Result<NotificationSettings>> {
   const { data, error } = await supabase.rpc('notification_settings');
-  if (error || !data) return { ok: false, message: error?.message ?? 'تعذّر تحميل الإعدادات.' };
+  if (error || !data) return { ok: false, error: error?.message ?? 'تعذّر تحميل الإعدادات.' };
   const d = data as Record<string, unknown>;
   return {
     ok: true,
-    value: {
+    data: {
       role: d.role as Role,
       mutedKinds: (d.muted_kinds as NotificationKind[]) ?? [],
       visitReminderEnabled: d.visit_reminder_enabled !== false,
@@ -34,14 +33,12 @@ export async function fetchNotificationSettings(): Promise<Out<NotificationSetti
   };
 }
 
-export async function saveMutedKinds(kinds: NotificationKind[]): Promise<Out<NotificationKind[]>> {
-  const { data, error } = await supabase.rpc('set_muted_notification_kinds', { p_kinds: kinds });
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, value: ((data as { muted_kinds?: NotificationKind[] })?.muted_kinds ?? kinds) };
+export async function saveMutedKinds(kinds: NotificationKind[]): Promise<Result> {
+  const { error } = await supabase.rpc('set_muted_notification_kinds', { p_kinds: kinds });
+  return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
 }
 
-export async function saveVisitReminder(enabled: boolean, hour: number): Promise<Out<void>> {
+export async function saveVisitReminder(enabled: boolean, hour: number): Promise<Result> {
   const { error } = await supabase.rpc('set_visit_reminder', { p_enabled: enabled, p_hour: hour });
-  if (error) return { ok: false, message: error.message };
-  return { ok: true, value: undefined };
+  return error ? { ok: false, error: error.message } : { ok: true, data: undefined };
 }

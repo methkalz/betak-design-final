@@ -15,7 +15,11 @@ test('رمز Expo بصيغتيه يُقبل، وغيره يُرفض قبل أن 
 
 test('كلّ رابطٍ تكتبه دوال القاعدة اليوم يفتح شاشته', () => {
   const id = '3f2b8c1e-9d4a-4e7b-8a6c-1b2c3d4e5f60';
-  for (const link of [`/project/${id}`, `/visit/${id}`, `/tailor/${id}`, `/stock/${id}`, '/discounts', '/payments']) {
+  for (const link of [
+    `/project/${id}`, `/visit/${id}`, `/tailor/${id}`, `/stock/${id}`, '/discounts', '/payments',
+    // البيانات التجريبية تكتب روابط بمعرّفاتٍ نصّية
+    '/roll/roll-cr102', '/tailor/ta-1042', '/visit/fv-1041-i',
+  ]) {
     expect(notificationRoute(link)).toBe(link);
   }
 });

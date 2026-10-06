@@ -317,6 +317,21 @@ audit, _ = scalar(f"select count(*) from core.audit_logs where organization_id =
 check('35 التذكير الموقوف لا يُرسل، وكلّ تغييرٍ يُسجَّل في التدقيق', off == '0' and audit == '2', probe + audit)
 as_user(A, "select api.set_visit_reminder(true, 18)::text;")
 
+V7 = 'ffffbbbb-0000-4000-8000-0000000000c7'
+sql(f"""insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at)
+        values ('{V7}','{ORG}','{PRJ}','{B}','installation','scheduled', {at_local('1 day 11 hours')});""")
+# العدّ لـV7 وحدها: زياراتٌ سابقة (V6 أُضيفت والتذكير موقوف) قد تُذكَّر في الجولة نفسها
+V7_COUNT = f"select count(*) from core.notifications where kind = 'appointment_tomorrow' and deep_link = '/visit/{V7}';"
+sql(f"select private.send_visit_reminders({at_local('19 hours')});")
+first, probe1 = scalar(V7_COUNT)
+sql(f"update core.field_visits set scheduled_at = {at_local('2 days 11 hours')} where id = '{V7}';")
+sql(f"select private.send_visit_reminders({at_local('23 hours')});")
+same_day, probe2 = scalar(V7_COUNT)
+sql(f"select private.send_visit_reminders({at_local('1 day 19 hours')});")
+next_eve, probe3 = scalar(V7_COUNT)
+check('36 موعدٌ ذُكِّر به ثم نُقل إلى ما بعد الغد يُذكَّر به مساء يومه الجديد - ومرّةً في اليوم فقط',
+      first == '1' and same_day == '1' and next_eve == '2', probe1 + probe2 + probe3)
+
 print('\n=== cleanup ===')
 sql(PURGE)
 
