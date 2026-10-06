@@ -9,13 +9,16 @@ import {
   Package,
   Scissors,
   Truck,
+  Settings2,
   Wallet,
 } from 'lucide-react-native';
 import React from 'react';
 import { Pressable, View } from 'react-native';
 
+import { PushPermissionHint } from '@/components/PushPermissionHint';
 import { AppText, Button, Card, EmptyState, Row, ScrollScreen } from '@/components/ui';
 import { palette, radius, spacing } from '@/constants/theme';
+import { notificationRoute } from '@/domain/push';
 import { relativeTime } from '@/lib/format';
 import { useStore } from '@/providers/store';
 import type { NotificationKind } from '@/types/domain';
@@ -47,6 +50,19 @@ function iconFor(kind: NotificationKind) {
   }
 }
 
+function SettingsLink() {
+  const router = useRouter();
+  return (
+    <Button
+      label="إعدادات الإشعارات"
+      variant="ghost"
+      full
+      icon={<Settings2 size={16} color={palette.olive} />}
+      onPress={() => router.push('/notification-settings' as never)}
+    />
+  );
+}
+
 export default function NotificationsScreen() {
   const { db, currentUser, markNotificationRead, markAllRead } = useStore();
   const router = useRouter();
@@ -57,6 +73,8 @@ export default function NotificationsScreen() {
   if (mine.length === 0) {
     return (
       <ScrollScreen>
+        <PushPermissionHint />
+        <SettingsLink />
         <EmptyState
           icon={<Bell size={26} color={palette.olive} />}
           title="لا توجد إشعارات"
@@ -68,6 +86,8 @@ export default function NotificationsScreen() {
 
   return (
     <ScrollScreen>
+      <PushPermissionHint />
+      <SettingsLink />
       {unread.length > 0 && (
         <Button
           label={`تعليم الكل كمقروء (${unread.length})`}
@@ -83,7 +103,7 @@ export default function NotificationsScreen() {
           key={n.id}
           onPress={() => {
             markNotificationRead(n.id);
-            if (n.deepLink) router.push(n.deepLink as never);
+            if (n.deepLink) router.push(notificationRoute(n.deepLink) as never);
           }}
         >
           <Card style={!n.readAt ? { borderColor: palette.sage, backgroundColor: palette.white } : undefined}>

@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { DesktopShell } from '@/components/DesktopShell';
 import { IdleGuard } from '@/components/IdleGuard';
+import { PushBridge } from '@/components/PushBridge';
 import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
 import { useAndroidBackFallback } from '@/lib/nav';
@@ -72,6 +73,7 @@ function RootLayoutNav() {
       <Stack.Screen name="payments" options={{ title: 'الدفعات' }} />
       <Stack.Screen name="reports" options={{ title: 'التقارير' }} />
       <Stack.Screen name="notifications" options={{ title: 'الإشعارات' }} />
+      <Stack.Screen name="notification-settings" options={{ title: 'إعدادات الإشعارات' }} />
       <Stack.Screen name="settings" options={{ title: 'الإعدادات' }} />
       <Stack.Screen name="sync" options={{ title: 'مركز المزامنة' }} />
       <Stack.Screen name="audit" options={{ title: 'سجل التدقيق' }} />
@@ -109,6 +111,8 @@ export default function RootLayout() {
                 وعلى الهاتف يعيد أبناءه كما هم بلا عنصرٍ زائد. */}
             {/* حارس الخمول: الويب وحده - مكتبٌ مشترك لا يبقى مفتوحًا للأبد */}
             <IdleGuard />
+            {/* إشعارات الهاتف: تسجيل الجهاز، وفتح الشاشة عند اللمس - لا يرسم شيئًا */}
+            <PushBridge />
             <DesktopShell>
               <RootLayoutNav />
             </DesktopShell>

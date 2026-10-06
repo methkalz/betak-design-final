@@ -51,6 +51,20 @@ cd expo && bun run build:android
 يبني على خوادم EAS (لا يحتاج أدواتٍ على الجهاز) ويعطي رابط تنزيل APK.
 ولـiOS: `bun run build:ios` - يحتاج حساب Apple Developer مدفوعًا.
 
+**قبل البناء الأوّل، مرّةً واحدة، لكي تصل الإشعارات إلى الهاتف** (راجع DECISIONS §12):
+- **أندرويد:** إشعارات الهاتف تمرّ عبر Firebase. على console.firebase.google.com
+  أنشئ مشروعًا وأضف إليه تطبيق أندرويد بالمعرّف `com.betakd.app`. نزّل
+  `google-services.json` وضعه في `expo/`، ثم أضف إلى `app.json` تحت `android`:
+  `"googleServicesFile": "./google-services.json"`. بعدها أنشئ مفتاح حساب خدمة
+  (Service Account) من إعدادات المشروع، وارفعه إلى EAS: expo.dev ← المشروع ←
+  Credentials ← Android ← FCM V1 service account key.
+  `google-services.json` إعدادُ عميلٍ تعدّه Firebase آمنًا للرفع، والبناء على
+  EAS يقرأ الملفّات من المستودع فيحتاجه فيه. أمّا **مفتاح حساب الخدمة فسرٌّ
+  حقيقيّ:** يذهب إلى EAS وحده، ولا يُرفع إلى المستودع العامّ أبدًا.
+- **آيفون:** EAS يولّد مفتاح APNs وحده أثناء `build:ios`، بشرط حساب Apple Developer.
+- بدون مفاتيح FCM يُبنى التطبيق ويعمل كاملًا، لكن هاتف الأندرويد لا يرنّ.
+  وExpo Go على آيفون يستقبل الإشعارات اليوم بلا أيّ بناء.
+
 ### ٦) التثبيت على الهواتف
 
 نزّل الـAPK من الرابط وثبّته على أجهزة الطاقم. **هذه آخر مرّةٍ يثبّتون فيها

@@ -70,6 +70,8 @@ CREATE TABLE core.business_settings (
     remote_price_agorot bigint DEFAULT 0 NOT NULL,
     oversize_surcharge_percent numeric(5,2) DEFAULT 30 NOT NULL,
     quote_template text DEFAULT 'onyx'::text NOT NULL,
+    visit_reminder_enabled boolean DEFAULT true NOT NULL,
+    visit_reminder_hour smallint DEFAULT 18 NOT NULL,
     CONSTRAINT business_settings_admin_discount_limit_percent_check CHECK (((admin_discount_limit_percent >= (0)::numeric) AND (admin_discount_limit_percent <= (100)::numeric))),
     CONSTRAINT business_settings_delivery_cost_per_meter_agorot_check CHECK ((delivery_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_employee_discount_limit_percent_check CHECK (((employee_discount_limit_percent >= (0)::numeric) AND (employee_discount_limit_percent <= (100)::numeric))),
@@ -89,6 +91,7 @@ CREATE TABLE core.business_settings (
     CONSTRAINT business_settings_timezone_check CHECK ((length(btrim(timezone)) > 0)),
     CONSTRAINT business_settings_track_cost_per_meter_agorot_check CHECK ((track_cost_per_meter_agorot >= 0)),
     CONSTRAINT business_settings_vat_percent_check CHECK (((vat_percent >= (0)::numeric) AND (vat_percent <= (100)::numeric))),
+    CONSTRAINT business_settings_visit_reminder_hour_check CHECK (((visit_reminder_hour >= 0) AND (visit_reminder_hour <= 23))),
     CONSTRAINT discount_limits_ordered CHECK ((employee_discount_limit_percent <= admin_discount_limit_percent))
 );
 
@@ -583,4 +586,27 @@ CREATE TABLE core.user_devices (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT user_devices_expo_push_token_check CHECK ((length(btrim(expo_push_token)) > 0)),
     CONSTRAINT user_devices_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
+);
+
+CREATE TABLE core.push_deliveries (
+    id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+    organization_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    expo_push_token text NOT NULL,
+    msg_index integer NOT NULL,
+    request_id bigint,
+    ticket_id text,
+    status text DEFAULT 'queued'::text NOT NULL,
+    error text,
+    receipt_request_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT push_deliveries_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'dry_run'::text])))
+);
+
+CREATE TABLE core.notification_prefs (
+    user_id uuid NOT NULL,
+    muted_kinds core.notification_kind[] DEFAULT '{}'::core.notification_kind[] NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );

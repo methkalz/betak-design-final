@@ -345,3 +345,14 @@ ALTER TABLE ONLY core.windows
     ADD CONSTRAINT windows_organization_id_project_id_fkey FOREIGN KEY (organization_id, project_id) REFERENCES core.projects(organization_id, id) ON DELETE CASCADE;
 ALTER TABLE ONLY core.windows
     ADD CONSTRAINT windows_organization_id_room_id_fkey FOREIGN KEY (organization_id, room_id) REFERENCES core.rooms(organization_id, id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY core.push_deliveries
+    ADD CONSTRAINT push_deliveries_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.push_deliveries
+    ADD CONSTRAINT push_deliveries_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES core.notifications(id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.push_deliveries
+    ADD CONSTRAINT push_deliveries_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.notification_prefs
+    ADD CONSTRAINT notification_prefs_pkey PRIMARY KEY (user_id);
+ALTER TABLE ONLY core.notification_prefs
+    ADD CONSTRAINT notification_prefs_user_id_fkey FOREIGN KEY (user_id) REFERENCES core.profiles(id) ON DELETE CASCADE;

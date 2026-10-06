@@ -18,3 +18,5 @@ CREATE TRIGGER stock_movements_immutable BEFORE DELETE OR UPDATE ON core.stock_m
 CREATE TRIGGER stock_movements_reason_scope BEFORE INSERT ON core.stock_movements FOR EACH ROW WHEN ((new.reason_code IS NOT NULL)) EXECUTE FUNCTION private.enforce_reason_scope();
 CREATE TRIGGER payments_target_root BEFORE INSERT ON core.payments FOR EACH ROW EXECUTE FUNCTION private.payments_target_root();
 CREATE TRIGGER attachments_payment_guard BEFORE INSERT OR UPDATE ON core.attachments FOR EACH ROW EXECUTE FUNCTION private.guard_attachment_payment();
+
+CREATE TRIGGER notifications_push AFTER INSERT ON core.notifications FOR EACH ROW EXECUTE FUNCTION private.push_on_notification();
