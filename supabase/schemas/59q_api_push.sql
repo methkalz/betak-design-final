@@ -99,6 +99,13 @@ begin
   end if;
 
   begin
+    -- من أطفأ هذا النوع على هاتفه لا يرنّ له - والإشعار في القائمة باقٍ
+    if exists (
+      select 1 from core.notification_prefs np
+      where np.user_id = new.user_id and new.kind = any (np.muted_kinds)) then
+      return new;
+    end if;
+
     select array_agg(d.expo_push_token order by d.expo_push_token) into v_tokens
     from core.user_devices d
     where d.user_id = new.user_id and d.platform in ('ios', 'android');
@@ -299,5 +306,122 @@ begin
   delete from core.push_deliveries where created_at < now() - interval '30 days';
 
   return jsonb_build_object('tickets', v_tickets, 'receipts_requested', v_receipts);
+end
+$function$;
+
+CREATE OR REPLACE FUNCTION api.notification_settings()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid; v_org uuid; v_role core.app_role; v_muted core.notification_kind[];
+  v_enabled boolean; v_hour smallint;
+begin
+  v_uid := private.current_uid();
+  if v_uid is null then
+    raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
+  end if;
+
+  select om.organization_id, om.role into v_org, v_role
+  from core.organization_members om
+  where om.user_id = v_uid and om.is_active
+  order by om.organization_id
+  limit 1;
+  if v_org is null then
+    raise exception 'لست عضوًا فاعلًا في أيّ مؤسسة.' using errcode = 'BD403';
+  end if;
+
+  select np.muted_kinds into v_muted from core.notification_prefs np where np.user_id = v_uid;
+  select bs.visit_reminder_enabled, bs.visit_reminder_hour into v_enabled, v_hour
+  from core.business_settings bs where bs.organization_id = v_org;
+
+  return jsonb_build_object(
+    'role', v_role,
+    'muted_kinds', to_jsonb(coalesce(v_muted, '{}'::core.notification_kind[])),
+    'visit_reminder_enabled', coalesce(v_enabled, true),
+    'visit_reminder_hour', coalesce(v_hour, 18),
+    'can_manage_reminders', private.is_admin(v_org));
+end
+$function$;
+
+CREATE OR REPLACE FUNCTION api.set_muted_notification_kinds(p_kinds text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid; v_bad text; v_muted core.notification_kind[];
+begin
+  v_uid := private.current_uid();
+  if v_uid is null then
+    raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
+  end if;
+
+  -- نوعٌ غير معروف يُرفض باسمه، لا بخطأ تحويلٍ غامض
+  select k into v_bad
+  from unnest(coalesce(p_kinds, '{}'::text[])) as k
+  where not exists (
+    select 1 from pg_catalog.pg_enum e
+    where e.enumtypid = 'core.notification_kind'::regtype and e.enumlabel = k)
+  limit 1;
+  if v_bad is not null then
+    raise exception 'نوع إشعار غير معروف: %', v_bad using errcode = 'BD400';
+  end if;
+
+  select coalesce(array_agg(distinct k::core.notification_kind order by k::core.notification_kind),
+                  '{}'::core.notification_kind[])
+  into v_muted
+  from unnest(coalesce(p_kinds, '{}'::text[])) as k;
+
+  insert into core.notification_prefs (user_id, muted_kinds, updated_at)
+  values (v_uid, v_muted, now())
+  on conflict (user_id) do update
+    set muted_kinds = excluded.muted_kinds, updated_at = now();
+
+  return jsonb_build_object('muted_kinds', to_jsonb(v_muted));
+end
+$function$;
+
+CREATE OR REPLACE FUNCTION api.set_visit_reminder(p_enabled boolean, p_hour integer)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid; v_org uuid;
+begin
+  v_uid := private.current_uid();
+  if v_uid is null then
+    raise exception 'غير مصادَق عليه.' using errcode = 'BD403';
+  end if;
+
+  select om.organization_id into v_org
+  from core.organization_members om
+  where om.user_id = v_uid and om.is_active
+  order by om.organization_id
+  limit 1;
+  if v_org is null or not private.is_admin(v_org) then
+    raise exception 'إعداد تذكير المواعيد للأدمن وحده.' using errcode = 'BD403';
+  end if;
+  if p_enabled is null or p_hour is null or p_hour < 0 or p_hour > 23 then
+    raise exception 'الساعة بين 0 و23، والتفعيل نعم أو لا.' using errcode = 'BD400';
+  end if;
+
+  update core.business_settings
+  set visit_reminder_enabled = p_enabled, visit_reminder_hour = p_hour
+  where organization_id = v_org;
+
+  insert into core.audit_logs (organization_id, actor_id, action, entity, entity_id, summary, payload)
+  values (v_org, v_uid, 'settings.visit_reminder', 'business_settings', v_org::text,
+          case when p_enabled then format('تذكير موعد الغد: الساعة %s', p_hour)
+               else 'تذكير موعد الغد: متوقّف' end,
+          jsonb_build_object('enabled', p_enabled, 'hour', p_hour));
+
+  return jsonb_build_object('visit_reminder_enabled', p_enabled, 'visit_reminder_hour', p_hour);
 end
 $function$;

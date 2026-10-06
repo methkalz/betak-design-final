@@ -81,3 +81,4 @@ COMMENT ON CONSTRAINT stock_movements_type_effects_fk ON core.stock_movements IS
 COMMENT ON CONSTRAINT stock_movements_usage_consistency_fk ON core.stock_movements IS 'إرجاع إلى رول أو حجز أو مشروع غير الذي استُهلك منه = خطأ FK من المحرّك، حتى من الأدوار مرتفعة الصلاحية.';
 
 COMMENT ON TABLE core.push_deliveries IS 'سجلّ تسليم إشعارات الهاتف: رسالةٌ لكلّ (إشعار × جهاز). queued في طابور pg_net، sent بتذكرة Expo، delivered بإيصال Apple/Google، failed مع السبب. يُنظَّف بعد ثلاثين يومًا.';
+COMMENT ON TABLE core.notification_prefs IS 'أنواع الإشعارات التي أطفأها المستخدم على هاتفه. الإشعار يبقى في قائمة التطبيق؛ الهاتف وحده لا يرنّ. لا صفّ = كلّ شيءٍ يرنّ.';

@@ -73,6 +73,7 @@ function RootLayoutNav() {
       <Stack.Screen name="payments" options={{ title: 'الدفعات' }} />
       <Stack.Screen name="reports" options={{ title: 'التقارير' }} />
       <Stack.Screen name="notifications" options={{ title: 'الإشعارات' }} />
+      <Stack.Screen name="notification-settings" options={{ title: 'إعدادات الإشعارات' }} />
       <Stack.Screen name="settings" options={{ title: 'الإعدادات' }} />
       <Stack.Screen name="sync" options={{ title: 'مركز المزامنة' }} />
       <Stack.Screen name="audit" options={{ title: 'سجل التدقيق' }} />

@@ -30,8 +30,10 @@ begin
   where v.status = 'scheduled'
     and v.scheduled_at is not null
     and p.archived_at is null
+    and bs.visit_reminder_enabled
     and exists (select 1 from pg_catalog.pg_timezone_names tz where tz.name = bs.timezone)
-    and extract(hour from (p_now at time zone bs.timezone)) between 18 and 23
+    -- من الساعة التي اختارها الأدمن حتى منتصف الليل بتوقيت المحلّ
+    and extract(hour from (p_now at time zone bs.timezone)) between bs.visit_reminder_hour and 23
     and (v.scheduled_at at time zone bs.timezone)::date = (p_now at time zone bs.timezone)::date + 1
     and not exists (
       select 1 from core.notifications n

@@ -64,6 +64,7 @@ def notify(user, title, actor=None):
 PURGE = f"""
 set session_replication_role = replica;
 delete from core.push_deliveries      where organization_id = '{ORG}';
+delete from core.audit_logs           where organization_id = '{ORG}';
 delete from core.user_devices         where organization_id = '{ORG}'
    or expo_push_token like 'ExponentPushToken[push-suite-%';
 delete from core.notifications        where organization_id = '{ORG}';
@@ -232,9 +233,11 @@ insert into core.projects (id,organization_id,customer_id,code,title,status_code
 values ('{PRJ}','{ORG}','{CUST}','BD-PUSH-1','بيت التذكير','measured');
 insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at) values
  ('{V1}','{ORG}','{PRJ}','{B}','measurement','scheduled', {at_local('1 day 10 hours 30 minutes')}),
- ('{V2}','{ORG}','{PRJ}','{B}','installation','completed', {at_local('1 day 12 hours')}),
  ('{V3}','{ORG}','{PRJ}','{B}','installation','scheduled', {at_local('2 days 9 hours')}),
  ('{V4}','{ORG}','{PRJ}','{C}','measurement','scheduled', {at_local('1 day 11 hours')});
+-- المنتهية تحمل لحظتي البدء والانتهاء: قيد completed_visits_have_timestamp يفرضهما
+insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at,started_at,completed_at)
+values ('{V2}','{ORG}','{PRJ}','{B}','installation','completed', {at_local('1 day 12 hours')}, now(), now());
 """, quiet=False)
 check('22 زرع زيارات الغد', 'ERROR' not in out, out)
 
@@ -264,6 +267,55 @@ check('27 زيارةٌ نُقلت إلى الغد مساءً يصل تذكيره
 
 job, probe = scalar("select schedule || '|' || command from cron.job where jobname = 'baytak-visit-reminders';")
 check('28 مهمّة التذكير مجدولة كلّ ساعة', job == '0 * * * *|select private.send_visit_reminders()', probe)
+
+# ── ٧) إعدادات الإشعارات ─────────────────────────────────────────────
+out = as_user(B, "select api.set_muted_notification_kinds(array['payment'])::text;")
+n_out = notify(B, 'دفعة صامتة', actor=A)
+n, probe = scalar("""select count(*) from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.title = 'دفعة صامتة';""")
+nn, _ = scalar("select count(*) from core.notifications where title = 'دفعة صامتة';")
+check('29 نوعٌ أطفأه المستخدم لا يرنّ له - والإشعار في القائمة باقٍ',
+      '"muted_kinds": ["payment"]' in out and n == '0' and nn == '1', out + n_out + probe)
+
+out = as_user(B, "select api.set_muted_notification_kinds(array['payment','no_such_kind'])::text;")
+check('30 نوعٌ غير معروف يُرفض باسمه', 'ERROR' in out and 'no_such_kind' in out, out)
+
+out_b = as_user(B, "select api.notification_settings()::text;")
+out_a = as_user(A, "select api.notification_settings()::text;")
+check('31 الإعدادات: الأنواع المطفأة لصاحبها، وتذكير المحلّ يديره الأدمن وحده',
+      '"muted_kinds": ["payment"]' in out_b and '"can_manage_reminders": false' in out_b
+      and '"role": "tailor"' in out_b and '"can_manage_reminders": true' in out_a
+      and '"visit_reminder_hour": 18' in out_a and '"visit_reminder_enabled": true' in out_a,
+      out_b + out_a)
+
+as_user(B, "select api.set_muted_notification_kinds(array[]::text[])::text;")
+notify(B, 'دفعة بعد التشغيل', actor=A)
+row, probe = scalar("""select d.status from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.title = 'دفعة بعد التشغيل';""")
+check('32 إعادة التشغيل تعيد الرنين', row == 'dry_run', probe)
+
+out_b = as_user(B, "select api.set_visit_reminder(true, 20)::text;")
+out_a = as_user(A, "select api.set_visit_reminder(true, 20)::text;")
+out_bad = as_user(A, "select api.set_visit_reminder(true, 24)::text;")
+saved, probe = scalar(f"select visit_reminder_enabled || '|' || visit_reminder_hour from core.business_settings where organization_id = '{ORG}';")
+check('33 الساعة يضبطها الأدمن وحده، وبين 0 و23',
+      'ERROR' in out_b and 'للأدمن وحده' in out_b and 'ERROR' not in out_a
+      and 'ERROR' in out_bad and saved == 'true|20', out_b + out_a + out_bad + probe)
+
+V5, V6 = 'ffffbbbb-0000-4000-8000-0000000000c5', 'ffffbbbb-0000-4000-8000-0000000000c6'
+sql(f"""insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at)
+        values ('{V5}','{ORG}','{PRJ}','{B}','installation','scheduled', {at_local('1 day 9 hours')});""")
+early, probe1 = scalar(f"select private.send_visit_reminders({at_local('19 hours')});")
+ontime, probe2 = scalar(f"select private.send_visit_reminders({at_local('20 hours')});")
+check('34 التذكير يبدأ من الساعة التي اختارها الأدمن', early == '0' and ontime == '1', probe1 + probe2)
+
+as_user(A, "select api.set_visit_reminder(false, 20)::text;")
+sql(f"""insert into core.field_visits (id,organization_id,project_id,assignee_id,type,status,scheduled_at)
+        values ('{V6}','{ORG}','{PRJ}','{B}','measurement','scheduled', {at_local('1 day 13 hours')});""")
+off, probe = scalar(f"select private.send_visit_reminders({at_local('22 hours')});")
+audit, _ = scalar(f"select count(*) from core.audit_logs where organization_id = '{ORG}' and action = 'settings.visit_reminder';")
+check('35 التذكير الموقوف لا يُرسل، وكلّ تغييرٍ يُسجَّل في التدقيق', off == '0' and audit == '2', probe + audit)
+as_user(A, "select api.set_visit_reminder(true, 18)::text;")
 
 print('\n=== cleanup ===')
 sql(PURGE)
