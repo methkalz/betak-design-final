@@ -584,3 +584,20 @@ CREATE TABLE core.user_devices (
     CONSTRAINT user_devices_expo_push_token_check CHECK ((length(btrim(expo_push_token)) > 0)),
     CONSTRAINT user_devices_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
 );
+
+CREATE TABLE core.push_deliveries (
+    id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+    organization_id uuid NOT NULL,
+    notification_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    expo_push_token text NOT NULL,
+    msg_index integer NOT NULL,
+    request_id bigint,
+    ticket_id text,
+    status text DEFAULT 'queued'::text NOT NULL,
+    error text,
+    receipt_request_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT push_deliveries_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'dry_run'::text])))
+);

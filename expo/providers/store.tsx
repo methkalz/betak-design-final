@@ -31,6 +31,7 @@ import {
 import { uid, uuidv4 } from '@/lib/id';
 import { fetchLiveDatabase } from '@/lib/live';
 import { attachmentPath, uploadAttachmentFile } from '@/lib/storage';
+import { unregisterPushBestEffort } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import type {
   Attachment,
@@ -441,7 +442,11 @@ export const [StoreProvider, useStore] = createContextHook(() => {
 
   const signOut = useCallback(() => {
     if (source === 'live') {
-      void supabase.auth.signOut().catch(() => {});
+      // إلغاء الجهاز قبل إغلاق الجلسة: الإلغاء يحتاج هويّة صاحبه، ومن خرج
+      // لا يرنّ هاتفه بإشعارات غيره
+      void unregisterPushBestEffort()
+        .then(() => supabase.auth.signOut())
+        .catch(() => {});
       void exitLive();
       return;
     }
