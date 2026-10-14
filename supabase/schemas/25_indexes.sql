@@ -57,3 +57,7 @@ CREATE INDEX projects_parent_idx ON core.projects (organization_id, parent_proje
 -- صور الشيك تُقرأ من دفعتها: فهرسٌ جزئي لأن أكثر المرفقات بلا دفعة
 CREATE INDEX attachments_payment_idx ON core.attachments (organization_id, payment_id)
   WHERE payment_id IS NOT NULL;
+
+CREATE INDEX push_deliveries_pending_idx ON core.push_deliveries USING btree (status, updated_at) WHERE (status = ANY (ARRAY['queued'::text, 'sent'::text]));
+CREATE INDEX push_deliveries_request_idx ON core.push_deliveries USING btree (request_id);
+CREATE INDEX push_deliveries_receipt_idx ON core.push_deliveries USING btree (receipt_request_id) WHERE (receipt_request_id IS NOT NULL);

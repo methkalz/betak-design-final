@@ -109,3 +109,31 @@ test('لا أثرَ لسقالة Rork في إعداد البناء', () => {
     expect(pkg.scripts[k]).not.toContain('rork');
   }
 });
+
+/**
+ * ★ إشعارات الهاتف: أربع حلقاتٍ لو سقطت إحداها صمت الهاتف بلا خطأ.
+ *
+ * الحزمة ومُلحقها (أيقونة أندرويد البيضاء - بدونها مربّعٌ أبيض في شريط
+ * الحالة)، والجسر مركَّبٌ في الجذر، والخروج يلغي الجهاز **قبل** إغلاق
+ * الجلسة - بعدها يفقد الإلغاء هويّة صاحبه فيرنّ الهاتف لمن خرج منه.
+ */
+test('★ إشعارات الهاتف موصولةٌ من الحزمة إلى الخروج', () => {
+  const pkg = JSON.parse(read('package.json'));
+  expect(pkg.dependencies['expo-notifications']).toBeTruthy();
+
+  const app = JSON.parse(read('app.json')).expo;
+  const plugin = app.plugins.find((p: unknown) => Array.isArray(p) && p[0] === 'expo-notifications');
+  expect(plugin).toBeTruthy();
+  expect(() => readFileSync(join(ROOT, plugin[1].icon))).not.toThrow();
+  // الرمز يُطلب بمعرّف المشروع - بدونه لا رمز إطلاقًا
+  expect(app.extra.eas.projectId).toBeTruthy();
+
+  expect(read('app/_layout.tsx')).toMatch(/<PushBridge\s*\/>/);
+
+  const store = read('providers/store.tsx');
+  const signOut = store.slice(store.indexOf('const signOut = useCallback'));
+  const unreg = signOut.indexOf('unregisterPushBestEffort()');
+  const close = signOut.indexOf('supabase.auth.signOut()');
+  expect(unreg).toBeGreaterThan(-1);
+  expect(close).toBeGreaterThan(unreg);
+});

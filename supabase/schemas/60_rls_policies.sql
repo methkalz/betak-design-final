@@ -129,3 +129,8 @@ ALTER TABLE core.staff_ledger FORCE ROW LEVEL SECURITY;
 CREATE POLICY staff_ledger_read ON core.staff_ledger FOR SELECT
   USING (private.has_role(organization_id, ARRAY['admin'::core.app_role])
          OR (staff_id = ( SELECT auth.uid() AS uid)));
+
+ALTER TABLE core.push_deliveries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ONLY core.push_deliveries FORCE ROW LEVEL SECURITY;
+ALTER TABLE core.notification_prefs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ONLY core.notification_prefs FORCE ROW LEVEL SECURITY;
