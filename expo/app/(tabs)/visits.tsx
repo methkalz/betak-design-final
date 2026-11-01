@@ -65,7 +65,7 @@ export default function VisitsScreen() {
         showsVerticalScrollIndicator={false}
         /* التركيبات المنتظرة فوق القائمة لا في تبويب منفصل: هي أول ما يجب أن
            يفعله العامل حين ينتهي الخياط، ودفنها خلف تبويب يعني ألّا يفعله. */
-        ListHeaderComponent={tab === 'done' ? null : <PendingInstallations />}
+        ListHeaderComponent={tab === 'done' ? undefined : <PendingInstallations />}
         renderItem={({ item }) =>
           tab === 'done' ? (
             <Card>

@@ -17,7 +17,14 @@ import {
   Wallet,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 import Animated, {
   Easing as REasing,
   runOnJS,
@@ -101,9 +108,9 @@ export default function ProjectStudioScreen() {
   const [tab, setTab] = useState<Tab>(() =>
     TABS.some((t) => t.value === tabParam) ? (tabParam as Tab) : 'overview',
   );
-  const tabsRef = useRef<ScrollView>(null);
+  const tabsRef = useRef<ScrollViewInstance>(null);
   const tabsPinned = useRef(false);
-  const bodyRef = useRef<ScrollView>(null);
+  const bodyRef = useRef<ScrollViewInstance>(null);
   const { isDesktop } = useResponsive();
 
   /**
@@ -283,7 +290,7 @@ function TabBar({
   tabs: { value: Tab; label: string }[];
   active: Tab;
   onSelect: (t: Tab) => void;
-  scrollRef: React.RefObject<ScrollView | null>;
+  scrollRef: React.RefObject<ScrollViewInstance | null>;
   pinned: React.MutableRefObject<boolean>;
 }) {
   const { isDesktop } = useResponsive();
