@@ -17,6 +17,9 @@ import { useIsDesktop } from '@/hooks/useResponsive';
 import { tabDestinations } from '@/lib/navModel';
 import { useStore } from '@/providers/store';
 
+// التبويب الأوّل: «الرئيسية». منذ SDK 58 يُقرأ من هنا لا من خاصيّة على <Tabs>
+export const unstable_settings = { anchor: 'home' };
+
 export default function TabsLayout() {
   const { role, currentUser, hydrated } = useStore();
   const isDesktop = useIsDesktop();
@@ -31,7 +34,6 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
-      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: palette.olive,

@@ -58,11 +58,11 @@ test('★ expo ≥ 57.0.17 - تحتها تسرّبُ ذاكرةٍ مع worklets'
  * `exposdk:`** - فتظهر «there was a problem running the requested project»
  * بلا سطرٍ واحد في سجلّ الخادم (البناء ينجح، والرفض عند العميل).
  *
- * `sdkVersion` تُنتج `exposdk:57.0.0` فيقبلها Expo Go، وتبقى حارسًا: تحديثٌ
+ * `sdkVersion` تُنتج `exposdk:<SDK>.0.0` (اليوم 58) فيقبلها Expo Go، وتبقى حارسًا: تحديثٌ
  * لاسلكيّ لا يعبر حدّ إصدار SDK.
  *
  * **والمقايضة صريحة**: الحارس صار على مستوى SDK لا على مستوى الإصدار. إضافةُ
- * حزمةٍ أصليّة **داخل** SDK 57 لا تُبدّل الـruntime، فقد يهبط تحديثٌ على
+ * حزمةٍ أصليّة **داخل** الإصدار نفسه من SDK لا تُبدّل الـruntime، فقد يهبط تحديثٌ على
  * بناءٍ يفتقر إليها. اليوم لا ضرر - **لا بناءَ واحدًا موجودًا**. وقبل أوّل
  * توزيعٍ حقيقيّ تُبدَّل إلى `fingerprint`: تجزّئ التبعيّات الأصليّة فتمسك
  * هذا بالضبط، وتُغلق Expo Go عندئذٍ - وهو مقبولٌ حينها لأن الطاقم سيحمل
@@ -136,4 +136,30 @@ test('★ إشعارات الهاتف موصولةٌ من الحزمة إلى ا
   const close = signOut.indexOf('supabase.auth.signOut()');
   expect(unreg).toBeGreaterThan(-1);
   expect(close).toBeGreaterThan(unreg);
+});
+
+/**
+ * ★ Expo Go من المتجر يفتح أحدث SDK وحده.
+ *
+ * في 1.11.2026 ردّ Expo Go على الآيفون بـ404: أصدرت Expo SDK 58 في 15.10،
+ * وExpo Go المحدَّث لا يطلب إلا `exposdk:58.0.0`، والتطبيق كان على 57. لا عطب
+ * في الشيفرة ولا في الخادم: تحديثٌ منشور لم يعد يطابق ما يطلبه العميل.
+ * أرضيّةٌ لا سقف - الترقية القادمة ترفعها.
+ */
+test('★ SDK 58 فما فوق - Expo Go في المتجر لا يفتح ما دونه', () => {
+  const m = JSON.parse(read('package.json')).dependencies.expo.match(/(\d+)\./);
+  expect(m).not.toBeNull();
+  expect(Number(m![1])).toBeGreaterThanOrEqual(58);
+});
+
+/**
+ * ★ SDK 58 غيّر افتراضين في الموجّه بلا خطأٍ يُرى.
+ *
+ * `web.output` بلا قيمة صار "server": HTML يُولَّد لكلّ طلب، ومحلّنا يُرفع
+ * ملفّاتٍ ثابتة على استضافةٍ عادية. والتبويب الأوّل لم يعد خاصيّةً على <Tabs>
+ * بل `unstable_settings.anchor` في التخطيط - بدونه يختار الموجّه البداية وحده.
+ */
+test('★ الموجّه: الويب ملفّاتٌ ثابتة، والتبويب الأوّل «الرئيسية»', () => {
+  expect(JSON.parse(read('app.json')).expo.web.output).toBe('single');
+  expect(read('app/(tabs)/_layout.tsx')).toMatch(/unstable_settings\s*=\s*\{\s*anchor:\s*'home'\s*\}/);
 });

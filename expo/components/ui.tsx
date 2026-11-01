@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   View,
   type LayoutChangeEvent,
+  type ScrollViewInstance,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
@@ -949,7 +950,7 @@ export const ScrollScreen = forwardRef<
   ScrollScreenHandle,
   { children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; wide?: boolean }
 >(function ScrollScreen({ children, contentStyle, wide }, ref) {
-  const inner = useRef<ScrollView>(null);
+  const inner = useRef<ScrollViewInstance>(null);
   const { isDesktop } = useResponsive();
   useImperativeHandle(
     ref,

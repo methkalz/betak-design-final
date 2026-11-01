@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Archive, MapPin, MessageCircle, Phone, Plus, StickyNote } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Linking, Platform, View } from 'react-native';
+import { Linking, Platform, View, type ViewInstance } from 'react-native';
 
 import { ProjectRow } from '@/components/cards';
 import { Spotlight, type SpotlightTarget } from '@/components/Spotlight';
@@ -33,7 +33,7 @@ export default function CustomerScreen() {
   const customer = useCustomer(id);
 
   // ضوء كاشف بعد إضافة زبون: يدلّ على الخطوة التالية الطبيعية
-  const newProjectRef = useRef<View>(null);
+  const newProjectRef = useRef<ViewInstance>(null);
   const [spot, setSpot] = useState<SpotlightTarget | null>(null);
   const [showSpot, setShowSpot] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
