@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "712085328478",
+    "project_id": "betak-design",
+    "storage_bucket": "betak-design.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712085328478:android:de0f40ee47d38d1f29dacf",
+        "android_client_info": {
+          "package_name": "com.betakd.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKAK7q45uXLEXo4zRU5Fq7RUu63yPVjMY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

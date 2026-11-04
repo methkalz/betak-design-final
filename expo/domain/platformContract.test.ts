@@ -163,3 +163,19 @@ test('★ الموجّه: الويب ملفّاتٌ ثابتة، والتبوي�
   expect(JSON.parse(read('app.json')).expo.web.output).toBe('single');
   expect(read('app/(tabs)/_layout.tsx')).toMatch(/unstable_settings\s*=\s*\{\s*anchor:\s*'home'\s*\}/);
 });
+
+/**
+ * ★ إشعارات أندرويد تمرّ عبر Firebase (FCM)، وملفّ إعداده في المستودع لأن
+ * EAS Build يقرأ الملفّات منه. رقم الحزمة فيه يجب أن يكون رقم التطبيق نفسه:
+ * ملفٌّ لتطبيقٍ آخر يُبنى بلا خطأ، ثم لا يصل الهاتف إشعارٌ واحد.
+ */
+test('★ ملفّ Firebase للأندرويد يطابق هويّة التطبيق', () => {
+  const android = JSON.parse(read('app.json')).expo.android;
+  const gs = JSON.parse(read(android.googleServicesFile));
+  expect(gs.project_info.project_id).toBe('betak-design');
+  const pkgs = gs.client.map(
+    (c: { client_info: { android_client_info: { package_name: string } } }) =>
+      c.client_info.android_client_info.package_name,
+  );
+  expect(pkgs).toContain(android.package);
+});

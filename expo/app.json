@@ -20,6 +20,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.betakd.app",
+      "googleServicesFile": "./google-services.json",
       "blockedPermissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
