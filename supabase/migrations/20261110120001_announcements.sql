@@ -328,6 +328,8 @@ $function$;
 -- دالّتا الإشعار العامّ بمالك الـAPI: تكتبان السجلّ وتقرآن التسليم
 grant select, insert on core.announcements to baytak_rpc_owner;
 grant select on core.push_deliveries to baytak_rpc_owner;
+-- السجلّ يعدّ القراءة من صفوف المستلمين، ومالك الـAPI يكتبها ولا يقرؤها قبل الآن
+grant select on core.notifications to baytak_rpc_owner;
 
 grant create on schema api to baytak_rpc_owner;
 alter function api.send_announcement(text, text, text[], uuid) owner to baytak_rpc_owner;
