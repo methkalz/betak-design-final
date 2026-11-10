@@ -356,3 +356,12 @@ ALTER TABLE ONLY core.notification_prefs
     ADD CONSTRAINT notification_prefs_pkey PRIMARY KEY (user_id);
 ALTER TABLE ONLY core.notification_prefs
     ADD CONSTRAINT notification_prefs_user_id_fkey FOREIGN KEY (user_id) REFERENCES core.profiles(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY core.announcements
+    ADD CONSTRAINT announcements_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY core.announcements
+    ADD CONSTRAINT announcements_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES core.organizations(id) ON DELETE CASCADE;
+ALTER TABLE ONLY core.announcements
+    ADD CONSTRAINT announcements_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES core.profiles(id);
+ALTER TABLE ONLY core.notifications
+    ADD CONSTRAINT notifications_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES core.announcements(id) ON DELETE CASCADE;

@@ -12,7 +12,8 @@ export interface KindInfo {
   description: string;
 }
 
-export const KIND_INFO: Record<Exclude<NotificationKind, 'sync_failed'>, KindInfo> = {
+// sync_failed بلا كاتب، والإشعار العامّ لا يُطفأ - فلا مفتاح لأيٍّ منهما
+export const KIND_INFO: Record<Exclude<NotificationKind, 'sync_failed' | 'announcement'>, KindInfo> = {
   visit_assigned: { label: 'زيارة مُسندة إليك', description: 'حين تُسند إليك زيارة قياس أو تركيب' },
   appointment_tomorrow: { label: 'تذكير موعد الغد', description: 'مساء اليوم الذي يسبق كلّ زيارة لك' },
   tailor_assignment: { label: 'عمل خياطة جديد', description: 'حين يُسند إليك مشروع للخياطة' },

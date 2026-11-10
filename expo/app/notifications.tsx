@@ -6,6 +6,7 @@ import {
   CheckCheck,
   CloudOff,
   FilePlus2,
+  Megaphone,
   Package,
   Scissors,
   Truck,
@@ -28,6 +29,8 @@ function iconFor(kind: NotificationKind) {
   switch (kind) {
     case 'discount_request':
       return <BadgePercent size={size} color={palette.warning} />;
+    case 'announcement':
+      return <Megaphone size={size} color={palette.terracotta} />;
     case 'project_annex':
       return <FilePlus2 size={size} color={palette.olive} />;
     case 'tailor_assignment':

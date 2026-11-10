@@ -71,7 +71,8 @@ CREATE TYPE core.notification_kind AS ENUM (
     'low_stock',
     'stock_received',
     'payment',
-    'project_annex'
+    'project_annex',
+    'announcement'
 );
 
 CREATE TYPE core.payment_kind AS ENUM (

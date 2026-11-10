@@ -583,7 +583,8 @@ export type NotificationKind =
   | 'low_stock'
   | 'stock_received'
   | 'payment'
-  | 'project_annex';
+  | 'project_annex'
+  | 'announcement';
 
 export interface AppNotification {
   id: UUID;

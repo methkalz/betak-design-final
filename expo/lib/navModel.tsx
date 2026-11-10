@@ -16,6 +16,7 @@ import {
   Home,
   Layers,
   LayoutGrid,
+  Megaphone,
   MoreHorizontal,
   RefreshCcw,
   ScrollText,
@@ -128,6 +129,13 @@ export function secondaryLinks(db: Database, role: Role, userId?: UUID): LinkIte
       icon: <Users size={20} color={palette.olive} />,
       href: '/team',
       show: can(role, 'manage_users'),
+    },
+    {
+      label: 'إشعار عام',
+      hint: 'رسالة إلى الطاقم كلّه على هواتفهم',
+      icon: <Megaphone size={20} color={palette.olive} />,
+      href: '/announcement',
+      show: role === 'admin',
     },
     {
       label: 'سجل التدقيق',

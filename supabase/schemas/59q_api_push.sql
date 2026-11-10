@@ -95,8 +95,9 @@ begin
   end if;
 
   begin
-    -- من أطفأ هذا النوع على هاتفه لا يرنّ له - والإشعار في القائمة باقٍ
-    if exists (
+    -- من أطفأ هذا النوع على هاتفه لا يرنّ له - والإشعار في القائمة باقٍ.
+    -- إلا الإشعار العامّ: رسالة الإدارة للجميع لا تُطفأ
+    if new.kind::text <> 'announcement' and exists (
       select 1 from core.notification_prefs np
       where np.user_id = new.user_id and new.kind = any (np.muted_kinds)) then
       return new;
@@ -363,6 +364,10 @@ begin
   limit 1;
   if v_bad is not null then
     raise exception 'نوع إشعار غير معروف: %', v_bad using errcode = 'BD400';
+  end if;
+  -- الإشعار العامّ لا يُطفأ: رسالة الإدارة تصل الجميع
+  if 'announcement' = any (coalesce(p_kinds, '{}'::text[])) then
+    raise exception 'الإشعارات العامة لا يمكن إطفاؤها.' using errcode = 'BD400';
   end if;
 
   select coalesce(array_agg(distinct k::core.notification_kind order by k::core.notification_kind),

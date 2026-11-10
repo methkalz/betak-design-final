@@ -199,6 +199,7 @@ export const NOTIFICATION_LABELS: Record<NotificationKind, string> = {
   stock_received: 'إضافة بضاعة',
   payment: 'دفعة',
   project_annex: 'ملحق جديد',
+  announcement: 'إشعار عام',
 };
 
 /**
