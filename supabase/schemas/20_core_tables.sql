@@ -624,3 +624,15 @@ CREATE TABLE core.announcements (
     CONSTRAINT announcements_title_check CHECK (((length(btrim(title)) >= 2) AND (length(title) <= 80))),
     CONSTRAINT announcements_body_check CHECK ((length(body) <= 500))
 );
+
+CREATE TABLE core.app_release_policy (
+    platform text NOT NULL,
+    latest_build integer DEFAULT 0 NOT NULL,
+    min_build integer DEFAULT 0 NOT NULL,
+    ios_app_store_id text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by uuid,
+    CONSTRAINT app_release_policy_platform_check CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text]))),
+    CONSTRAINT app_release_policy_builds_check CHECK (((min_build >= 0) AND (latest_build >= min_build))),
+    CONSTRAINT app_release_policy_ios_id_check CHECK (((ios_app_store_id IS NULL) OR (ios_app_store_id ~ '^[0-9]{6,12}$'::text)))
+);

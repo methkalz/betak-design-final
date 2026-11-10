@@ -25,6 +25,9 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "env": {
+        "APP_VARIANT": "production"
+      },
       "android": {
         "buildType": "app-bundle"
       }

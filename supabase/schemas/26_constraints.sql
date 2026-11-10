@@ -365,3 +365,6 @@ ALTER TABLE ONLY core.announcements
     ADD CONSTRAINT announcements_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES core.profiles(id);
 ALTER TABLE ONLY core.notifications
     ADD CONSTRAINT notifications_announcement_id_fkey FOREIGN KEY (announcement_id) REFERENCES core.announcements(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY core.app_release_policy
+    ADD CONSTRAINT app_release_policy_pkey PRIMARY KEY (platform);

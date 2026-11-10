@@ -22,6 +22,7 @@ import {
   ScrollText,
   Scissors,
   Settings,
+  Smartphone,
   Tags,
   Users,
   Wallet,
@@ -135,6 +136,13 @@ export function secondaryLinks(db: Database, role: Role, userId?: UUID): LinkIte
       hint: 'رسالة إلى الطاقم كلّه على هواتفهم',
       icon: <Megaphone size={20} color={palette.olive} />,
       href: '/announcement',
+      show: role === 'admin',
+    },
+    {
+      label: 'إصدارات التطبيق',
+      hint: 'رسالة «يتوفر تحديث» والتحديث الإلزاميّ',
+      icon: <Smartphone size={20} color={palette.olive} />,
+      href: '/app-versions',
       show: role === 'admin',
     },
     {

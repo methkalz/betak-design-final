@@ -99,23 +99,31 @@ cd expo && bunx expo config --type introspect --json
 
 ويقفل `domain/appPermissions.test.ts` النيّة في كلّ `bun test`.
 
-## ★ runtimeVersion: مقايضةٌ مؤقّتة (29.9.2026)
+## ★ runtimeVersion منقسم: المعاينة والمتجر (11.11.2026)
 
-السياسة الآن **`sdkVersion`** لا `appVersion`.
+`app.config.js` يقرّر الـruntime حسب `APP_VARIANT`:
 
-**لماذا**: `appVersion` تُنتج «1.0.0»، وExpo Go يرفض أيّ runtime لا يبدأ
-بـ`exposdk:` - فيقول «there was a problem running the requested project»
-بلا سطرٍ في سجلّ الخادم. و`sdkVersion` تُنتج `exposdk:<SDK>.0.0` (اليوم 58) فيقبلها.
+| | المعاينة (preview وExpo Go) | المتجر (production) |
+|---|---|---|
+| السياسة | `sdkVersion` → `exposdk:58.0.0` | `fingerprint` → بصمة الجزء الأصليّ |
+| لماذا | Expo Go لا يقبل إلا ما يبدأ بـ`exposdk:` | تحديثٌ يحتاج حزمةً أصليّة جديدة لا يصل إلى نسخة متجرٍ لا تحملها فتنهار |
 
-**الثمن**: الحارس صار على مستوى SDK لا الإصدار. إضافةُ حزمةٍ أصليّة **داخل**
-الإصدار نفسه من SDK لا تُبدّل الـruntime، فقد يهبط تحديثٌ لاسلكيّ على بناءٍ يفتقر إليها.
+**⚠️ `APP_VARIANT=production` مطلوبٌ في البناء والنشر معًا:**
+- البناء: `eas.json` يضعه في profile `production`.
+- النشر: **`bun run update:prod` فقط**، ولا تكتب `eas update --branch production`
+  بيدك. نشرٌ بدونه يحسب runtime المعاينة، فلا يصل إلى أيّ نسخة متجر.
+- تحقّقٌ بعد أوّل بناء production: قيمة runtime على صفحة البناء في expo.dev
+  يجب أن تطابق `APP_VARIANT=production npx expo-updates fingerprint:generate`.
 
-**ولماذا هو مقبولٌ اليوم**: لا بناءَ واحدًا موجودًا - فالحارس لا يحمي شيئًا بعد.
+الحارس في `domain/platformContract.test.ts`.
 
-**★ قبل أوّل توزيعٍ حقيقيّ**: تُبدَّل إلى `fingerprint` - تجزّئ التبعيّات
-الأصليّة فتمسك هذا بالضبط. وتُغلق Expo Go عندئذٍ، وهو مقبولٌ حينها لأن
-الطاقم سيحمل بناءً حقيقيًّا. والحارس في `domain/platformContract.test.ts`
-يجب أن يُحدَّث معها.
+## «يتوفر تحديث» - بعد كلّ نسخةٍ جديدة في المتجر
+
+حين تُنشر نسخةٌ في المتجر، افتح «إصدارات التطبيق» (للأدمن) وارفع **«أحدث نسخة»**
+إلى رقم بنائها (Version code على أندرويد، وBuild number على iOS، من صفحة البناء
+في expo.dev). فيرى من لديه نسخةٌ أقدم شريط «يتوفر تحديث».
+و**«الحدّ الأدنى»** لا يُرفع إلا حين تتوقّف النسخ القديمة عن العمل، فمن دونه لا
+يستعمل التطبيق حتى يحدّث. على iOS أدخل معرّف التطبيق في App Store مرّةً واحدة.
 
 ## متى لا يكفي التحديث اللاسلكيّ
 

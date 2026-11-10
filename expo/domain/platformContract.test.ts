@@ -179,3 +179,46 @@ test('★ ملفّ Firebase للأندرويد يطابق هويّة التطب�
   );
   expect(pkgs).toContain(android.package);
 });
+
+/**
+ * ★ نسخ المتجر تُربط ببصمة الجزء الأصليّ، والمعاينة تبقى لـExpo Go.
+ *
+ * مع `sdkVersion` وحدها، تحديثٌ لاسلكيّ يحتاج حزمةً أصليّة جديدة يصل إلى نسخة
+ * متجرٍ قديمة تفتقر إليها فتنهار عند الفتح. البصمة تمنعه. والحلقات ثلاث، وسقوط
+ * أيّها يُعيد الخطر بلا خطأ: app.config.js يقرّر، وeas.json يضع المتغيّر في بناء
+ * المتجر، وأمر النشر يضعه في التحديث - وإلا لم يطابق تحديثٌ بناءً.
+ */
+test('★ runtime المتجر بصمةٌ أصليّة، والمعاينة exposdk', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const configFn = require(join(ROOT, 'app.config.js')) as (a: { config: Record<string, unknown> }) => Record<string, unknown>;
+  const base = JSON.parse(read('app.json')).expo;
+  const prev = process.env.APP_VARIANT;
+  try {
+    delete process.env.APP_VARIANT;
+    expect(configFn({ config: base }).runtimeVersion).toEqual({ policy: 'sdkVersion' });
+    process.env.APP_VARIANT = 'production';
+    expect(configFn({ config: base }).runtimeVersion).toEqual({ policy: 'fingerprint' });
+  } finally {
+    if (prev === undefined) delete process.env.APP_VARIANT;
+    else process.env.APP_VARIANT = prev;
+  }
+  const eas = JSON.parse(read('eas.json'));
+  expect(eas.build.production.env.APP_VARIANT).toBe('production');
+  expect(eas.build.preview.env?.APP_VARIANT).toBeUndefined();
+  expect(JSON.parse(read('package.json')).scripts['update:prod']).toMatch(/^APP_VARIANT=production eas update --branch production/);
+});
+
+/**
+ * ★ رسالة «يتوفر تحديث» تحمل نافذة المتجر الأصليّة، وتُركَّب في الجذر.
+ * النسخة الأولى في المتجر يجب أن تحملها: نسخةٌ بدونها لا ترى الرسالة أبدًا.
+ */
+test('★ «يتوفر تحديث» موصول: الحزمة الأصليّة، والمكوّن في الجذر، والتحميل الآمن', () => {
+  const pkg = JSON.parse(read('package.json'));
+  expect(pkg.dependencies['expo-in-app-updates']).toBeTruthy();
+  expect(pkg.dependencies['expo-application']).toBeTruthy();
+  expect(read('app/_layout.tsx')).toMatch(/<UpdateGate\s*\/>/);
+  // الوحدة غائبة عن Expo Go: استيرادها في رأس الملف يُسقط التطبيق هناك
+  const lib = read('lib/storeUpdate.ts');
+  expect(lib).not.toMatch(/^import .* from 'expo-in-app-updates'/m);
+  expect(lib).toMatch(/require\('expo-in-app-updates'\)/);
+});

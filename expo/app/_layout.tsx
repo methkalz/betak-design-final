@@ -16,6 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { DesktopShell } from '@/components/DesktopShell';
 import { IdleGuard } from '@/components/IdleGuard';
 import { PushBridge } from '@/components/PushBridge';
+import { UpdateGate } from '@/components/UpdateGate';
 import { HeaderBack } from '@/components/HeaderBack';
 import { font, palette } from '@/constants/theme';
 import { useAndroidBackFallback } from '@/lib/nav';
@@ -75,6 +76,7 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications" options={{ title: 'الإشعارات' }} />
       <Stack.Screen name="notification-settings" options={{ title: 'إعدادات الإشعارات' }} />
       <Stack.Screen name="announcement" options={{ title: 'إشعار عام' }} />
+      <Stack.Screen name="app-versions" options={{ title: 'إصدارات التطبيق' }} />
       <Stack.Screen name="settings" options={{ title: 'الإعدادات' }} />
       <Stack.Screen name="sync" options={{ title: 'مركز المزامنة' }} />
       <Stack.Screen name="audit" options={{ title: 'سجل التدقيق' }} />
@@ -114,6 +116,8 @@ export default function RootLayout() {
             <IdleGuard />
             {/* إشعارات الهاتف: تسجيل الجهاز، وفتح الشاشة عند اللمس - لا يرسم شيئًا */}
             <PushBridge />
+            {/* «يتوفر تحديث»: نسخةٌ جديدة في المتجر، أو تحديثٌ إلزاميّ */}
+            <UpdateGate />
             <DesktopShell>
               <RootLayoutNav />
             </DesktopShell>
