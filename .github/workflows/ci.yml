@@ -134,6 +134,10 @@ jobs:
         if: '!cancelled()'
         run: python3 supabase/tests/push_delivery.py 2>&1 | tee logs/push.log
 
+      - name: app release policy suite (store update prompt thresholds)
+        if: '!cancelled()'
+        run: python3 supabase/tests/app_release_policy.py 2>&1 | tee logs/release.log
+
       - name: HTTP JWT identity suite (Kong -> PostgREST -> RLS)
         if: '!cancelled()'
         run: python3 supabase/tests/http_jwt_identity.py 2>&1 | tee logs/http.log

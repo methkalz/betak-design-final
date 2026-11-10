@@ -84,3 +84,5 @@ COMMENT ON TABLE core.push_deliveries IS 'سجلّ تسليم إشعارات ا�
 COMMENT ON TABLE core.notification_prefs IS 'أنواع الإشعارات التي أطفأها المستخدم على هاتفه. الإشعار يبقى في قائمة التطبيق؛ الهاتف وحده لا يرنّ. لا صفّ = كلّ شيءٍ يرنّ.';
 
 COMMENT ON TABLE core.announcements IS 'الإشعارات العامة التي أرسلها الأدمن: من، وماذا، ولأيّ أدوار، وكم مستلمًا. صفوف المستلمين في core.notifications مربوطة بـ announcement_id.';
+
+COMMENT ON TABLE core.app_release_policy IS 'سياسة إصدارات المتجر لكلّ منصّة: latest_build (ما دونه «يتوفر تحديث») وmin_build (ما دونه تحديثٌ إلزاميّ). يضبطها الأدمن، ويقرؤها التطبيق قبل الدخول.';
