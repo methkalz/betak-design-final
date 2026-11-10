@@ -5,11 +5,11 @@
  * Build number على iOS). بعد نشر نسخةٍ في المتجر يُرفع «أحدث نسخة» إلى رقمها؛
  * و«الحدّ الأدنى» لا يُرفع إلا حين تتوقّف النسخ القديمة عن العمل.
  */
-import { Smartphone } from 'lucide-react-native';
+import { ShieldAlert, Smartphone } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 
-import { AppText, Banner, Button, Card, Field, Row, ScrollScreen, SectionHeader } from '@/components/ui';
+import { AppText, Banner, Button, Card, ConfirmSheet, Field, Row, ScrollScreen, SectionHeader } from '@/components/ui';
 import { palette, spacing } from '@/constants/theme';
 import { fetchPolicyFor, savePolicyFor, type StorePlatform } from '@/lib/releasePolicyAdmin';
 import { installedBuild, STORE_PLATFORM } from '@/lib/storeUpdate';
@@ -25,6 +25,9 @@ const LABEL: Record<StorePlatform, string> = { android: 'أندرويد (Google 
 
 function PlatformCard({ platform }: { platform: StorePlatform }) {
   const [draft, setDraft] = useState<Draft | null>(null);
+  // ما في الخادم الآن: رفعُ الحدّ الأدنى فوقه يحتاج تأكيدًا
+  const [savedMin, setSavedMin] = useState(0);
+  const [confirmMin, setConfirmMin] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -32,6 +35,7 @@ function PlatformCard({ platform }: { platform: StorePlatform }) {
     const r = await fetchPolicyFor(platform);
     if (r.ok) {
       setDraft({ latest: String(r.data.latestBuild), min: String(r.data.minBuild), iosId: r.data.iosAppStoreId ?? '' });
+      setSavedMin(r.data.minBuild);
     } else {
       setMsg({ ok: false, text: r.error });
     }
@@ -63,12 +67,16 @@ function PlatformCard({ platform }: { platform: StorePlatform }) {
           ? 'معرّف App Store أرقامٌ فقط.'
           : null;
 
+  // معرّف iOS يُرسل دائمًا بقيمته الحاليّة: الحقل الفارغ وحده يمسحه، عمدًا
   const save = async () => {
+    setConfirmMin(false);
     setSaving(true);
     const r = await savePolicyFor(platform, latest, min, platform === 'ios' ? draft.iosId.trim() || null : null);
     setSaving(false);
+    if (r.ok) setSavedMin(min);
     setMsg(r.ok ? { ok: true, text: 'حُفظ. يصل الطاقم عند فتح التطبيق التالي.' } : { ok: false, text: r.error });
   };
+  const requestSave = () => (min > savedMin ? setConfirmMin(true) : void save());
 
   return (
     <Card style={{ gap: spacing.md }}>
@@ -82,6 +90,12 @@ function PlatformCard({ platform }: { platform: StorePlatform }) {
       <AppText variant="caption" color={palette.muted}>
         من لديه رقمٌ أقلّ يرى «يتوفر تحديث» ويستطيع التأجيل. الصفر = لا شيء.
       </AppText>
+      <Row gap={spacing.sm} align="flex-start">
+        <ShieldAlert size={16} color={palette.warning} />
+        <AppText variant="caption" color={palette.warning} style={{ flex: 1 }}>
+          لا ترفع أيّ رقمٍ قبل أن تصبح النسخة متاحةً فعلًا في المتجر: بعد موافقة Apple، أو بعد اكتمال النشر في Google Play. وإلا طُلب من الطاقم تحديثٌ لا وجود له.
+        </AppText>
+      </Row>
       <Field
         label="الحدّ الأدنى الإلزاميّ"
         value={draft.min}
@@ -106,7 +120,17 @@ function PlatformCard({ platform }: { platform: StorePlatform }) {
         </AppText>
       )}
       {msg && <Banner tone={msg.ok ? 'success' : 'danger'} title={msg.text} />}
-      <Button label={saving ? 'جارٍ الحفظ…' : 'حفظ'} full disabled={!!invalid || saving} onPress={save} />
+      <Button label={saving ? 'جارٍ الحفظ…' : 'حفظ'} full disabled={!!invalid || saving} onPress={requestSave} />
+      <ConfirmSheet
+        visible={confirmMin}
+        title="رفع الحدّ الأدنى الإلزاميّ؟"
+        body={`كلّ من لديه نسخةٌ أقدم من ${min} على ${LABEL[platform]} لن يستطيع استعمال التطبيق حتى يحدّث. تأكّد أن هذه النسخة متاحةٌ الآن في المتجر لكلّ المستخدمين، وإلا أُقفل التطبيق عليهم.`}
+        confirmLabel="نعم، النسخة متاحة في المتجر"
+        tone="danger"
+        icon={<ShieldAlert size={22} color={palette.danger} />}
+        onConfirm={() => void save()}
+        onCancel={() => setConfirmMin(false)}
+      />
     </Card>
   );
 }
