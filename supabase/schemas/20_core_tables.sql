@@ -376,6 +376,7 @@ CREATE TABLE core.notifications (
     deep_link text,
     read_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    announcement_id uuid,
     CONSTRAINT notifications_title_check CHECK ((length(btrim(title)) > 0))
 );
 
@@ -609,4 +610,17 @@ CREATE TABLE core.notification_prefs (
     user_id uuid NOT NULL,
     muted_kinds core.notification_kind[] DEFAULT '{}'::core.notification_kind[] NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE TABLE core.announcements (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    sender_id uuid NOT NULL,
+    title text NOT NULL,
+    body text DEFAULT ''::text NOT NULL,
+    roles core.app_role[],
+    recipients integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT announcements_title_check CHECK (((length(btrim(title)) >= 2) AND (length(title) <= 80))),
+    CONSTRAINT announcements_body_check CHECK ((length(body) <= 500))
 );

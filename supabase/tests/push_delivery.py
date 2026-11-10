@@ -64,6 +64,7 @@ def notify(user, title, actor=None):
 PURGE = f"""
 set session_replication_role = replica;
 delete from core.push_deliveries      where organization_id = '{ORG}';
+delete from core.announcements        where organization_id = '{ORG}';
 delete from core.audit_logs           where organization_id = '{ORG}';
 delete from core.user_devices         where organization_id = '{ORG}'
    or expo_push_token like 'ExponentPushToken[push-suite-%';
@@ -331,6 +332,63 @@ sql(f"select private.send_visit_reminders({at_local('1 day 19 hours')});")
 next_eve, probe3 = scalar(V7_COUNT)
 check('36 موعدٌ ذُكِّر به ثم نُقل إلى ما بعد الغد يُذكَّر به مساء يومه الجديد - ومرّةً في اليوم فقط',
       first == '1' and same_day == '1' and next_eve == '2', probe1 + probe2 + probe3)
+
+# ── ٨) الإشعار العامّ ──────────────────────────────────────────────
+DRY = "set app.push_dry_run = 'on';\n"
+
+
+def announce(uid, title, roles='null', key=None, body='نصّ الإعلان'):
+    k = key or f"'{__import__('uuid').uuid4()}'"
+    return as_user(uid, DRY + f"select api.send_announcement('{title}', '{body}', {roles}, {k}::uuid)::text;")
+
+
+out = announce(A, 'إغلاق المحلّ يوم الجمعة')
+n_rows, probe = scalar("select count(*) || '|' || string_agg(user_id::text, ',') from core.notifications where kind = 'announcement' and title = 'إغلاق المحلّ يوم الجمعة';")
+check('37 الأدمن يرسل للجميع: صفٌّ لكلّ عضوٍ فاعل عدا المرسل والموقوف',
+      '"recipients": 1' in out and n_rows == f'1|{B}', out + probe)
+
+row, probe = scalar("""select d.status from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.title = 'إغلاق المحلّ يوم الجمعة';""")
+check('38 الإشعار العامّ يذهب إلى هاتف المستلم', row == 'dry_run', probe)
+
+out = as_user(B, "select api.set_muted_notification_kinds(array['announcement'])::text;")
+check('39 الإشعار العامّ لا يُطفأ من الإعدادات', 'ERROR' in out and 'لا يمكن إطفاؤها' in out, out)
+
+sql(f"insert into core.notification_prefs (user_id, muted_kinds) values ('{B}', array['announcement','payment']::core.notification_kind[]) "
+    "on conflict (user_id) do update set muted_kinds = excluded.muted_kinds;")
+announce(A, 'تغيير مواعيد الدوام')
+row, probe = scalar("""select d.status from core.push_deliveries d join core.notifications n on n.id = d.notification_id
+  where n.title = 'تغيير مواعيد الدوام';""")
+check('40 حتى لو كان مطفأً في القاعدة، الإشعار العامّ يرنّ', row == 'dry_run', probe)
+sql(f"delete from core.notification_prefs where user_id = '{B}';")
+
+out = announce(B, 'محاولة من خياط')
+check('41 غير الأدمن لا يرسل إشعارًا عامًّا → BD403', 'ERROR' in out and 'للأدمن وحده' in out, out)
+
+out_t = announce(A, 'للخياطين فقط', "array['tailor']")
+out_f = announce(A, 'للميدان فقط', "array['field']")
+out_x = announce(A, 'دور غريب', "array['pilot']")
+check('42 اختيار الأدوار: الخياط يستلم، والميدان بلا فاعلين يُرفض، والدور الغريب يُرفض باسمه',
+      '"recipients": 1' in out_t and 'ERROR' in out_f and 'لا يوجد مستلمون' in out_f
+      and 'ERROR' in out_x and 'pilot' in out_x, out_t + out_f + out_x)
+
+out1 = announce(A, 'ع', body='')
+out2 = announce(A, 'عنوان سليم', body='ن' * 501)
+check('43 العنوان من حرفين، والنصّ 500 حرف على الأكثر',
+      'ERROR' in out1 and 'العنوان' in out1 and 'ERROR' in out2 and '500' in out2, out1 + out2)
+
+KEY = "'ffffbbbb-0000-4000-8000-00000000dd01'"
+first = announce(A, 'رسالة مرّة واحدة', key=KEY)
+again = announce(A, 'رسالة مرّة واحدة', key=KEY)
+n, probe = scalar("select count(*) from core.notifications where title = 'رسالة مرّة واحدة';")
+check('44 الضغطة الثانية بالمفتاح نفسه لا ترسل ثانيةً', '"was_replayed": true' in again and n == '1', first + again + probe)
+
+hist = as_user(A, "select api.recent_announcements()::text;")
+deny = as_user(B, "select api.recent_announcements()::text;")
+audit, _ = scalar(f"select count(*) from core.audit_logs where organization_id = '{ORG}' and action = 'notification.announcement';")
+check('45 السجلّ للأدمن وحده، فيه المستلمون والمرسل، وكلّ إرسالٍ في التدقيق',
+      'إغلاق المحلّ يوم الجمعة' in hist and '"recipients": 1' in hist and 'أدمن الإشعارات' in hist
+      and 'ERROR' in deny and audit == '4', hist[:400] + deny + audit)
 
 print('\n=== cleanup ===')
 sql(PURGE)

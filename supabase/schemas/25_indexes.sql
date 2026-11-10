@@ -61,3 +61,6 @@ CREATE INDEX attachments_payment_idx ON core.attachments (organization_id, payme
 CREATE INDEX push_deliveries_pending_idx ON core.push_deliveries USING btree (status, updated_at) WHERE (status = ANY (ARRAY['queued'::text, 'sent'::text]));
 CREATE INDEX push_deliveries_request_idx ON core.push_deliveries USING btree (request_id);
 CREATE INDEX push_deliveries_receipt_idx ON core.push_deliveries USING btree (receipt_request_id) WHERE (receipt_request_id IS NOT NULL);
+
+CREATE INDEX announcements_org_created_idx ON core.announcements USING btree (organization_id, created_at DESC);
+CREATE INDEX notifications_announcement_idx ON core.notifications USING btree (announcement_id) WHERE (announcement_id IS NOT NULL);

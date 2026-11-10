@@ -82,3 +82,5 @@ COMMENT ON CONSTRAINT stock_movements_usage_consistency_fk ON core.stock_movemen
 
 COMMENT ON TABLE core.push_deliveries IS 'سجلّ تسليم إشعارات الهاتف: رسالةٌ لكلّ (إشعار × جهاز). queued في طابور pg_net، sent بتذكرة Expo، delivered بإيصال Apple/Google، failed مع السبب. يُنظَّف بعد ثلاثين يومًا.';
 COMMENT ON TABLE core.notification_prefs IS 'أنواع الإشعارات التي أطفأها المستخدم على هاتفه. الإشعار يبقى في قائمة التطبيق؛ الهاتف وحده لا يرنّ. لا صفّ = كلّ شيءٍ يرنّ.';
+
+COMMENT ON TABLE core.announcements IS 'الإشعارات العامة التي أرسلها الأدمن: من، وماذا، ولأيّ أدوار، وكم مستلمًا. صفوف المستلمين في core.notifications مربوطة بـ announcement_id.';
