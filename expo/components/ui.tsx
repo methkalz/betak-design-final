@@ -69,6 +69,9 @@ interface AppTextProps {
   align?: 'right' | 'left' | 'center';
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
+  /** يصغّر الخطّ حتى يتّسع في سطره بدل أن يُقصّ (مع numberOfLines). */
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }
 
 /**
@@ -100,10 +103,14 @@ export const AppText = memo(function AppText({
   align = 'right',
   style,
   numberOfLines,
+  adjustsFontSizeToFit,
+  minimumFontScale,
 }: AppTextProps) {
   return (
     <Text
       numberOfLines={numberOfLines}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
       style={[TEXT_STYLES[variant], { color, textAlign: align, writingDirection: 'rtl' }, style]}
     >
       {children}

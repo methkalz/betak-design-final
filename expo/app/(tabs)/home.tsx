@@ -635,8 +635,17 @@ function AdminDashboard() {
               <View style={[styles.heroChipIcon, { backgroundColor: palette.success }]}>
                 <ArrowUpRight size={14} color={palette.white} />
               </View>
-              <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.66)" style={{ fontSize: 13.5 }}>
+              {/* flex+minWidth: النصّ يعرف المساحة الباقية بعد الأيقونة؛ وبدونهما يفيض
+                  على أندرويد (خطّ القاهرة أعرض قليلًا) فيُقصّ عند حافّة البطاقة */}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText
+                  variant="caption"
+                  color="rgba(27,31,50,0.66)"
+                  style={{ fontSize: 13.5 }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   عروض متفق عليها
                 </AppText>
                 <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
@@ -648,8 +657,17 @@ function AdminDashboard() {
               <View style={[styles.heroChipIcon, { backgroundColor: palette.warning }]}>
                 <Clock3 size={14} color={palette.white} />
               </View>
-              <View>
-                <AppText variant="caption" color="rgba(27,31,50,0.66)" style={{ fontSize: 13.5 }}>
+              {/* flex+minWidth: النصّ يعرف المساحة الباقية بعد الأيقونة؛ وبدونهما يفيض
+                  على أندرويد (خطّ القاهرة أعرض قليلًا) فيُقصّ عند حافّة البطاقة */}
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText
+                  variant="caption"
+                  color="rgba(27,31,50,0.66)"
+                  style={{ fontSize: 13.5 }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
                   بانتظار الرد
                 </AppText>
                 <AppText variant="heading" color={palette.charcoal} numberOfLines={1}>
