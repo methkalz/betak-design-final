@@ -11,6 +11,7 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { font, palette } from '@/constants/theme';
 import { useIsDesktop } from '@/hooks/useResponsive';
@@ -23,6 +24,10 @@ export const unstable_settings = { anchor: 'home' };
 export default function TabsLayout() {
   const { role, currentUser, hydrated } = useStore();
   const isDesktop = useIsDesktop();
+  // أزرار النظام أسفل الشاشة (أندرويد ثلاثيّة الأزرار، وشريط الإيماءات،
+  // وخطّ الآيفون): الشريط يرتفع فوقها بقدرها على كلّ جهاز، لا بحشوةٍ ثابتة
+  const insets = useSafeAreaInsets();
+  const tabBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 28 : 10);
 
   // بوابة القوقعة: لا شاشة داخلية بلا جلسة. زر رجوع أندرويد على شاشة
   // الدخول كان يهبط هنا فيُعرض المعرض بدور «ميداني» افتراضي بلا كلمة سر -
@@ -46,9 +51,9 @@ export default function TabsLayout() {
           position: 'absolute',
           backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.92)',
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 86 : 68,
+          height: 58 + tabBottom,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingBottom: tabBottom,
           shadowColor: '#3F3D8F',
           shadowOpacity: 0.10,
           shadowRadius: 22,
