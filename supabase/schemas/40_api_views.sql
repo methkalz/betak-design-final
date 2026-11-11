@@ -318,7 +318,8 @@ create or replace view api.organization
 SELECT o.id AS organization_id,
     o.name,
     o.phone,
-    o.address
+    o.address,
+    o.manages_app_releases
    FROM core.organizations o
   WHERE o.archived_at IS NULL;
 

@@ -16,6 +16,8 @@ DB = os.environ.get('BAYTAK_DB_CONTAINER') or f'supabase-db-{IID}'
 ORG = 'ffffcccc-0000-4000-8000-000000000001'
 A = 'ffffcccc-0000-4000-8000-0000000000a1'   # أدمن
 T = 'ffffcccc-0000-4000-8000-0000000000a2'   # خياط
+ORG2 = 'ffffcccc-0000-4000-8000-000000000002'  # محلٌّ ثانٍ لا يملك الإصدارات (كالتجريبيّ)
+A2 = 'ffffcccc-0000-4000-8000-0000000000a3'   # أدمنه
 
 passed, failed = [], []
 
@@ -46,29 +48,31 @@ RESET = """update core.app_release_policy set latest_build = 0, min_build = 0, i
 PURGE = f"""
 set session_replication_role = replica;
 {RESET}
-delete from core.audit_logs           where organization_id = '{ORG}';
-delete from core.organization_members where organization_id = '{ORG}';
-delete from core.business_settings    where organization_id = '{ORG}';
-delete from core.organizations        where id = '{ORG}';
-delete from core.profiles             where id in ('{A}','{T}');
-delete from auth.users                where id in ('{A}','{T}');
+delete from core.audit_logs           where organization_id in ('{ORG}','{ORG2}');
+delete from core.organization_members where organization_id in ('{ORG}','{ORG2}');
+delete from core.business_settings    where organization_id in ('{ORG}','{ORG2}');
+delete from core.organizations        where id in ('{ORG}','{ORG2}');
+delete from core.profiles             where id in ('{A}','{T}','{A2}');
+delete from auth.users                where id in ('{A}','{T}','{A2}');
 set session_replication_role = origin;
 """
 
 print('=== seeding ===')
 users = ",\n ".join(
     f"('{u}','00000000-0000-0000-0000-000000000000','authenticated','authenticated',"
-    f"'rel{i}@t.local','x',now(),now(),now())" for i, u in enumerate([A, T]))
+    f"'rel{i}@t.local','x',now(),now(),now())" for i, u in enumerate([A, T, A2]))
 out = sql(PURGE + f"""
-insert into core.organizations (id,name) values ('{ORG}','معرض الإصدارات');
-insert into core.business_settings (organization_id) values ('{ORG}');
+insert into core.organizations (id,name,manages_app_releases) values
+ ('{ORG}','معرض الإصدارات',true), ('{ORG2}','معرض المراجعة',false);
+insert into core.business_settings (organization_id) values ('{ORG}'), ('{ORG2}');
 insert into auth.users (id,instance_id,aud,role,email,encrypted_password,
                         email_confirmed_at,created_at,updated_at) values
  {users};
 insert into core.profiles (id,full_name,phone) values
- ('{A}','أدمن الإصدارات','054-0000201'), ('{T}','خياط الإصدارات','054-0000202');
+ ('{A}','أدمن الإصدارات','054-0000201'), ('{T}','خياط الإصدارات','054-0000202'),
+ ('{A2}','أدمن المراجعة','054-0000203');
 insert into core.organization_members (organization_id,user_id,role,is_active) values
- ('{ORG}','{A}','admin',true), ('{ORG}','{T}','tailor',true);
+ ('{ORG}','{A}','admin',true), ('{ORG}','{T}','tailor',true), ('{ORG2}','{A2}','admin',true);
 """)
 if 'ERROR' in out:
     print(out); sys.exit(1)
@@ -104,6 +108,14 @@ check('06 معرّف App Store أرقامٌ فقط، ويُحفظ على iOS و�
 
 audit = sql(f"select count(*) from core.audit_logs where organization_id = '{ORG}' and action = 'settings.app_release';", quiet=False)
 check('07 كلّ ضبطٍ ناجحٍ يُكتب في التدقيق', '\n     3\n' in audit or ' 3\n' in audit, audit)
+
+out = as_user(A2, "select api.set_app_release_policy('android', 99, 99)::text;")
+read = as_user(T, "select api.app_release_policy('android')::text;")
+check('08 أدمن محلٍّ لا يملك الإصدارات (كالمراجِع) لا يغيّر السياسة العامّة',
+      'ERROR' in out and 'المحلّ المالك' in out and '"min_build": 99' not in read, out + read)
+
+view = as_user(A2, "select manages_app_releases::text from api.organization;")
+check('09 التطبيق يقرأ علم المحلّ ليُخفي الشاشة', 'false' in view and 'ERROR' not in view, view)
 
 print('\n=== cleanup ===')
 sql(PURGE)

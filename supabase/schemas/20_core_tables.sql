@@ -387,6 +387,7 @@ CREATE TABLE core.organizations (
     address text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     archived_at timestamp with time zone,
+    manages_app_releases boolean DEFAULT false NOT NULL,
     CONSTRAINT organizations_name_check CHECK ((length(btrim(name)) > 0))
 );
 

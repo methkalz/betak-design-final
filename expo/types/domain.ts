@@ -16,6 +16,8 @@ export interface Organization {
   phone: string;
   address: string;
   vatPercent: number;
+  /** المحلّ الذي يضبط إصدارات التطبيق في المتجر - واحدٌ فقط، لا التجريبيّ. */
+  managesAppReleases?: boolean;
 }
 
 export interface Profile {

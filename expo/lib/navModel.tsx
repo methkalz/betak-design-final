@@ -143,7 +143,8 @@ export function secondaryLinks(db: Database, role: Role, userId?: UUID): LinkIte
       hint: 'رسالة «يتوفر تحديث» والتحديث الإلزاميّ',
       icon: <Smartphone size={20} color={palette.olive} />,
       href: '/app-versions',
-      show: role === 'admin',
+      // السياسة عامّة لكلّ المحلّات: تظهر لأدمن المحلّ المالك وحده، لا للمراجِع
+      show: role === 'admin' && db.organization.managesAppReleases === true,
     },
     {
       label: 'سجل التدقيق',
