@@ -1,9 +1,11 @@
 import { useRouter } from 'expo-router';
 // أيقونات الروابط انتقلت إلى `lib/navModel` مع اللائحة نفسها؛ ما بقي هنا
 // هو أيقونات هذه الشاشة وحدها.
-import { ChevronLeft, CloudOff, LogOut, ShieldCheck } from 'lucide-react-native';
+import * as Application from 'expo-application';
+import * as WebBrowser from 'expo-web-browser';
+import { ChevronLeft, CloudOff, FileText, LifeBuoy, LogOut, ShieldCheck, Trash2 } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Switch, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
 
 import { AppText, Card, ConfirmSheet, Pill, Row, SectionHeader } from '@/components/ui';
 import { layout, palette, radius, spacing } from '@/constants/theme';
@@ -12,8 +14,25 @@ import { ROLE_LABELS, can } from '@/domain/permissions';
 import { unreadCount } from '@/hooks/selectors';
 import { Avatar } from '@/components/Avatar';
 import { PoweredBy } from '@/components/PoweredBy';
+import { LEGAL_LINKS, type LegalLink } from '@/domain/legalLinks';
 import { secondaryLinks } from '@/lib/navModel';
 import { useStore } from '@/providers/store';
+
+const LEGAL_ICONS: Record<LegalLink['key'], React.ReactNode> = {
+  privacy: <ShieldCheck size={20} color={palette.olive} />,
+  terms: <FileText size={20} color={palette.olive} />,
+  support: <LifeBuoy size={20} color={palette.olive} />,
+  'delete-account': <Trash2 size={20} color={palette.danger} />,
+};
+
+// داخل التطبيق على الهاتف (متصفّحٌ منبثق يُغلق فيعود المستخدم)، ونافذةٌ جديدة على الويب
+function openLegal(url: string) {
+  if (Platform.OS === 'web') {
+    void Linking.openURL(url);
+    return;
+  }
+  WebBrowser.openBrowserAsync(url).catch(() => Linking.openURL(url).catch(() => {}));
+}
 
 export default function MoreScreen() {
   const { db, currentUser, role, isOnline, setIsOnline, signOut } = useStore();
@@ -150,6 +169,56 @@ export default function MoreScreen() {
         </Card>
       </View>
 
+      {/* الخصوصية وحذف الحساب داخل التطبيق: شرط Google Play وApple 5.1.1(v) */}
+      <View>
+        <SectionHeader title="الخصوصية والحساب" />
+        <Card padded={false}>
+          {LEGAL_LINKS.map((l, i, arr) => (
+            <Pressable
+              key={l.key}
+              accessibilityRole="link"
+              accessibilityLabel={l.label}
+              onPress={() => openLegal(l.url)}
+              style={({ pressed }) => [
+                {
+                  paddingHorizontal: spacing.lg,
+                  paddingVertical: spacing.md,
+                  minHeight: 64,
+                  justifyContent: 'center',
+                  borderBottomWidth: i === arr.length - 1 ? 0 : 1,
+                  borderBottomColor: palette.line,
+                  backgroundColor: pressed ? palette.ivoryDeep : 'transparent',
+                },
+              ]}
+            >
+              <Row gap={spacing.md}>
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: radius.md,
+                    backgroundColor: l.danger ? palette.dangerSoft : palette.ivoryDeep,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {LEGAL_ICONS[l.key]}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <AppText variant="label" color={l.danger ? palette.danger : palette.charcoal}>
+                    {l.label}
+                  </AppText>
+                  <AppText variant="caption" color={palette.muted}>
+                    {l.hint}
+                  </AppText>
+                </View>
+                <ChevronLeft size={18} color={palette.muted} />
+              </Row>
+            </Pressable>
+          ))}
+        </Card>
+      </View>
+
       <Pressable
         onPress={() => setConfirmOut(true)}
         style={({ pressed }) => [
@@ -173,7 +242,8 @@ export default function MoreScreen() {
       </Pressable>
 
       <AppText variant="caption" color={palette.muted} align="center">
-        بيتك ديزاين • إصدار 1.0 • {db.organization.name}
+        بيتك ديزاين • إصدار {Application.nativeApplicationVersion ?? '1.0.0'}
+        {Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ''} • {db.organization.name}
       </AppText>
 
       {/* على نافذةٍ أضيق من 1024 تعود القوقعة شظيّةً فلا شريطَ جانبيّ ولا

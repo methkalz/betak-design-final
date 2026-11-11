@@ -125,6 +125,30 @@ cd expo && bunx expo config --type introspect --json
 و**«الحدّ الأدنى»** لا يُرفع إلا حين تتوقّف النسخ القديمة عن العمل، فمن دونه لا
 يستعمل التطبيق حتى يحدّث. على iOS أدخل معرّف التطبيق في App Store مرّةً واحدة.
 
+## قبل الرفع إلى المتجرين (11.11.2026)
+
+**الروابط** (صفحاتٌ ثابتة على betakd.com نشرتها جلسة Ralabase، مصدرها
+`ralabase/ops/news-server-20261028/betakd-site/build.py`):
+
+| الخانة | الرابط |
+|---|---|
+| Privacy Policy (المتجران) | https://betakd.com/privacy/ |
+| Support URL (Apple) | https://betakd.com/support/ |
+| Marketing URL | https://betakd.com/about/ |
+| Account deletion URL (Google Play) | https://betakd.com/delete-account/ |
+
+**داخل التطبيق** (شرط Google Play وApple 5.1.1 v): «سياسة الخصوصية» على شاشة
+الدخول وفي «المزيد»، و«طلب حذف الحساب» في «المزيد» ← «الخصوصية والحساب».
+
+**حساب المراجِع:** في «معرض تجريبي - للمراجعة»
+(`d3d3d3d3-0000-4000-8000-000000000001`)، وهو محلٌّ منفصل ببياناتٍ وهمية ودور أدمن.
+يُنشأ بسكربت يطلب كلمة السرّ من المالك (رقم الدخول الافتراضيّ 0500000777)،
+ويُكتب في App Store Connect ← App Review Information وفي Google Play Console ←
+App access. لا يُعطى المراجِع حسابًا في المحلّ الحقيقيّ.
+
+**النشر على betakd.com يضيف ولا يحذف:** في الجذر صفحات المتجر أعلاه، وليست من
+بناء Expo.
+
 ## متى لا يكفي التحديث اللاسلكيّ
 
 يحمل JS وحدها. يلزم بناءٌ جديد (خطوة ٥) حين:

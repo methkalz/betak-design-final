@@ -8,10 +8,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Phone, ShieldCheck } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -25,6 +27,7 @@ import { PoweredBy } from '@/components/PoweredBy';
 import { AppText, Banner, Row } from '@/components/ui';
 import { font, layout, palette, radius, shadow, spacing } from '@/constants/theme';
 import { useResponsive, useTopPad } from '@/hooks/useResponsive';
+import { LEGAL_LINKS } from '@/domain/legalLinks';
 import { fetchLiveDatabase } from '@/lib/live';
 import { normalizePhone } from '@/lib/phone';
 import { useAuth } from '@/providers/auth';
@@ -184,6 +187,21 @@ export default function LoginScreen() {
             <AppText variant="caption" color={palette.muted} align="center">
               كل ما تدخله يُحفظ على خادم معرضك. إن نسيت كلمة السر فاطلبها من الأدمن.
             </AppText>
+            {/* المراجِع في المتجر يرى هذه الشاشة أوّلًا: سياسة الخصوصية قبل الدخول */}
+            <Pressable
+              accessibilityRole="link"
+              onPress={() =>
+                Platform.OS === 'web'
+                  ? void Linking.openURL(PRIVACY_URL)
+                  : WebBrowser.openBrowserAsync(PRIVACY_URL).catch(() => {})
+              }
+              hitSlop={8}
+              style={{ alignSelf: 'center' }}
+            >
+              <AppText variant="caption" color={palette.olive}>
+                سياسة الخصوصية
+              </AppText>
+            </Pressable>
           </View>
         )}
 
@@ -194,6 +212,8 @@ export default function LoginScreen() {
     </LinearGradient>
   );
 }
+
+const PRIVACY_URL = LEGAL_LINKS.find((l) => l.key === 'privacy')!.url;
 
 const styles = StyleSheet.create({
   panel: {
