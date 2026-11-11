@@ -136,12 +136,12 @@ function PlatformCard({ platform }: { platform: StorePlatform }) {
 }
 
 export default function AppVersionsScreen() {
-  const { source, role } = useStore();
+  const { source, role, db } = useStore();
 
-  if (role !== 'admin') {
+  if (role !== 'admin' || (source === 'live' && db.organization.managesAppReleases !== true)) {
     return (
       <ScrollScreen>
-        <Banner tone="warning" title="للأدمن وحده" body="ضبط إصدارات المتجر صلاحية الأدمن." />
+        <Banner tone="warning" title="غير متاح" body="إصدارات التطبيق يضبطها أدمن المحلّ المالك وحده." />
       </ScrollScreen>
     );
   }

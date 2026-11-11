@@ -119,6 +119,7 @@ export async function fetchLiveDatabase(): Promise<{ db: Database; me: LiveIdent
     phone: s(org.phone),
     address: s(org.address),
     vatPercent: n(st.vat_percent),
+    managesAppReleases: org.manages_app_releases === true,
   };
 
   const settings: BusinessSettings = {

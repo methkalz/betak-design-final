@@ -35,6 +35,10 @@ begin
   if v_org is null or not private.is_admin(v_org) then
     raise exception 'إصدارات المتجر للأدمن وحده.' using errcode = 'BD403';
   end if;
+  -- السياسة عامّة لكلّ المحلّات: يضبطها أدمن المحلّ المالك وحده
+  if (select o.manages_app_releases from core.organizations o where o.id = v_org) is not true then
+    raise exception 'إصدارات التطبيق يضبطها المحلّ المالك وحده.' using errcode = 'BD403';
+  end if;
   if p_platform is null or p_platform not in ('ios', 'android') then
     raise exception 'المنصّة ios أو android.' using errcode = 'BD400';
   end if;

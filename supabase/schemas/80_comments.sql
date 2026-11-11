@@ -86,3 +86,4 @@ COMMENT ON TABLE core.notification_prefs IS 'أنواع الإشعارات ال�
 COMMENT ON TABLE core.announcements IS 'الإشعارات العامة التي أرسلها الأدمن: من، وماذا، ولأيّ أدوار، وكم مستلمًا. صفوف المستلمين في core.notifications مربوطة بـ announcement_id.';
 
 COMMENT ON TABLE core.app_release_policy IS 'سياسة إصدارات المتجر لكلّ منصّة: latest_build (ما دونه «يتوفر تحديث») وmin_build (ما دونه تحديثٌ إلزاميّ). يضبطها الأدمن، ويقرؤها التطبيق قبل الدخول.';
+COMMENT ON COLUMN core.organizations.manages_app_releases IS 'المحلّ الذي يضبط إصدارات التطبيق في المتجر (core.app_release_policy عامّ لكلّ المحلّات). واحدٌ فقط true: المحلّ الحقيقيّ، لا التجريبيّ.';
