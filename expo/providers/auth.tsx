@@ -37,7 +37,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInLive = useCallback(async (phone: string, password: string) => {
     const identity = phoneIdentityEmail(phone);
     if (!identity) {
-      return { ok: false as const, error: 'رقم الهاتف غير صحيح - مثال: 0526444414' };
+      return { ok: false as const, error: 'رقم الهاتف غير صحيح - مثال: 05XXXXXXXX' };
     }
     const { error } = await supabase.auth.signInWithPassword({
       email: identity,

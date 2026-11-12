@@ -47,7 +47,7 @@ export default function LoginScreen() {
 
   const submit = useCallback(async () => {
     if (!normalizePhone(phoneInput)) {
-      setError('أدخل رقم هاتف صحيح - مثال: 0526444414');
+      setError('أدخل رقم هاتف صحيح - مثال: 05XXXXXXXX');
       return;
     }
     if (!password) {

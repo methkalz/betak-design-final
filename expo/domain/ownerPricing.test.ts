@@ -7,10 +7,12 @@
 import { test, expect } from 'bun:test';
 
 import { buildSeed } from '@/data/seed';
+import { withOwnerCosts } from '@/data/ownerCosts.fixture';
 import { priceWindow } from './pricing';
 import type { WindowUnit } from '@/types/domain';
 
-const db = buildSeed();
+// تكاليف المالك الحقيقية من ملف اختبارات لا يُحزَم - البيانات التجريبية بتكاليف وهمية
+const db = withOwnerCosts(buildSeed());
 const V = (sku: string) => db.fabricVariants.find((v) => v.sku === sku)!;
 const P = (id: string) => db.fabricProducts.find((p) => p.id === id)!;
 
