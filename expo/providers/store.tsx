@@ -469,7 +469,7 @@ export const [StoreProvider, useStore] = createContextHook(() => {
       if (input.fullName.trim().length < 3)
         return failWith('اسم الزبون قصير جدًا.', 'validation');
       if (!/^0\d{1,2}-?\d{7}$/.test(input.phone.replace(/\s/g, '')))
-        return failWith('رقم الهاتف غير صالح (مثال: 052-6444414).', 'validation');
+        return failWith('رقم الهاتف غير صالح (مثال: 05X-XXXXXXX).', 'validation');
 
       if (source === 'live') {
         const slot = `cust:${input.fullName.trim()}:${input.phone.trim()}`;

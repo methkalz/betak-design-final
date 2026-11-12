@@ -43,7 +43,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: palette.olive,
         tabBarInactiveTintColor: palette.muted,
-        tabBarLabelStyle: { fontFamily: font.medium, fontSize: 12, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: font.medium, fontSize: 12, lineHeight: 18, marginTop: 2 },
         // على المكتب يحلّ الشريط الجانبي (DesktopShell) محلّ هذا الشريط
         // فيُخفى - والمسارات تبقى قائمة، وإنّما يغيب رسمُ الشريط وحده.
         // شريط زجاجي عائم: خلفية blur حقيقية على iOS وشفافية بيضاء على أندرويد
@@ -51,8 +51,8 @@ export default function TabsLayout() {
           position: 'absolute',
           backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.92)',
           borderTopWidth: 0,
-          height: 58 + tabBottom,
-          paddingTop: 8,
+          height: 66 + tabBottom,
+          paddingTop: 6,
           paddingBottom: tabBottom,
           shadowColor: '#3F3D8F',
           shadowOpacity: 0.10,

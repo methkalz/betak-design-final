@@ -39,12 +39,12 @@ export default function NewCustomerScreen() {
       <Card>
         <View style={{ gap: spacing.lg }}>
           <AppText variant="heading">بيانات الزبون</AppText>
-          <Field label="الاسم الكامل" value={fullName} onChangeText={setFullName} placeholder="مثال: مثقال زيدان" />
+          <Field label="الاسم الكامل" value={fullName} onChangeText={setFullName} placeholder="مثال: ليلى حسن" />
           <Field
             label="رقم الهاتف"
             value={phone}
             onChangeText={setPhone}
-            placeholder="052-6444414"
+            placeholder="05X-XXXXXXX"
             keyboardType="phone-pad"
           />
           <TownField value={city} onChangeText={setCity} />

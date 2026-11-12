@@ -12,10 +12,12 @@
 import { test, expect } from 'bun:test';
 
 import { buildSeed } from '@/data/seed';
+import { withOwnerCosts } from '@/data/ownerCosts.fixture';
 import { computeTotals, priceWindow } from './pricing';
 import type { TrackType, WindowUnit } from '@/types/domain';
 
-const db = buildSeed();
+// تكاليف المالك الحقيقية من ملف اختبارات لا يُحزَم - البيانات التجريبية بتكاليف وهمية
+const db = withOwnerCosts(buildSeed());
 
 /* ─── نسخة الصفحة، كما هي في baytak-calculator.html ─── */
 

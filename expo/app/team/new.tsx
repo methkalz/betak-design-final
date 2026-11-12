@@ -87,7 +87,7 @@ export default function NewStaffScreen() {
       <Card>
         <AppText variant="heading">بيانات الحساب</AppText>
         <View style={{ marginTop: spacing.md, gap: spacing.lg }}>
-          <Field label="الاسم الكامل" value={fullName} onChangeText={setFullName} placeholder="مثال: أبو داني" />
+          <Field label="الاسم الكامل" value={fullName} onChangeText={setFullName} placeholder="مثال: أبو سامي" />
           <Field
             label="رقم الهاتف"
             value={phone}
